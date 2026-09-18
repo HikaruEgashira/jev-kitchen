@@ -1,0 +1,14 @@
+# ローカル開発用。このファイルを .dev.vars にコピーする。
+# wrangler は .dev.vars があると .env を読まない（併用不可）。
+# 本番は `wrangler secret put` と GitHub Secrets を使う。
+
+# --- Jev のバックエンドはどちらか一方 ---
+# 1) TypeSafe 直API（推奨）。Workers AI の AI Gateway クレジットが不要。
+#    日本からの実測: 温状態 約430ms / 初回TLS 約1.2s。
+TYPESAFE_API_KEY=
+TYPESAFE_MODEL=jev-latest
+
+# 2) Workers AI の AI バインディング。AI Gateway のクレジットが必要。
+#    TYPESAFE_API_KEY を空にするとこちらに切り替わる（未購入だと 2021 エラー）。
+CLOUDFLARE_API_TOKEN=
+CLOUDFLARE_ACCOUNT_ID=

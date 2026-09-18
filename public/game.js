@@ -125,7 +125,7 @@ async function maybeDecide() {
     }
     const answer = res.result?.answers?.next_action;
     const cand = cands.find((c) => c.id === answer?.choice);
-    applyDecision(cand, obsAt, latency, answer?.confidence ?? null, cands, res.upstreamMs);
+    applyDecision(cand, obsAt, latency, answer?.confidence ?? null, cands, res.upstreamMs, res.via);
   } catch (err) {
     log('AI', `! ${err?.message ?? err}`);
   } finally {
@@ -133,11 +133,11 @@ async function maybeDecide() {
   }
 }
 
-function applyDecision(cand, obsAt, latency, confidence, cands, upstreamMs) {
+function applyDecision(cand, obsAt, latency, confidence, cands, upstreamMs, via) {
   decisions += 1;
   hud.obs = obsLabel(obsAt);
   hud.age = `${Math.round(performance.now() - obsAt)} ms`;
-  hud.lat = upstreamMs != null ? `${latency} / model ${upstreamMs} ms` : `${latency} ms`;
+  hud.lat = upstreamMs != null ? `${latency}ms（model ${upstreamMs}ms · ${via}）` : `${latency} ms`;
   hud.conf = confidence == null ? '—' : confidence.toFixed(2);
   hud.cands = cands.length;
 

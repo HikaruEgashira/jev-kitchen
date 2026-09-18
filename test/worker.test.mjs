@@ -42,6 +42,7 @@ test('forwards a valid decision to Jev and returns the answer', async () => {
   const body = await res.json();
   assert.equal(body.ok, true);
   assert.equal(body.engine, 'jev');
+  assert.equal(body.via, 'workers-ai');
   assert.equal(body.result.answers.next_action.choice, 'wait');
   assert.equal(typeof body.upstreamMs, 'number');
 
@@ -98,4 +99,60 @@ test('the LLM baseline picks a valid id and does not confuse substrings', async 
   );
   const body = await res.json();
   assert.equal(body.result.answers.next_action.choice, 'fetch_plate');
+});
+
+test('a TypeSafe key switches /api/decide to the direct API', async () => {
+  const original = globalThis.fetch;
+  let seen;
+  globalThis.fetch = async (url, init) => {
+    seen = { url: String(url), body: JSON.parse(init.body), auth: init.headers.authorization };
+    return new Response(
+      JSON.stringify({
+        model: 'jev-1.13.0',
+        answers: { next_action: { type: 'choice', choice: 'serve' } },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  };
+  try {
+    const res = await worker.fetch(
+      post('/api/decide', { state: { policy: 'x' }, questions: validQuestions }),
+      {
+        TYPESAFE_API_KEY: 'sk-test',
+        AI: {
+          async run() {
+            throw new Error('the Workers AI binding must not be used');
+          },
+        },
+      },
+    );
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.via, 'typesafe-api');
+    assert.equal(body.result.answers.next_action.choice, 'serve');
+    assert.equal(seen.url, 'https://api.typesafe.ai/v1/systemone');
+    assert.equal(seen.auth, 'Bearer sk-test');
+    assert.equal(seen.body.model, 'jev-latest');
+    assert.deepEqual(seen.body.questions, validQuestions);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('a failed direct call surfaces the upstream status and body', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response('insufficient credits', { status: 402 });
+  try {
+    const res = await worker.fetch(
+      post('/api/decide', { state: 'x', questions: validQuestions }),
+      { TYPESAFE_API_KEY: 'sk-test', AI: { run: async () => ({}) } },
+    );
+    assert.equal(res.status, 502);
+    const body = await res.json();
+    assert.equal(body.ok, false);
+    assert.equal(body.via, 'typesafe-api');
+    assert.match(body.error, /402/);
+  } finally {
+    globalThis.fetch = original;
+  }
 });

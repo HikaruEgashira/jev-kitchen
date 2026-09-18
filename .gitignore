@@ -4,10 +4,10 @@ dist/
 .venv/
 __pycache__/
 *.py[cod]
+backend/.python-version
+
 .env
 .env.*
-!.env.example
-backend/.python-version
 
 # wrangler
 .dev.vars

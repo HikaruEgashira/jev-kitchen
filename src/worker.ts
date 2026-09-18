@@ -12,10 +12,15 @@ interface AiBinding {
 
 export interface Env {
   AI: AiBinding;
+  /** When set, the direct TypeSafe API is used instead of the Workers AI binding. */
+  TYPESAFE_API_KEY?: string;
+  TYPESAFE_MODEL?: string;
 }
 
 const JEV_MODEL = 'typesafe/jev';
 const LLM_MODEL = '@cf/meta/llama-3.1-8b-instruct';
+const TYPESAFE_URL = 'https://api.typesafe.ai/v1/systemone';
+const DEFAULT_TYPESAFE_MODEL = 'jev-latest';
 
 const json = (data: unknown, status = 200): Response =>
   new Response(JSON.stringify(data), {
@@ -25,6 +30,43 @@ const json = (data: unknown, status = 200): Response =>
 
 const errMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e);
+
+/**
+ * Two routes to the same model.
+ *
+ *  - `TYPESAFE_API_KEY` set -> TypeSafe's own API (no Cloudflare billing).
+ *  - otherwise             -> the Workers AI `typesafe/jev` binding.
+ *
+ * Workers AI runs third-party models through AI Gateway billing, which fails
+ * with `2021: Insufficient AI Gateway credits` on an uncredited account, so the
+ * direct API is the working default for this demo.
+ */
+async function runJev(
+  env: Env,
+  input: { state: unknown; questions: unknown },
+): Promise<{ result: any; via: 'typesafe-api' | 'workers-ai' }> {
+  if (env.TYPESAFE_API_KEY) {
+    const res = await fetch(TYPESAFE_URL, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${env.TYPESAFE_API_KEY}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: env.TYPESAFE_MODEL ?? DEFAULT_TYPESAFE_MODEL,
+        state: input.state,
+        questions: input.questions,
+      }),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`${res.status}: ${text.slice(0, 300)}`);
+    return { result: JSON.parse(text), via: 'typesafe-api' };
+  }
+  return { result: await env.AI.run(JEV_MODEL, input), via: 'workers-ai' };
+}
+
+const jevVia = (env: Env): 'typesafe-api' | 'workers-ai' =>
+  env.TYPESAFE_API_KEY ? 'typesafe-api' : 'workers-ai';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -46,7 +88,7 @@ export default {
 async function health(env: Env): Promise<Response> {
   const t0 = Date.now();
   try {
-    const result = await env.AI.run(JEV_MODEL, {
+    const { result, via } = await runJev(env, {
       state: 'A cook is chopping a tomato in a small kitchen.',
       questions: {
         ok: { type: 'noul', instructions: 'Is a cook chopping a tomato?' },
@@ -55,6 +97,7 @@ async function health(env: Env): Promise<Response> {
     return json({
       ok: true,
       engine: 'jev',
+      via,
       model: result?.model ?? null,
       upstreamMs: Date.now() - t0,
       answers: result?.answers ?? null,
@@ -62,7 +105,13 @@ async function health(env: Env): Promise<Response> {
     });
   } catch (e) {
     return json(
-      { ok: false, engine: 'jev', upstreamMs: Date.now() - t0, error: errMessage(e) },
+      {
+        ok: false,
+        engine: 'jev',
+        via: jevVia(env),
+        upstreamMs: Date.now() - t0,
+        error: errMessage(e),
+      },
       502,
     );
   }
@@ -83,14 +132,20 @@ async function decide(request: Request, env: Env): Promise<Response> {
 
   const t0 = Date.now();
   try {
-    const result = await env.AI.run(JEV_MODEL, {
+    const { result, via } = await runJev(env, {
       state: body.state,
       questions: body.questions,
     });
-    return json({ ok: true, engine: 'jev', upstreamMs: Date.now() - t0, result });
+    return json({ ok: true, engine: 'jev', via, upstreamMs: Date.now() - t0, result });
   } catch (e) {
     return json(
-      { ok: false, engine: 'jev', upstreamMs: Date.now() - t0, error: errMessage(e) },
+      {
+        ok: false,
+        engine: 'jev',
+        via: jevVia(env),
+        upstreamMs: Date.now() - t0,
+        error: errMessage(e),
+      },
       502,
     );
   }

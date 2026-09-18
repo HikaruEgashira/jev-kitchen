@@ -3,7 +3,7 @@
 人間とAIが同じ厨房で注文をさばく、小さな協力ゲーム。AI（相棒）は指示を待たず、
 人間が触っていない作業を見つけて引き継ぐ。プレイ中に方針を変えると、同じ盤面でも選ぶ行動が変わる。
 
-Cloudflare Workers（静的アセット + API）と Workers AI の `typesafe/jev` で動く。
+Cloudflare Workers（静的アセット + API）と、Jev（TypeSafe の System One モデル）で動く。
 
 ## 仕組み
 
@@ -24,6 +24,18 @@ Jev が Choice で次の一手を選ぶ（Worker は薄いプロキシ）
 - 判断は約420msごと。飛行中の観測は積まず、応答が来たら最新状態で再検証して無効なら破棄する（HUDの「破棄した古い判断」）。
 - `confidence` は確率分布から出る指標なので確率として扱わない。表示のみ。
 
+## Jev への接続は2経路
+
+| 経路 | 条件 | 課金 | 実測 |
+| --- | --- | --- | --- |
+| TypeSafe 直API | `TYPESAFE_API_KEY` を設定 | TypeSafe の利用枠 | 日本から 温 約430ms / 初回TLS 約1.2s |
+| Workers AI バインディング | キー未設定 | AI Gateway のクレジットが必要 | 未計測 |
+
+Workers AI は第三者が提供するモデルを AI Gateway の課金に載せるため、クレジット未購入だと
+`2021: Insufficient AI Gateway credits` で失敗する（このアカウントがそれだった）。
+そこで**直APIを既定**にし、キーを外せば Workers AI に切り替わるようにしてある。
+どちらで応答したかは `/api/health` と HUD の `via` に出る。
+
 ## ファイル
 
 | path | 役割 |
@@ -39,13 +51,14 @@ Jev が Choice で次の一手を選ぶ（Worker は薄いプロキシ）
 
 ```sh
 pnpm install
+
+cp .dev.vars.example .dev.vars   # TYPESAFE_API_KEY を入れる（.dev.vars は git 管理外）
 pnpm test
 pnpm typecheck
 
-# AI バインディングは remote 実行のため認証が要る
-pnpm exec wrangler login        # または .env に CLOUDFLARE_API_TOKEN を置く
-pnpm dev                        # http://127.0.0.1:8787
-curl http://127.0.0.1:8787/api/health   # 会場でのモデル応答時間をここで測る
+pnpm exec wrangler login         # AI バインディングを宣言しているため dev でも認証が要る
+pnpm dev                         # http://127.0.0.1:8787
+curl http://127.0.0.1:8787/api/health   # 会場での応答時間をここで測る（via も出る）
 ```
 
 操作: WASD で移動、E で作業。右パネルの「協働方針」に自由記述（例:「最後の盛り付けは自分でやりたい」）。
@@ -56,8 +69,9 @@ curl http://127.0.0.1:8787/api/health   # 会場でのモデル応答時間を�
 Worker 本体は wrangler（main push で `.github/workflows/deploy.yml`）。Terraform はカスタムドメインだけを持つ。
 
 ```sh
-pnpm deploy                                   # Worker を配布
-cd terraform && terraform init && terraform apply   # domain を接続（deploy の後）
+pnpm exec wrangler secret put TYPESAFE_API_KEY   # 直API を使う場合（初回のみ）
+pnpm deploy                                       # Worker を配布
+cd terraform && terraform init && terraform apply # domain を接続（deploy の後）
 ```
 
 - state: R2 `terraform-state` / key `jev-kitchen/terraform.tfstate`（egahika.dev と同バケット）
@@ -73,24 +87,28 @@ cd terraform && terraform init && terraform apply   # domain を接続（deploy 
 5. 「今は注文を最優先。私のやりかけも引き継いでいい」→ 同じ盤面で選ぶ行動が変わる。
 6. 操作を止める → 補佐役から、自分で進める役に切り替わる。
 
-HUD には「相棒の行動」「判断に使った状態の時刻」「鮮度（観測からの経過）」「応答時間」「確信度」「破棄した古い判断」を出す。
+HUD には「相棒の行動」「判断に使った状態の時刻」「鮮度（観測からの経過）」「応答時間（via付き）」「確信度」「破棄した古い判断」を出す。
 
 ## 検証済み / 未検証
 
-検証済み（`pnpm test` / `pnpm typecheck` / `wrangler deploy --dry-run`）:
+検証済み:
 
-- 4工程パイプライン、まな板の排他、stale 判断の破棄、候補列挙、固定ルールの配慮
-- Worker の入力検証と Jev への転送（`env.AI` をスタブして実ハンドラを実行）
+- `pnpm test` 12件 / `pnpm typecheck` / `wrangler deploy --dry-run`（assets 3件と binding を認識）
+- `terraform validate`（警告ゼロ）
+- TypeSafe 直API の実呼び出し（日本から 温 0.43s / 初回 1.2s。`model` フィールド必須）
 
-未検証（Cloudflare 未ログインのため）:
+未検証:
 
-- 実 Jev の応答時間と、日本からの会場相当の遅延（`/api/health` で要測定）
+- Workers AI バインディング経路（AI Gateway クレジット未購入のため 2021 エラー。課金すれば切り替わる）
+- 実 Jev を回したときのゲームの手触り（決定ループの体感、破棄が起きる頻度）
 - 日本語の方針入力の解釈精度（Jev は英語最適化）
-- `cloudflare_workers_domain` の実 apply、`wrangler login` 後の実 deploy
+- `cloudflare_workers_domain` の実 apply
 - 比較用LLMの既定モデル `@cf/meta/llama-3.1-8b-instruct` は会場で差し替え可
 
 ## 技術負債メモ
 
-- `.env` / `.env.keys` は旧案（TypeSafe 直API）の名残。今は Workers AI バインディング経由なので不要。削除するか、CLOUDFLARE_* だけにする。
+- `.env` / `.env.keys` は dotenvx で暗号化されているが、`.env` は git 管理外なので暗号化の意味がなく、
+  wrangler は復号しないため `encrypted:...` をそのまま渡して壊れていた。`.dev.vars` に一本化済み。
+  `.env` / `.env.keys` は削除してよい（dotenvx を使う予定が無ければ）。
 - `.github/workflows/*.yml` の actions はタグ参照。egahika.dev は SHA 固定なので、安定後に揃える。
 - 比較用LLMは `state` を JSON で詰める素朴なプロンプト。Jev と同じ情報を渡す最小構成で、プロンプト最適化はしていない。
