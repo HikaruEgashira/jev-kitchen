@@ -66,17 +66,45 @@ curl http://127.0.0.1:8787/api/health   # 会場での応答時間をここで�
 
 ## デプロイ
 
-Worker 本体は wrangler（main push で `.github/workflows/deploy.yml`）。Terraform はカスタムドメインだけを持つ。
+Worker 本体は wrangler（main push で `.github/workflows/deploy.yml`）。Terraform は
+カスタムドメインと Cloudflare Access を持つ。
 
 ```sh
-pnpm exec wrangler secret put TYPESAFE_API_KEY   # 直API を使う場合（初回のみ）
 pnpm deploy                                       # Worker を配布
-cd terraform && terraform init && terraform apply # domain を接続（deploy の後）
+cd terraform && terraform init && terraform apply # domain と Access を接続（deploy の後）
+pnpm exec wrangler secret put TYPESAFE_API_KEY    # Access を有効にした後で（初回のみ）
 ```
 
 - state: R2 `terraform-state` / key `jev-kitchen/terraform.tfstate`（egahika.dev と同バケット）
 - 初回は **wrangler deploy → terraform apply** の順。custom domain は Worker が無いと作れない。
 - 必要な Secrets: `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`
+
+## セキュリティ
+
+**注意: `/api/decide` は誰でも叩ける公開エンドポイントで、`TYPESAFE_API_KEY` を設定すると
+そのURLを知っている第三者があなたの TypeSafe 利用枠を消費できる。** Access を有効にするまで
+本番にキーを入れないこと。
+
+- Cloudflare Access（`terraform/access.tf`）: `jev-kitchen.hikae.workers.dev` を
+  `account@egahika.dev` のみ許可。IdP 未設定でも One-time PIN で認証できる。
+  2026-08 以降は Worker 自体にも Access を付けられるが、provider v4 にリソースが無いため
+  hostname 単位の self-hosted アプリで保護している。
+- アプリ層: `state` の型/長さ、`questions` の形（型・1..8問・choice 2..255・score 2..10）を検証して
+  からモデルを呼ぶ（課金前に弾く）。Jev/LLM の出力は候補IDに照合し、実行直前に `isFeasible()` で
+  再検証するので、プロンプト注入で自由な行動をさせられない。サーバに状態を持たない。
+- 未対応: Worker 側で Access JWT を検証していない（エッジで弾かれるため必須ではない）。
+  レート制限は未設定。
+
+### Access を今すぐ有効にするには
+
+wrangler の OAuth トークンは Access を**読めるが書けない**（`1010 auth.forbidden`）。
+次のどちらかが要る。
+
+1. ダッシュボード（最速・約30秒）: Workers & Pages → `jev-kitchen` → Settings → Domains & Routes →
+   `workers.dev` の **Enable Cloudflare Access** → 許可メールを `account@egahika.dev` にする。
+2. Terraform: `Access: Apps and Policies: Edit` 権限の `CLOUDFLARE_API_TOKEN` と R2 の state
+   資格情報を用意して `terraform apply`。
+
 
 ## デモ台本
 
