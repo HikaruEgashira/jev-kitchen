@@ -77,7 +77,8 @@ pnpm deploy                                       # または main push
 ```
 
 - main push で `.github/workflows/deploy.yml` が `wrangler deploy` する。
-- 必要な Secrets: `CLOUDFLARE_API_TOKEN`（Workers Scripts: Edit）/ `CLOUDFLARE_ACCOUNT_ID`
+- 必要な Secrets（この repo の GitHub Secrets。未設定だとワークフローが認証で落ちる）:
+  `CLOUDFLARE_API_TOKEN`（Workers Scripts: Edit）/ `CLOUDFLARE_ACCOUNT_ID`
 - ホスト名の付与と Cloudflare Access は **egahika.dev repo の Terraform** で行う。
   初回は「egahika.dev を apply → この repo を deploy」の順（custom domain は Worker を要求する）。
 
@@ -109,6 +110,9 @@ HUD には「相棒の行動」「判断に使った状態の時刻」「鮮度�
 
 - `pnpm test` 12件 / `pnpm typecheck` / `wrangler deploy --dry-run`
 - TypeSafe 直API の実呼び出し（日本から 温 0.43s / 初回 1.2s。`model` フィールド必須）
+- egahika.dev の Terraform apply で custom domain と Access を作成（`Plan: 3 to add`）
+- Access が実際に効いていること: `https://jev-kitchen.egahika.dev/` と `/api/decide` が未ログインで
+  302 → `0xhikae.cloudflareaccess.com` に飛ぶ。`https://jev-kitchen.hikae.workers.dev/` は 404（workers_dev 無効）
 
 未検証:
 
