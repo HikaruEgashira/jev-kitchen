@@ -78,6 +78,9 @@ pnpm exec wrangler secret put TYPESAFE_API_KEY    # Access を有効にした後
 - state: R2 `terraform-state` / key `jev-kitchen/terraform.tfstate`（egahika.dev と同バケット）
 - 初回は **wrangler deploy → terraform apply** の順。custom domain は Worker が無いと作れない。
 - 必要な Secrets: `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`
+- `CLOUDFLARE_API_TOKEN` に必要な権限（不足していると apply がどこかで落ちる）:
+  Account → **Workers Scripts: Edit**（deploy）/ **Access: Apps and Policies: Edit**（Access）/
+  **Account Settings: Read**、Zone → **Zone: Read** / **DNS: Edit**（custom domain）
 
 ## セキュリティ
 
