@@ -7,7 +7,7 @@ Cloudflare Workers（静的アセット + API）と、Jev（TypeSafe の System 
 
 ## 責務の分担
 
-- **この repo**: ソースコードと wrangler。Worker のデプロイは main push（`.github/workflows/deploy.yml`）。
+- **この repo**: ソースコードと wrangler だけ。Cloudflare のトークンは持たない。デプロイは手元で実行する。
 - **egahika.dev repo**: Cloudflare リソース（custom domain `jev-kitchen.egahika.dev` と Cloudflare Access）。
   Worker 本体はここにコピーせず、Worker 名で参照する（`email_routing_rule` の `agentic-inbox` と同じ結合）。
 - `workers_dev` は無効。公開経路は Access で保護された custom domain のみ。
@@ -69,18 +69,20 @@ curl http://127.0.0.1:8787/api/health   # 会場での応答時間をここで�
 操作: WASD で移動、E で作業。右パネルの「協働方針」に自由記述（例:「最後の盛り付けは自分でやりたい」）。
 エンジンは `Jev / 固定ルール / 低遅延LLM` を切り替えて比較できる。
 
-## デプロイ
+## デプロイ（手元から）
+
+**CI に Cloudflare のトークンは置かない。** `wrangler login` 済みの手元で実行する。
 
 ```sh
-pnpm exec wrangler secret put TYPESAFE_API_KEY   # 初回のみ
-pnpm deploy                                       # または main push
+pnpm test && pnpm typecheck                        # 先に検証
+pnpm exec wrangler secret put TYPESAFE_API_KEY     # 初回のみ
+pnpm deploy                                        # wrangler deploy
 ```
 
-- main push で `.github/workflows/deploy.yml` が `wrangler deploy` する。
-- 必要な Secrets（この repo の GitHub Secrets。未設定だとワークフローが認証で落ちる）:
-  `CLOUDFLARE_API_TOKEN`（Workers Scripts: Edit）/ `CLOUDFLARE_ACCOUNT_ID`
-- ホスト名の付与と Cloudflare Access は **egahika.dev repo の Terraform** で行う。
-  初回は「egahika.dev を apply → この repo を deploy」の順（custom domain は Worker を要求する）。
+- ホスト名の付与と Cloudflare Access は **egahika.dev repo の Terraform** が持つ。
+  初回は「egahika.dev を apply → ここで deploy」の順（custom domain は Worker を要求する）。
+- CI（`.github/workflows/test.yml`）は資格情報が要らない `pnpm test` / `pnpm typecheck` のみ。
+  デプロイのワークフローは置かない。
 
 ## セキュリティ
 
@@ -126,5 +128,7 @@ HUD には「相棒の行動」「判断に使った状態の時刻」「鮮度�
 - `.env` / `.env.keys` は dotenvx で暗号化されているが、`.env` は git 管理外なので暗号化の意味がなく、
   wrangler は復号しないため `encrypted:...` をそのまま渡して壊れていた。`.dev.vars` に一本化済み。
   `.env` / `.env.keys` は削除してよい（dotenvx を使う予定が無ければ）。
-- `.github/workflows/deploy.yml` の actions はタグ参照。egahika.dev は SHA 固定なので、安定後に揃える。
+- `.gitignore` はこの repo に terraform を持たない前提。Cloudflare リソースは egahika.dev 側。
+- `.github/workflows/test.yml` の actions はタグ参照。egahika.dev は SHA 固定なので、安定後に揃える。
+- デプロイが手元実行なので、main と本番が一致しない時間帯がある。デプロイ忘れは CI では検知できない。
 - 比較用LLMは `state` を JSON で詰める素朴なプロンプト。Jev と同じ情報を渡す最小構成で、プロンプト最適化はしていない。
