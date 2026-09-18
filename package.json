@@ -6,7 +6,7 @@
     "dev": "wrangler dev",
     "dev:remote": "wrangler dev --remote",
     "deploy": "wrangler deploy",
-    "test": "node --test test/",
+    "test": "node --test",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

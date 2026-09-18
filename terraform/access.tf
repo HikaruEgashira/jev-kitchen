@@ -1,17 +1,24 @@
 # Worker を自分のアカウントのメールだけに閉じる。
 # IdP を設定していなくても Access の One-time PIN（メールOTP）で認証できる。
 #
-# 注意: これは hostname 単位の保護。Worker 自体に Access を付ける新API
-# （2026-08 の Worker-level Access）は provider v4 に無いため、当面は
-# 実際に配信している workers.dev のホスト名を対象にする。
+# workers.dev と custom domain の両方を対象にする。片方だけだと、Terraform が
+# custom domain を作った瞬間にそちらが素通りになる。
+# Worker 自体に Access を付ける新API（2026-08 の Worker-level Access）は
+# provider v4 に無いため、hostname 単位で保護している。
+locals {
+  protected_hosts = [
+    var.access_hostname,
+    "${var.subdomain}.${var.domain}",
+  ]
+}
+
 resource "cloudflare_zero_trust_access_application" "kitchen" {
-  account_id                = var.account_id
-  name                      = "jev-kitchen"
-  domain                    = var.access_hostname
-  type                      = "self_hosted"
-  session_duration          = var.access_session_duration
-  app_launcher_visible      = false
-  auto_redirect_to_identity = false
+  account_id           = var.account_id
+  name                 = "jev-kitchen"
+  type                 = "self_hosted"
+  session_duration     = var.access_session_duration
+  app_launcher_visible = false
+  self_hosted_domains  = local.protected_hosts
 }
 
 resource "cloudflare_zero_trust_access_policy" "owner_only" {
