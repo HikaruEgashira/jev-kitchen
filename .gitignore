@@ -1,0 +1,23 @@
+node_modules/
+.pnpm-store/
+dist/
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+backend/.python-version
+
+# wrangler
+.dev.vars
+.wrangler/
+
+# terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!*.tfvars.example
+*.tfplan

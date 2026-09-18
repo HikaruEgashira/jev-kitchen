@@ -1,0 +1,5 @@
+# pnpm 10+ はパッケージ設定をここに置く（package.json の "pnpm" フィールドは読まれない）。
+# wrangler が依存する esbuild / workerd は postinstall で実行ファイルを配置するため許可する。
+allowBuilds:
+  esbuild: true
+  workerd: true
