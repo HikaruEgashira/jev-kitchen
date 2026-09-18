@@ -5,6 +5,13 @@
 
 Cloudflare Workers（静的アセット + API）と、Jev（TypeSafe の System One モデル）で動く。
 
+## 責務の分担
+
+- **この repo**: ソースコードと wrangler。Worker のデプロイは main push（`.github/workflows/deploy.yml`）。
+- **egahika.dev repo**: Cloudflare リソース（custom domain `jev-kitchen.egahika.dev` と Cloudflare Access）。
+  Worker 本体はここにコピーせず、Worker 名で参照する（`email_routing_rule` の `agentic-inbox` と同じ結合）。
+- `workers_dev` は無効。公開経路は Access で保護された custom domain のみ。
+
 ## 仕組み
 
 ```
@@ -32,9 +39,8 @@ Jev が Choice で次の一手を選ぶ（Worker は薄いプロキシ）
 | Workers AI バインディング | キー未設定 | AI Gateway のクレジットが必要 | 未計測 |
 
 Workers AI は第三者が提供するモデルを AI Gateway の課金に載せるため、クレジット未購入だと
-`2021: Insufficient AI Gateway credits` で失敗する（このアカウントがそれだった）。
-そこで**直APIを既定**にし、キーを外せば Workers AI に切り替わるようにしてある。
-どちらで応答したかは `/api/health` と HUD の `via` に出る。
+`2021: Insufficient AI Gateway credits` で失敗する。そこで**直APIを既定**にし、キーを外せば
+Workers AI に切り替わるようにしてある。どちらで応答したかは `/api/health` と HUD の `via` に出る。
 
 ## ファイル
 
@@ -44,7 +50,6 @@ Workers AI は第三者が提供するモデルを AI Gateway の課金に載せ
 | `public/game.js` | 描画・入力・意思決定ループ |
 | `public/model.js` | 純粋なゲームロジック（DOM/通信なし。node から import して検証できる） |
 | `src/worker.ts` | `/api/decide`（Jev）/ `/api/decide-llm`（比較用LLM）/ `/api/health` |
-| `terraform/` | `jev-kitchen.egahika.dev` のカスタムドメインだけを管理 |
 | `test/` | model.js と worker.ts の自己チェック |
 
 ## ローカル実行
@@ -66,48 +71,26 @@ curl http://127.0.0.1:8787/api/health   # 会場での応答時間をここで�
 
 ## デプロイ
 
-Worker 本体は wrangler（main push で `.github/workflows/deploy.yml`）。Terraform は
-カスタムドメインと Cloudflare Access を持つ。
-
 ```sh
-pnpm deploy                                       # Worker を配布
-cd terraform && terraform init && terraform apply # domain と Access を接続（deploy の後）
-pnpm exec wrangler secret put TYPESAFE_API_KEY    # Access を有効にした後で（初回のみ）
+pnpm exec wrangler secret put TYPESAFE_API_KEY   # 初回のみ
+pnpm deploy                                       # または main push
 ```
 
-- state: R2 `terraform-state` / key `jev-kitchen/terraform.tfstate`（egahika.dev と同バケット）
-- 初回は **wrangler deploy → terraform apply** の順。custom domain は Worker が無いと作れない。
-- 必要な Secrets: `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`
-- `CLOUDFLARE_API_TOKEN` に必要な権限（不足していると apply がどこかで落ちる）:
-  Account → **Workers Scripts: Edit**（deploy）/ **Access: Apps and Policies: Edit**（Access）/
-  **Account Settings: Read**、Zone → **Zone: Read** / **DNS: Edit**（custom domain）
+- main push で `.github/workflows/deploy.yml` が `wrangler deploy` する。
+- 必要な Secrets: `CLOUDFLARE_API_TOKEN`（Workers Scripts: Edit）/ `CLOUDFLARE_ACCOUNT_ID`
+- ホスト名の付与と Cloudflare Access は **egahika.dev repo の Terraform** で行う。
+  初回は「egahika.dev を apply → この repo を deploy」の順（custom domain は Worker を要求する）。
 
 ## セキュリティ
 
-**注意: `/api/decide` は誰でも叩ける公開エンドポイントで、`TYPESAFE_API_KEY` を設定すると
-そのURLを知っている第三者があなたの TypeSafe 利用枠を消費できる。** Access を有効にするまで
-本番にキーを入れないこと。
-
-- Cloudflare Access（`terraform/access.tf`）: `jev-kitchen.hikae.workers.dev` を
-  `account@egahika.dev` のみ許可。IdP 未設定でも One-time PIN で認証できる。
-  2026-08 以降は Worker 自体にも Access を付けられるが、provider v4 にリソースが無いため
-  hostname 単位の self-hosted アプリで保護している。
+- `workers_dev` を無効化しているため、公開されるのは `jev-kitchen.egahika.dev` のみ。
+  そこは Cloudflare Access で `access_owner_email` だけが許可される（egahika.dev repo 側で定義）。
+- **`/api/decide` は呼ばれた分だけ TypeSafe の利用枠を消費する。** Access を有効にする前に
+  `TYPESAFE_API_KEY` を本番へ入れると、URL を知っている第三者が枠を燃やせる。
 - アプリ層: `state` の型/長さ、`questions` の形（型・1..8問・choice 2..255・score 2..10）を検証して
-  からモデルを呼ぶ（課金前に弾く）。Jev/LLM の出力は候補IDに照合し、実行直前に `isFeasible()` で
-  再検証するので、プロンプト注入で自由な行動をさせられない。サーバに状態を持たない。
-- 未対応: Worker 側で Access JWT を検証していない（エッジで弾かれるため必須ではない）。
-  レート制限は未設定。
-
-### Access を今すぐ有効にするには
-
-wrangler の OAuth トークンは Access を**読めるが書けない**（`1010 auth.forbidden`）。
-次のどちらかが要る。
-
-1. ダッシュボード（最速・約30秒）: Workers & Pages → `jev-kitchen` → Settings → Domains & Routes →
-   `workers.dev` の **Enable Cloudflare Access** → 許可メールを `account@egahika.dev` にする。
-2. Terraform: `Access: Apps and Policies: Edit` 権限の `CLOUDFLARE_API_TOKEN` と R2 の state
-   資格情報を用意して `terraform apply`。
-
+  からモデルを呼ぶ（課金前に弾く）。出力は候補IDに照合し、実行直前に `isFeasible()` で再検証するので、
+  プロンプト注入で自由な行動をさせられない。サーバに状態を持たない。
+- 未対応: Worker 側で Access JWT を検証していない（エッジで弾かれるため必須ではない）。レート制限は未設定。
 
 ## デモ台本
 
@@ -124,8 +107,7 @@ HUD には「相棒の行動」「判断に使った状態の時刻」「鮮度�
 
 検証済み:
 
-- `pnpm test` 12件 / `pnpm typecheck` / `wrangler deploy --dry-run`（assets 3件と binding を認識）
-- `terraform validate`（警告ゼロ）
+- `pnpm test` 12件 / `pnpm typecheck` / `wrangler deploy --dry-run`
 - TypeSafe 直API の実呼び出し（日本から 温 0.43s / 初回 1.2s。`model` フィールド必須）
 
 未検証:
@@ -133,7 +115,6 @@ HUD には「相棒の行動」「判断に使った状態の時刻」「鮮度�
 - Workers AI バインディング経路（AI Gateway クレジット未購入のため 2021 エラー。課金すれば切り替わる）
 - 実 Jev を回したときのゲームの手触り（決定ループの体感、破棄が起きる頻度）
 - 日本語の方針入力の解釈精度（Jev は英語最適化）
-- `cloudflare_workers_domain` の実 apply
 - 比較用LLMの既定モデル `@cf/meta/llama-3.1-8b-instruct` は会場で差し替え可
 
 ## 技術負債メモ
@@ -141,5 +122,5 @@ HUD には「相棒の行動」「判断に使った状態の時刻」「鮮度�
 - `.env` / `.env.keys` は dotenvx で暗号化されているが、`.env` は git 管理外なので暗号化の意味がなく、
   wrangler は復号しないため `encrypted:...` をそのまま渡して壊れていた。`.dev.vars` に一本化済み。
   `.env` / `.env.keys` は削除してよい（dotenvx を使う予定が無ければ）。
-- `.github/workflows/*.yml` の actions はタグ参照。egahika.dev は SHA 固定なので、安定後に揃える。
+- `.github/workflows/deploy.yml` の actions はタグ参照。egahika.dev は SHA 固定なので、安定後に揃える。
 - 比較用LLMは `state` を JSON で詰める素朴なプロンプト。Jev と同じ情報を渡す最小構成で、プロンプト最適化はしていない。

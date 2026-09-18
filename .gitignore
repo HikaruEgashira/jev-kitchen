@@ -12,12 +12,3 @@ backend/.python-version
 # wrangler
 .dev.vars
 .wrangler/
-
-# terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-crash.log
-*.tfvars
-!*.tfvars.example
-*.tfplan
