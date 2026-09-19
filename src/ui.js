@@ -703,7 +703,9 @@ export function screen(s, view, width, height) {
     } else if (page === 'hints') {
       const preparing = s.phase === 'finished' && s.cleared;
       const stages =
-        view.page === 2 ? ['staffing', 'stock'] : [view.page === 3 ? 'investment' : 'hiring'];
+        view.page === 2
+          ? ['staffing', 'stock']
+          : [view.page === 3 ? 'investment' : g.level < 3 ? 'stock' : 'hiring'];
       const warning = s.benchmark
         ? s.benchFeedback?.loop
         : preparing
