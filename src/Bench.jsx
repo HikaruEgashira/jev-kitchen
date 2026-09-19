@@ -11,6 +11,9 @@ import {
 import './bench.css';
 
 const Kitchen = lazy(() => import('./Kitchen.jsx'));
+// The decision endpoint always serves Jev, so keep it selectable even when the
+// API is unreachable (local dev without `pnpm dev:api`).
+const DEFAULT_MODELS = [{ id: 'jev', name: 'Jev' }];
 const statusNames = {
   completed: '全レベルクリア',
   failed: 'ノルマ未達',
@@ -38,7 +41,7 @@ function download(result) {
 export default function Bench() {
   const bench = useBenchmark();
   const kitchen = useKitchen();
-  const [models, setModels] = useState([]);
+  const [models, setModels] = useState(DEFAULT_MODELS);
   const [modelId, setModelId] = useState('jev');
   const [error, setError] = useState('');
   useEffect(() => {
@@ -47,7 +50,12 @@ export default function Bench() {
     fetch('/api/bench/models', { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error('モデル一覧の取得に失敗しました');
-        setModels((await response.json()).models);
+        const list = (await response.json()).models;
+        if (Array.isArray(list))
+          setModels([
+            ...DEFAULT_MODELS,
+            ...list.filter((model) => !DEFAULT_MODELS.some((known) => known.id === model.id)),
+          ]);
       })
       .catch((e) => {
         if (!controller.signal.aborted) setError(e.message);
