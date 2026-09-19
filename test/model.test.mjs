@@ -715,6 +715,76 @@ test('blocked work still exposes a safe wait and hand recovery action', () => {
   }
 });
 
+test('blocked cooks can discard, clean burnt cookware and start cooking again', () => {
+  for (const staffId of ['chef', 'sous']) {
+    for (const station of ['pot', 'pot2', 'grill', 'grill2']) {
+      const kind = stationKind(station);
+      const recipe = kind === 'pot' ? 'soup' : 'roast';
+      const g = createGame({
+        level: 20,
+        stock: 4,
+        staffId,
+        equipment: { [kind]: { count: 2 } },
+      });
+      g.orders = g.orders.map((o) => ({ ...o, recipe }));
+      for (const id of activeStationIds(g).filter((id) => stationKind(id) === kind))
+        g.stations[id].state = 'burnt';
+      Object.assign(g.stations[station], { state: 'ready', burnAt: 1 });
+      Object.assign(g.ai, { carrying: 'chopped', quality: true });
+      advance(g, 1);
+      assert.equal(g.stations[station].state, 'burnt');
+
+      const recovery = rulePick(g, buildCandidates(g));
+      assert.equal(recovery.id, 'discard', `${staffId}: ${station}`);
+      assert.equal(isFeasible(g, recovery), true);
+      const stock = g.stock;
+      g.combo = 3;
+      assert.equal(discard(g, staffId), true);
+      assert.equal(g.ai.carrying, null);
+      assert.equal(g.ai.quality, null);
+      assert.equal(g.stock, stock);
+      assert.equal(g.combo, 0);
+      assert.equal(isFeasible(g, recovery), false);
+      const clean = buildCandidates(g).find((c) => c.station === station);
+      assert.equal(clean.baseId ?? clean.id, `clean_${kind}`);
+      assert.equal(interact(g, staffId, clean.station).ok, true);
+      assert.equal(g.stations[station].state, 'idle');
+      g.ai.carrying = 'chopped';
+      assert.equal(interact(g, staffId, station).ok, true);
+      assert.equal(g.stations[station].state, 'cooking');
+    }
+  }
+});
+
+test('hand recovery respects usable stations, crew reservations and stale decisions', () => {
+  const g = createGame({
+    level: 20,
+    stock: 4,
+    duty: ['chef', 'sous'],
+    equipment: { pot: { count: 2 } },
+  });
+  g.orders = g.orders.map((o) => ({ ...o, recipe: 'soup' }));
+  g.ai.carrying = 'chopped';
+  g.stations.pot.state = 'burnt';
+  const cook = rulePick(g, buildCandidates(g));
+  assert.equal(cook.station, 'pot2');
+  assert.equal(cook.baseId, 'cook');
+  assert.ok(!buildCandidates(g).some((c) => c.id === 'discard'));
+  g.crew.sous.intent = { id: 'cook_pot2', station: 'pot2' };
+  const recovery = rulePick(g, buildCandidates(g));
+  assert.equal(recovery.id, 'discard');
+  g.crew.sous.intent = null;
+  assert.equal(isFeasible(g, recovery), false);
+  assert.equal(g.ai.carrying, 'chopped');
+  g.ai.carrying = 'tomato';
+  g.crew.sous.intent = { id: 'chop', station: 'board' };
+  assert.equal(rulePick(g, buildCandidates(g)).id, 'return_tomato');
+  assert.ok(!buildCandidates(g).some((c) => c.id === 'discard'));
+  g.time = g.duration;
+  assert.equal(isFeasible(g, { id: 'discard', station: null }), false);
+  assert.equal(discard(g, 'chef'), false);
+});
+
 test('soup cooks asynchronously and needs a plate before serving', () => {
   const g = createGame({ level: 5, stock: 2 });
   assert.equal(g.level, 5);

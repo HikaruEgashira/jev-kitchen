@@ -877,11 +877,11 @@ export function buildCandidates(g, who) {
       add('return_plate', 'お皿を戻して手を空ける', 'plates');
     }
     if (e.carrying === 'tomato') {
-      const idleBoard = boards.some((station) => g.stations[station].state === 'idle');
       for (const station of boards)
         if (g.stations[station].state === 'idle')
           add('chop', `${stationName(g, station)}で切り始める`, station);
-      if (player || !idleBoard) add('return_tomato', 'トマトを戻して別の仕事を手伝う', 'crate');
+      if (player || out.length === 0)
+        add('return_tomato', 'トマトを戻して別の仕事を手伝う', 'crate');
     }
     if (!e.carrying) {
       if (
@@ -923,8 +923,9 @@ export function buildCandidates(g, who) {
       )
         add('fetch_plate', 'お皿を用意する', 'plates');
     }
+    if (e.carrying && (player || out.length === 0))
+      add('discard', '手元の物を捨てる（コンボをリセット）', null);
     if (player) {
-      if (e.carrying) add('discard', '手元の物を捨てる（コンボをリセット）', null);
       const near = stationAt(g, 'human');
       if (near.inReach && out.some((c) => c.station === near.id))
         add('interact', '近くの作業台で作業する（E）', near.id);

@@ -272,6 +272,61 @@ test('API failure falls back without a request storm and mode changes invalidate
   }
 });
 
+test('AI recovers from burnt cookware through tick in rule, Jev and offline modes', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const mode of ['rule', 'jev', 'offline']) {
+      for (const station of ['pot', 'pot2', 'grill', 'grill2']) {
+        startShift();
+        setMode(mode === 'rule' ? 'rule' : 'jev');
+        const kind = station.startsWith('pot') ? 'pot' : 'grill';
+        const g = createGame({
+          level: 20,
+          stock: 4,
+          staffId: 'sous',
+          equipment: { [kind]: { count: 2 } },
+        });
+        useKitchen.setState({ game: g });
+        g.orders = g.orders.map((o) => ({
+          ...o,
+          recipe: kind === 'pot' ? 'soup' : 'roast',
+          deadline: 89_000,
+        }));
+        g.stations[kind].state = 'burnt';
+        g.stations[`${kind}2`].state = 'burnt';
+        Object.assign(g.stations[station], { state: 'ready', burnAt: 1 });
+        g.ai.carrying = 'chopped';
+        let calls = 0;
+        globalThis.fetch = async (_url, request) => {
+          calls++;
+          const criteria = JSON.parse(request.body).questions.next_action.criteria;
+          assert.ok(Object.hasOwn(criteria, 'discard'));
+          if (mode === 'offline') throw new Error('offline');
+          return Response.json({
+            ok: true,
+            result: { answers: { next_action: { choice: 'discard' } } },
+          });
+        };
+        tick(0.05);
+        await new Promise(setImmediate);
+        assert.equal(g.ai.intent.id, 'discard', `${mode}: ${station}`);
+        assert.equal(calls, mode === 'rule' ? 0 : 1);
+        assert.equal(useKitchen.getState().fallback, mode === 'offline');
+        tick(0.05);
+        assert.equal(g.ai.carrying, null);
+        setMode('rule');
+        for (let i = 0; i < 900 && g.served === 0; i++) tick(0.05);
+        assert.notEqual(g.stations[station].state, 'burnt', `${mode}: ${station}`);
+        assert.equal(g.served, 1, `${mode}: ${station}`);
+        togglePause();
+      }
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (useKitchen.getState().phase === 'playing') togglePause();
+  }
+});
+
 test('rapid policy typing debounces AI requests', async () => {
   const originalFetch = globalThis.fetch;
   let calls = 0;
