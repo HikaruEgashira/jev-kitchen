@@ -613,6 +613,28 @@ test('three order previews stay below the compact staff roster', () => {
   assert.equal(ui.items.find((item) => item.id === 'roster').text, 'ハル  ソラ\nナギ');
 });
 
+test('order tickets fill their background with the elapsed share of the deadline', () => {
+  const game = createGame({ level: 30 });
+  const ticket = (time, { practice = false, deadline = 20_000, duration = 20_000 } = {}) => {
+    game.time = time;
+    game.practice = practice;
+    game.orders = [{ id: 7, recipe: 'dish', deadline, duration }];
+    return screen(
+      { ...useKitchen.getState(), game, phase: 'playing', ready: true, tutorial: null },
+      preparation(game),
+      768,
+      390,
+    ).items.find((item) => item.id === 'ticket-7');
+  };
+  assert.equal(ticket(0).progress, 0);
+  assert.equal(ticket(5_000).progress, 0.25);
+  assert.equal(ticket(5_000).progressColor, '#76b59b');
+  assert.equal(ticket(10_000).progress, 0.5);
+  assert.equal(ticket(10_000).progressColor, '#c7594b');
+  assert.equal(ticket(5_000, { practice: true }).progress, null);
+  assert.equal(ticket(5_000, { duration: 0 }).progress, null);
+});
+
 test('failed shift gives explicit recovery choices and gates previous level', () => {
   const game = createGame({ level: 2 });
   const state = {

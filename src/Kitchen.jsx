@@ -515,7 +515,7 @@ function Station({ id }) {
                   ? '#f4cd75'
                   : palette.white
         }
-        progress={working ? progress : ready ? burnWindow : null}
+        progress={working ? progress : ready && burnWindow !== null ? 1 - burnWindow : null}
         danger={danger}
         onClick={pick}
       />

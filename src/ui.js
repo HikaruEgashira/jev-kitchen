@@ -434,7 +434,14 @@ export function screen(s, view, width, height) {
     const y = orderTop;
     const orderHeight = narrow ? 64 : 76;
     const shortRecipe = { dish: 'サラダ', soup: 'スープ', roast: '焼き' }[o.recipe] ?? '料理';
-    panel(`ticket-${o.id}`, x, y, orderWidth, orderHeight);
+    const urgency =
+      left === null || !(o.duration > 0)
+        ? null
+        : Math.min(1, Math.max(0, 1 - (o.deadline - g.time) / o.duration));
+    panel(`ticket-${o.id}`, x, y, orderWidth, orderHeight, {
+      progress: urgency,
+      progressColor: left !== null && left <= 10 ? '#c7594b' : '#76b59b',
+    });
     add('food', `food-${o.id}`, '', x + 2, y + 4, narrow ? 40 : 50, narrow ? 52 : 60, {
       recipe: o.recipe,
     });
