@@ -15,6 +15,8 @@ export interface Env {
   /** When set, the direct TypeSafe API is used instead of the Workers AI binding. */
   TYPESAFE_API_KEY?: string;
   TYPESAFE_MODEL?: string;
+  /** Server-owned allowlist; URLs and tokens are never accepted from the browser. */
+  BENCH_ENDPOINTS?: string;
 }
 
 const JEV_MODEL = 'typesafe/jev';
@@ -150,32 +152,11 @@ async function runJev(
 ): Promise<{ result: any; model: string | null; via: 'typesafe-api' | 'workers-ai' }> {
   if (env.TYPESAFE_API_KEY) {
     const model = env.TYPESAFE_MODEL ?? DEFAULT_TYPESAFE_MODEL;
-    const res = await fetch(TYPESAFE_URL, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${env.TYPESAFE_API_KEY}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        state: input.state,
-        questions: input.questions,
-      }),
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
-    const text = await readBoundedText(res.body, MAX_UPSTREAM_BYTES, UPSTREAM_TIMEOUT_MS);
-    if (!res.ok) throw new UpstreamFailureError();
-    try {
-      const raw = JSON.parse(text);
-      assertUpstreamResult(raw);
-      return {
-        result: raw,
-        model,
-        via: 'typesafe-api',
-      };
-    } catch {
-      throw new UpstreamFailureError();
-    }
+    return {
+      result: await callEndpoint({ url: TYPESAFE_URL, token: env.TYPESAFE_API_KEY, model }, input),
+      model,
+      via: 'typesafe-api',
+    };
   }
   const raw = await withTimeout(
     Promise.resolve().then(() => env.AI.run(JEV_MODEL, input)),
@@ -192,10 +173,128 @@ async function runJev(
 const jevVia = (env: Env): 'typesafe-api' | 'workers-ai' =>
   env.TYPESAFE_API_KEY ? 'typesafe-api' : 'workers-ai';
 
+interface BenchEndpoint {
+  name?: string;
+  url: string;
+  token?: string;
+  model?: string;
+}
+
+function benchEndpoints(env: Env): Record<string, BenchEndpoint> {
+  const entries = JSON.parse(env.BENCH_ENDPOINTS || '{}');
+  if (
+    !entries ||
+    typeof entries !== 'object' ||
+    Array.isArray(entries) ||
+    Object.keys(entries).length > 20
+  )
+    throw new Error('Invalid benchmark configuration');
+  for (const [id, entry] of Object.entries(entries) as [string, BenchEndpoint][]) {
+    if (
+      !ACTION_ID.test(id) ||
+      id === 'jev' ||
+      !entry ||
+      typeof entry.url !== 'string' ||
+      (entry.name !== undefined && (typeof entry.name !== 'string' || entry.name.length > 80)) ||
+      (entry.token !== undefined && typeof entry.token !== 'string') ||
+      (entry.model !== undefined && (typeof entry.model !== 'string' || entry.model.length > 100))
+    )
+      throw new Error('Invalid benchmark configuration');
+    const url = new URL(entry.url);
+    if (url.protocol !== 'https:' || url.username || url.password || url.hash)
+      throw new Error('Invalid benchmark endpoint');
+  }
+  return entries;
+}
+
+async function callEndpoint(
+  endpoint: BenchEndpoint,
+  input: { state: unknown; questions: unknown },
+): Promise<any> {
+  const res = await fetch(endpoint.url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(endpoint.token ? { authorization: `Bearer ${endpoint.token}` } : {}),
+    },
+    body: JSON.stringify({ ...(endpoint.model ? { model: endpoint.model } : {}), ...input }),
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    redirect: 'manual',
+  });
+  const text = await readBoundedText(res.body, MAX_UPSTREAM_BYTES, UPSTREAM_TIMEOUT_MS);
+  if (!res.ok) throw new UpstreamFailureError();
+  try {
+    const raw = JSON.parse(text);
+    assertUpstreamResult(raw);
+    return raw;
+  } catch {
+    throw new UpstreamFailureError();
+  }
+}
+
+async function benchmark(request: Request, env: Env, list: boolean): Promise<Response> {
+  if (request.method !== (list ? 'GET' : 'POST'))
+    return json({ ok: false, error: 'method not allowed' }, 405);
+  let endpoints;
+  try {
+    endpoints = benchEndpoints(env);
+  } catch {
+    return json({ ok: false, error: 'invalid benchmark configuration' }, 503);
+  }
+  if (list)
+    return json({
+      models: [
+        { id: 'jev', name: 'Jev' },
+        ...Object.entries(endpoints).map(([id, endpoint]) => ({ id, name: endpoint.name || id })),
+      ],
+    });
+  const parsed = await readJson(request);
+  if (parsed.error) return json({ ok: false, error: parsed.error }, 400);
+  const body = parsed.body;
+  const invalid = validate(body);
+  if (invalid) return json({ ok: false, error: invalid }, 400);
+  if (
+    typeof body.modelId !== 'string' ||
+    (body.modelId !== 'jev' && !Object.hasOwn(endpoints, body.modelId))
+  )
+    return json({ ok: false, error: 'unknown model' }, 400);
+  if (Object.keys(body.questions).length !== 1 || body.questions.next_action?.type !== 'choice')
+    return json({ ok: false, error: 'next_action choice required' }, 400);
+  const t0 = Date.now();
+  try {
+    const input = { state: body.state, questions: body.questions };
+    const { result, via } =
+      body.modelId === 'jev'
+        ? await runJev(env, input)
+        : { result: await callEndpoint(endpoints[body.modelId], input), via: 'decision-endpoint' };
+    const projected = projectDecision(result);
+    if (
+      !Object.hasOwn(
+        body.questions.next_action.criteria,
+        projected.answers.next_action.choice as string,
+      )
+    )
+      throw new UpstreamFailureError();
+    return json({
+      ok: true,
+      engine: body.modelId,
+      via,
+      upstreamMs: Date.now() - t0,
+      result: projected,
+    });
+  } catch (error) {
+    return json({ ok: false, error: publicFailure(error) }, 502);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
     switch (pathname) {
+      case '/api/bench/models':
+        return benchmark(request, env, true);
+      case '/api/bench/decide':
+        return benchmark(request, env, false);
       case '/api/health':
         return health(request, env);
       case '/api/decide':

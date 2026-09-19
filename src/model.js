@@ -224,6 +224,7 @@ export function createGame({
       serve: {},
     },
     human: {
+      served: 0,
       x: 310,
       y: 300,
       carrying: null,
@@ -235,6 +236,7 @@ export function createGame({
       dashReadyAt: 0,
     },
     ai: {
+      served: 0,
       x: 550,
       y: 300,
       carrying: null,
@@ -511,6 +513,7 @@ export function interact(g, who, stationId) {
       g.score += points;
       g.cash += Math.round(RECIPES[ticket.recipe].points / 4);
       g.served++;
+      e.served++;
       g.bestCombo = Math.max(g.bestCombo, g.combo);
       g.lastServeAt = g.time;
       g.orders.splice(index, 1);
@@ -618,7 +621,11 @@ export function buildCandidates(g, who = 'ai') {
       else add('return_tomato', 'トマトを戻して別の仕事を手伝う', 'crate');
     }
     if (!e.carrying) {
-      if (b.state === 'idle' && canFetchTomato && g.human.carrying !== 'tomato')
+      if (
+        b.state === 'idle' &&
+        canFetchTomato &&
+        g[who === 'ai' ? 'human' : 'ai'].carrying !== 'tomato'
+      )
         add('fetch_tomato', 'トマトを取る', 'crate');
       if (
         b.state === 'chopped' &&
@@ -654,12 +661,15 @@ export function isFeasible(g, cand, who = 'ai') {
   );
 }
 
-export function buildQuestions(cands) {
+export function buildQuestions(cands, who = 'ai') {
   return {
     next_action: {
       type: 'choice',
       instructions:
-        "You are the sous-chef sharing a kitchen with a human. Choose one feasible action that complements their work and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Clean burnt cookware before reusing it. Never duplicate the human's current task. Respect their collaboration policy, including Japanese. Avoid unnecessary returning or discarding. Work ahead while food cooks.",
+        (who === 'human'
+          ? 'You control the HUMAN player. The ai actor is your fixed-rule partner. You can perform every cooking role. '
+          : 'You control the AI sous-chef. The human actor is your partner. ') +
+        'Choose one feasible action that complements your partner and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Clean burnt cookware before reusing it. Respect the collaboration policy, including Japanese. Avoid unnecessary returning or discarding. Work ahead while food cooks.',
       criteria: Object.fromEntries(cands.map((c) => [c.id, c.label])),
     },
   };

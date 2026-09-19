@@ -85,6 +85,7 @@ function readCheckpoint() {
 }
 
 function writeCheckpoint(value, completed = false) {
+  if (state().benchmark) return null;
   const record = validateCheckpoint({ ...value, version: CHECKPOINT_VERSION, completed });
   if (!record) return null;
   try {
@@ -103,6 +104,7 @@ export const useKitchen = create(() => ({
       ? createGame(initialCheckpoint)
       : createGame(),
   phase: 'ready',
+  benchmark: false,
   revision: 0,
   mode: 'jev',
   policy: '',
@@ -167,6 +169,7 @@ function invalidate() {
   controller?.abort();
   controller = null;
   state().game.ai.intent = null;
+  state().game.human.intent = null;
   lastDecision = -Infinity;
 }
 
@@ -337,6 +340,27 @@ export function startShift() {
   }
 }
 
+// Benchmark campaigns have a fresh wallet, fixed partner, and no persistent game writes.
+export function startBenchmark() {
+  if (!state().ready) return false;
+  update({ benchmark: true, menuOpen: false, mode: 'rule', policy: '', sound: false });
+  beginShift();
+  return true;
+}
+
+export function benchmarkAction(candidate) {
+  const { game, phase, benchmark } = state();
+  if (
+    !benchmark ||
+    phase !== 'playing' ||
+    game.human.intent ||
+    !isFeasible(game, candidate, 'human')
+  )
+    return false;
+  game.human.intent = { ...candidate, startedAt: game.time };
+  return true;
+}
+
 export function togglePause() {
   const phase = state().phase;
   if ((phase !== 'playing' && phase !== 'paused') || !state().ready || state().menuOpen) return;
@@ -437,6 +461,7 @@ function tutorialStep() {
 
 export function goTo(id) {
   const current = state();
+  if (current.benchmark) return;
   if (current.phase !== 'playing' || current.menuOpen || !STATIONS[id]) return;
   if (!activeStationIds(current.game).includes(id)) return;
   const step = tutorialStep();
@@ -517,6 +542,7 @@ export function humanDash() {
 export function installControls() {
   const typing = (e) => e.target?.closest?.('input, textarea, select, [contenteditable="true"]');
   const down = (e) => {
+    if (state().benchmark) return;
     if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
     const key = e.key.toLowerCase();
     if (key === 'escape') {
@@ -665,12 +691,13 @@ export function tick(delta) {
     const best = Math.max(state().best, g.score);
     const cleared = g.served >= (Number.isFinite(g.quota) ? g.quota : quotaForLevel(g.level));
     const campaignComplete = cleared && g.level >= MAX_LEVEL;
-    const applicants = cleared && !campaignComplete ? drawApplicants(g.hired ?? []) : [];
+    const applicants =
+      cleared && !campaignComplete && !state().benchmark ? drawApplicants(g.hired ?? []) : [];
     const checkpoint = campaignComplete
       ? writeCheckpoint(shiftSnapshot ?? snapshot(g), true)
       : state().checkpoint;
     try {
-      localStorage.setItem(BEST_KEY, String(best));
+      if (!state().benchmark) localStorage.setItem(BEST_KEY, String(best));
     } catch {
       /* Private browsing can disable storage. */
     }
@@ -723,33 +750,40 @@ export function tick(delta) {
     const near = stationAt(g, who);
     g[who].station = near.inReach ? near.id : null;
   }
-  const intent = g.ai.intent;
-  if (intent) {
+  for (const who of state().benchmark ? ['human', 'ai'] : ['ai']) {
+    const actor = g[who];
+    const intent = actor.intent;
+    if (!intent) continue;
     if (intent.id === 'wait') {
-      const decisionMs = Number(STAFF[g.staffId]?.decisionMs) || 1800;
-      if (g.time - intent.startedAt > decisionMs) g.ai.intent = null;
-    } else if (!isFeasible(g, intent)) {
-      g.ai.intent = null;
+      const decisionMs = who === 'human' ? 250 : Number(STAFF[g.staffId]?.decisionMs) || 1800;
+      if (g.time - intent.startedAt > decisionMs) actor.intent = null;
+    } else if (!isFeasible(g, intent, who)) {
+      actor.intent = null;
     } else if (intent.id === 'discard') {
-      discard(g, 'ai');
-      g.ai.intent = null;
+      discard(g, who);
+      actor.intent = null;
     } else {
       const station = STATIONS[intent.station];
       const staff = STAFF[g.staffId] ?? STAFF.helper;
-      g.ai.dashUntil ??= 0;
-      g.ai.dashReadyAt ??= 0;
-      if (staff.canDash && g.time >= g.ai.dashReadyAt && g.time >= g.ai.dashUntil) {
-        g.ai.dashUntil = g.time + 220;
-        g.ai.dashReadyAt = g.time + 1800;
+      actor.dashUntil ??= 0;
+      actor.dashReadyAt ??= 0;
+      if (
+        who === 'ai' &&
+        staff.canDash &&
+        g.time >= actor.dashReadyAt &&
+        g.time >= actor.dashUntil
+      ) {
+        actor.dashUntil = g.time + 220;
+        actor.dashReadyAt = g.time + 1800;
       }
-      const partnerSpeed = staff.speed;
-      const dashSpeed = g.time < g.ai.dashUntil ? 2.7 : 1;
-      if (moveToward(g.ai, station.x, station.y, SPEED * dt * 0.9 * partnerSpeed * dashSpeed)) {
-        if (isFeasible(g, intent)) {
-          const result = interact(g, 'ai', intent.station);
-          if (result.ok) record('ai', result);
+      const actorSpeed = who === 'human' ? 1 : 0.9 * staff.speed;
+      const dashSpeed = g.time < actor.dashUntil ? 2.7 : 1;
+      if (moveToward(actor, station.x, station.y, SPEED * dt * actorSpeed * dashSpeed)) {
+        if (isFeasible(g, intent, who)) {
+          const result = interact(g, who, intent.station);
+          if (result.ok) record(who, result);
         }
-        g.ai.intent = null;
+        actor.intent = null;
       }
     }
   }

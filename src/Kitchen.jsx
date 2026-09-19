@@ -726,7 +726,7 @@ class GraphicsBoundary extends Component {
   }
 }
 
-export default function Kitchen() {
+export default function Kitchen({ showUI = true }) {
   const [error, setError] = useState(false);
   const [graphicsKey, setGraphicsKey] = useState(0);
   const initialization = useRef(null);
@@ -893,7 +893,7 @@ export default function Kitchen() {
         >
           <Typography>
             <Scene />
-            <SceneUI />
+            {showUI && <SceneUI />}
           </Typography>
         </Canvas>
       )}

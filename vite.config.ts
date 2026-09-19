@@ -1,7 +1,13 @@
 import { defineConfig } from 'vite-plus';
 import react from '@vitejs/plugin-react';
+import { execFileSync } from 'node:child_process';
 
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_COMMIT_SHA': JSON.stringify(
+      execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+    ),
+  },
   plugins: [react()],
   server: { proxy: { '/api': 'http://127.0.0.1:8787' } },
   build: { license: { fileName: 'licenses.md' } },

@@ -1,0 +1,256 @@
+.bench-page {
+  height: 100dvh;
+  overflow: auto;
+  padding: 32px clamp(16px, 4vw, 64px);
+  background: #edf3f2;
+  color: #24463e;
+  font-family: 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
+}
+.bench-header,
+.bench-results-heading,
+.bench-live-heading,
+.bench-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.bench-header {
+  margin-bottom: 28px;
+}
+.bench-header h1 {
+  margin: 0;
+  font-size: clamp(32px, 4vw, 48px);
+  letter-spacing: -0.055em;
+  font-weight: 800;
+}
+.bench-page h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.bench-page h3 {
+  font-size: 14px;
+}
+.bench-page p {
+  font-size: 13px;
+  line-height: 1.8;
+  max-width: 70ch;
+}
+.bench-header p {
+  margin: 5px 0 0;
+  font-size: 15px;
+}
+.bench-header a {
+  color: #265c78;
+  font-size: 14px;
+}
+.bench-workspace {
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr);
+  gap: 28px;
+}
+.bench-controls {
+  padding: 22px;
+  background: white;
+  border-radius: 12px;
+}
+.bench-controls fieldset {
+  padding: 0;
+  margin: 22px 0 0;
+  border: 0;
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.bench-controls label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.bench-controls input,
+.bench-controls select {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px;
+  border: 1px solid #a5bbb3;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 15px;
+  background: #fff;
+  color: inherit;
+}
+.bench-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.bench-page button {
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: 1px solid #a5bbb3;
+  background: #fff;
+  color: #24463e;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.bench-page button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.bench-page :focus-visible {
+  outline: 3px solid #265c78;
+  outline-offset: 3px;
+}
+.bench-page .bench-start {
+  background: #245e50;
+  border-color: #245e50;
+  color: #fff;
+  font-weight: 700;
+}
+.bench-page .bench-stop {
+  width: 100%;
+  margin-top: 12px;
+  border-color: #a1372f;
+  color: #a1372f;
+}
+.bench-rules {
+  border-top: 1px solid #d5e1dc;
+  margin-top: 24px;
+  padding-top: 12px;
+}
+.bench-rules p {
+  font-size: 12px;
+}
+.bench-live {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.bench-live-heading {
+  min-height: 44px;
+  align-items: baseline;
+  padding: 0 2px 14px;
+}
+.bench-live-heading span {
+  font-size: 12px;
+}
+.bench-stage {
+  flex: 1;
+  min-height: 460px;
+  border: 1px solid #bfd0c5;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  background: #dfeadd;
+}
+.bench-stage .app-shell {
+  height: 100%;
+  position: absolute;
+  inset: 0;
+}
+.bench-action {
+  padding: 16px 4px 0;
+  min-height: 42px;
+  font-size: 13px;
+}
+.bench-action span:last-child {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.bench-results {
+  margin-top: 36px;
+}
+.bench-results-heading p {
+  margin: 6px 0;
+}
+.bench-results-heading button {
+  flex-shrink: 0;
+}
+.bench-summary {
+  font-variant-numeric: tabular-nums;
+}
+.bench-table {
+  overflow-x: auto;
+}
+.bench-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.bench-table th,
+.bench-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #c7d7cf;
+}
+.bench-table thead {
+  background: #dce8e3;
+}
+.bench-table small {
+  display: block;
+  margin-top: 4px;
+  max-width: 30ch;
+  font-size: 11px;
+}
+.bench-empty {
+  padding: 24px 0;
+  color: #566e64;
+}
+.bench-footer {
+  margin-top: 32px;
+  padding-bottom: 12px;
+  font-size: 11px;
+  color: #566e64;
+}
+.bench-error {
+  color: #a1372f;
+}
+@media (max-width: 850px) {
+  .bench-page {
+    padding: 20px 16px;
+  }
+  .bench-workspace {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .bench-controls fieldset {
+    grid-template-columns: 1fr 1fr;
+  }
+  .bench-rules {
+    margin-top: 18px;
+  }
+  .bench-stage {
+    min-height: 480px;
+  }
+  .bench-live-heading,
+  .bench-results-heading {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}
+@media (max-width: 440px) {
+  .bench-header {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .bench-header a {
+    white-space: nowrap;
+    margin-top: 14px;
+  }
+  .bench-header p {
+    font-size: 12px;
+  }
+  .bench-controls {
+    padding: 16px;
+  }
+  .bench-controls fieldset {
+    grid-template-columns: 1fr;
+  }
+  .bench-stage {
+    min-height: 420px;
+  }
+}
