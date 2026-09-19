@@ -75,7 +75,7 @@ export function stopBenchmark(reason = '停止しました') {
   if (useKitchen.getState().phase === 'playing') togglePause();
 }
 
-export async function runBenchmark({ model, frequency = 1, maxRequests = 1000 }) {
+export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 }) {
   if (useBenchmark.getState().running || !useKitchen.getState().ready) return;
   if (
     !model ||

@@ -149,7 +149,7 @@ export default function Bench() {
                 </select>
               </label>
               <label>
-                frequency / 秒
+                frequency（Hz）
                 <input
                   name="frequency"
                   type="number"
@@ -158,7 +158,7 @@ export default function Bench() {
                   max="10"
                   step="any"
                   required
-                  defaultValue="1"
+                  defaultValue="5"
                 />
               </label>
               <label>

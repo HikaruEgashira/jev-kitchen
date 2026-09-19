@@ -92,6 +92,7 @@ test('a stale model reply is discarded and the request budget stops the run', as
   await run;
   const result = useBenchmark.getState().results[0];
   assert.equal(result.status, 'budget');
+  assert.equal(result.conditions.frequency, 5);
   assert.equal(result.requests, 1);
   assert.equal(result.staleResponses, 1);
   assert.equal(g.human.carrying, 'tomato');
