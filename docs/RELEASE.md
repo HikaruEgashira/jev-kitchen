@@ -1,5 +1,13 @@
 # SIDEKICK kitchen 本番リリース台帳
 
+## 2026-09-19 裏画面での停止オプション
+
+- ウィンドウのblur・タブ非表示での自動一時停止を既定で廃止し、設定メニューの「裏画面で停止」をオンにした時だけ停止する。設定画面は音・停止の2トグルと、操作設定・遊び方・診断の3ボタンへ並べ替え、44px以上の操作領域と非重複を維持する。
+- 新規UI文言のグリフ（裏・他・替）を再bakeし、`public/fonts/kitchen.font.glb`と`coverage.json`を更新した。buildのフォント未収録チェックはpass。
+- `pnpm test`は110 pass／0 fail、typecheck、check（49 files／lint31、警告なし）、buildがpass。既定で停止しないこと、有効化後のblur・visibility停止、メニューのトグル状態とラベル幅を回帰検証する。
+- commit `21a7f7f`をmainへpush。GitHub CI [35424072913](https://github.com/HikaruEgashira/jev-kitchen/actions/runs/35424072913)とWorkers Buildsがsuccess。2026-09-19 05:30:02 UTC、本番100% version `389677ae-1693-4f2f-b43a-b5f0b5f0b85b`を確認した。
+- 操作用ブラウザは未接続のため、実ブラウザでのトグル操作・描画は未検証である。前version `0f6d95a9-0783-40b3-8e09-8375e7ab9692`へ`pnpm exec wrangler rollback 0f6d95a9-0783-40b3-8e09-8375e7ab9692`で復旧できる。
+
 ## 2026-09-19 成長・勤務・操作・巻戻しの統合
 
 - Lv5鍋、Lv10グリル、Lv15ブースト、Lv20焦げ、Lv25連勤・休養、Lv30ラッシュへ解放時期を整理する。以降はノルマ・注文猶予・商品比率の式で難化する。相棒の同時出勤上限はLv1/10/20/30で1/2/3/4人。
