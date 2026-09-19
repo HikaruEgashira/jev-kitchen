@@ -89,7 +89,53 @@ export default function Bench() {
             </Suspense>
           </div>
         </section>
-        <aside className="bench-sidebar" aria-label="実行条件と今回のクリア記録">
+        <section className="bench-commentary" aria-label="AIの判断ログ">
+          <ol>
+            {bench.log
+              .slice(0, -1)
+              .reverse()
+              .map((entry) => (
+                <li key={entry.call}>
+                  <span>#{entry.call}</span> {entry.action}
+                </li>
+              ))}
+          </ol>
+        </section>
+        <section className="bench-summary" aria-label="今回のクリア記録">
+          <strong className="bench-clock" aria-label="経過時間">
+            {timer(bench.running ? bench.elapsedMs : (latest?.activeMs ?? 0))}
+          </strong>
+          <span className="bench-calls">{bench.requests} calls</span>
+          <div className="bench-splits">
+            <table>
+              <thead>
+                <tr>
+                  <th>レベル</th>
+                  <th>所持金</th>
+                  <th>スコア</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bench.splits.map((split) => (
+                  <tr key={split.level}>
+                    <th scope="row">{split.level}</th>
+                    <td>{split.cash}</td>
+                    <td>{split.score}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="bench-current" role={error ? 'alert' : 'status'}>
+            {error ||
+              (bench.running
+                ? paused
+                  ? '一時停止'
+                  : bench.action
+                : latest?.error || statusNames[latest?.status])}
+          </p>
+        </section>
+        <aside className="bench-controls-panel" aria-label="実行条件">
           <form className="bench-controls" onSubmit={start} aria-label="実行条件">
             <fieldset disabled={bench.running}>
               <select
@@ -147,51 +193,7 @@ export default function Bench() {
               </button>
             </div>
           </form>
-          <strong className="bench-clock" aria-label="経過時間">
-            {timer(bench.running ? bench.elapsedMs : (latest?.activeMs ?? 0))}
-          </strong>
-          <span className="bench-calls">{bench.requests} calls</span>
-          <div className="bench-splits">
-            <table>
-              <thead>
-                <tr>
-                  <th>レベル</th>
-                  <th>所持金</th>
-                  <th>スコア</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bench.splits.map((split) => (
-                  <tr key={split.level}>
-                    <th scope="row">{split.level}</th>
-                    <td>{split.cash}</td>
-                    <td>{split.score}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="bench-current" role={error ? 'alert' : 'status'}>
-            {error ||
-              (bench.running
-                ? paused
-                  ? '一時停止'
-                  : bench.action
-                : latest?.error || statusNames[latest?.status])}
-          </p>
         </aside>
-        <section className="bench-commentary" aria-label="AIの判断ログ">
-          <ol>
-            {bench.log
-              .slice(0, -1)
-              .reverse()
-              .map((entry) => (
-                <li key={entry.call}>
-                  <span>#{entry.call}</span> {entry.action}
-                </li>
-              ))}
-          </ol>
-        </section>
       </div>
     </main>
   );

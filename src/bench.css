@@ -107,14 +107,17 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(240px, 28vw, 340px);
-  grid-template-rows: minmax(0, 1fr) minmax(340px, 58%);
-  grid-template-areas: 'game log' 'game side';
+  grid-template-columns: minmax(0, 1fr) clamp(220px, 24vw, 300px);
+  grid-template-rows: minmax(0, 1fr) minmax(190px, 32%);
+  grid-template-areas:
+    'game log'
+    'side controls';
   gap: 8px;
 }
 .bench-screen,
-.bench-sidebar,
-.bench-commentary {
+.bench-summary,
+.bench-commentary,
+.bench-controls-panel {
   min-width: 0;
   min-height: 0;
   border: 2px solid #b68050;
@@ -133,11 +136,21 @@
   inset: 0;
   height: 100%;
 }
-.bench-sidebar {
+.bench-summary {
   grid-area: side;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: stretch;
+  gap: 10px;
+  padding: 10px 12px;
+  overflow: hidden;
+}
+.bench-summary .bench-clock,
+.bench-summary .bench-calls,
+.bench-summary .bench-current {
+  align-self: center;
+}
+.bench-controls-panel {
+  grid-area: controls;
   padding: 12px;
   overflow: auto;
 }
@@ -184,10 +197,12 @@
   overflow: auto;
 }
 .bench-current {
+  flex: 0 1 auto;
+  max-width: 32%;
   margin: 0;
-  padding-top: 6px;
-  border-top: 1px solid #c9b895;
-  font-size: 12px;
+  padding-left: 10px;
+  border-left: 1px solid #c9b895;
+  font-size: 13px;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -217,21 +232,20 @@
     font-size: 18px;
   }
   .bench-broadcast {
-    grid-template-columns: minmax(0, 1fr) 230px;
-    grid-template-rows: minmax(0, 1fr) minmax(300px, 56%);
+    grid-template-columns: minmax(0, 1fr) 210px;
+    grid-template-rows: minmax(0, 1fr) minmax(170px, 30%);
   }
-  .bench-sidebar {
+  .bench-summary,
+  .bench-controls-panel {
     padding: 8px;
   }
 }
 @media (max-width: 600px) {
   .bench-broadcast {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas: 'game' 'log' 'side';
-  }
-  .bench-sidebar {
-    gap: 6px;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+    grid-template-areas: 'game' 'log' 'side' 'controls';
+    overflow: auto;
   }
   .bench-clock {
     padding: 2px;
