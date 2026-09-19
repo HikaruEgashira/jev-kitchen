@@ -117,20 +117,14 @@ export function purchase(g, view) {
   };
 }
 
-// Same role as the in-game action hint: name the next decision and always state
-// the next quota and the pending stock, so the player and the model context can
-// tell whether the plan can open without re-deriving it from the bill.
-export function preparationHint(g, view, bill) {
-  if (view.error) return view.error;
-  if (bill.error) return bill.error;
-  const plan = `次は Lv.${g.level + 1}、ノルマ${bill.quota}皿。仕入れ予定${bill.quantity}個で在庫${bill.stock}個`;
-  if (view.page === 0) return `${plan}。相棒を選ぼう`;
-  if (view.page === 1)
-    return view.selected
-      ? `${plan}。${STAFF[view.selected]?.name ?? '応募者'}を採用予定`
-      : `${plan}。応募者を採用するか、見送って仕入れへ`;
-  if (view.page === 2) return `${plan}。この内容で開店できる`;
-  return `${plan}。設備と配置を確認して開店しよう`;
+// Warns only when the pending plan cannot open because the stock is below the
+// next quota. A sufficient plan needs no hint; the model already has the numbers
+// in `preparation.bill`. Kept in `screen` so the player and the model see the
+// same warning through `screenContext`.
+export function preparationHint(bill) {
+  if (Number.isFinite(bill.stock) && bill.stock < bill.quota)
+    return `あと${bill.quota - bill.stock}個の仕入れが必要`;
+  return '';
 }
 
 function layoutSlotOf(layout, id) {
@@ -458,6 +452,7 @@ export function screen(s, view, width, height) {
   const welcome = modal === 'welcome';
   const placementSheet =
     s.phase === 'finished' && s.cleared && view.page === 3 && view.layoutMode === 'layout';
+  let prepStatus = view.error || '';
   const pw = Math.min(width - 24, welcome ? 700 : 580);
   const ph = Math.min(
     height - 24,
@@ -663,6 +658,8 @@ export function screen(s, view, width, height) {
     }
   } else {
     const bill = purchase(g, view);
+    const hint = preparationHint(bill);
+    prepStatus = view.error || hint || (view.page >= 2 ? bill.error : '');
     const stars = STAR_SCORES.map((n) => (g.score >= n ? '★' : '☆')).join(' ');
     const bodyTop = y + 68;
     const short = ph < 340;
@@ -676,8 +673,9 @@ export function screen(s, view, width, height) {
         short ? 90 : 116,
         { size: 17 },
       );
-      if (!short)
-        label('hint', preparationHint(g, view, bill), x + 16, footerY - 72, inside, 30, {
+      if (!short && (view.error || hint))
+        label('hint', view.error || hint, x + 16, footerY - 72, inside, 30, {
+          color: '#a1372f',
           size: 12,
         });
       primary('次のステージ', 'page', { value: 1 });
@@ -857,11 +855,12 @@ export function screen(s, view, width, height) {
           42,
           { size: 12 },
         );
-      if (!short && stockY + 128 <= footerY)
-        label('hint', preparationHint(g, view, bill), x + 16, stockY + 102 - y, inside, 26, {
-          color: bill.error || view.error ? '#a1372f' : undefined,
+      const warning = view.error || hint || bill.error;
+      if (!short && warning && stockY + 128 <= footerY)
+        label('hint', warning, x + 16, stockY + 102 - y, inside, 26, {
+          color: '#a1372f',
           size: 12,
-          live: Boolean(bill.error || view.error),
+          live: true,
         });
       const backW = narrow ? 72 : 120;
       const equipmentW = narrow ? 68 : 100;
@@ -1188,11 +1187,12 @@ export function screen(s, view, width, height) {
           28,
           { size: narrow ? 11 : 13, color: bill.error && short ? '#a1372f' : undefined },
         );
-        if (!short && summaryY + 52 <= footerY)
-          label('hint', preparationHint(g, view, bill), x + 16, summaryY + 26 - y, inside, 26, {
-            color: bill.error ? '#a1372f' : undefined,
+        const warning = view.error || hint || bill.error;
+        if (!short && warning && summaryY + 52 <= footerY)
+          label('hint', warning, x + 16, summaryY + 26 - y, inside, 26, {
+            color: '#a1372f',
             size: 12,
-            live: Boolean(bill.error),
+            live: true,
           });
       }
     }
@@ -1209,10 +1209,7 @@ export function screen(s, view, width, height) {
     items,
     modal,
     title: items.find((i) => i.id === 'title').text,
-    status:
-      s.cleared && !s.menuOpen && s.phase === 'finished' && !s.campaignComplete
-        ? preparationHint(g, view, purchase(g, view))
-        : view.error || '',
+    status: prepStatus,
   };
 }
 

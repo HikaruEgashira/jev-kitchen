@@ -465,7 +465,7 @@ test('candidate adoption uses a themed avatar and performance bars instead of ra
   assert.equal(roster.items.find((item) => item.id === 'duty-chef').avatar, STAFF.chef.color);
 });
 
-test('preparation hint carries the next quota and pending stock into the model context', () => {
+test('preparation hint warns only when the stock is below the next quota', () => {
   const game = createGame({ level: 1, cash: 500 });
   const state = {
     ...useKitchen.getState(),
@@ -477,14 +477,15 @@ test('preparation hint carries the next quota and pending stock into the model c
   };
   const view = preparation(game);
   const ui = screen(state, view, 1440, 900);
-  const hint = ui.items.find((item) => item.id === 'hint');
-  assert.equal(hint.text, ui.status);
-  assert.match(ui.status, /ノルマ6皿/);
-  assert.match(ui.status, /仕入れ予定8個/);
-  assert.match(ui.status, /在庫8個/);
-  assert.equal(screenContext(state, view, 1440, 900).status, ui.status);
-  assert.match(
-    screenContext(state, { ...view, page: 2, quantity: 0 }, 1440, 900).status,
-    /あと6個の仕入れが必要/,
+  assert.equal(ui.status, '');
+  assert.equal(
+    ui.items.find((item) => item.id === 'hint'),
+    undefined,
   );
+  const short = { ...view, page: 2, quantity: 0 };
+  const shortUi = screen(state, short, 1440, 900);
+  assert.equal(shortUi.status, 'あと6個の仕入れが必要');
+  assert.equal(shortUi.items.find((item) => item.id === 'hint').text, shortUi.status);
+  assert.equal(screenContext(state, short, 1440, 900).status, shortUi.status);
+  assert.equal(screenContext(state, view, 1440, 900).status, null);
 });
