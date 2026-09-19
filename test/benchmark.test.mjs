@@ -548,6 +548,30 @@ test('investment considers the pending second board before recommending further 
       .next_action.instructions;
   assert.match(instruction(), /only one board/);
   plan.equipmentPurchases = ['add_board'];
+  const pending = preparationCandidates(s, plan);
+  assert.ok(!pending.some((c) => c.id === 'equipment_add_board'));
+  assert.deepEqual(
+    pending.find((c) => c.id === 'equipment_cancel_add_board').equipmentPurchases,
+    [],
+  );
   assert.doesNotMatch(instruction(), /only one board/);
   assert.match(instruction(), /assigned cook/);
+});
+
+test('staffing recommends the rested cook while keeping every legal roster available', () => {
+  const g = createGame({
+    level: 15,
+    cash: 1000,
+    stock: 20,
+    hired: ['chef', 'sous'],
+    duty: ['chef'],
+    staffState: { chef: { worked: 1, rest: 0 }, sous: { worked: 0, rest: 0 } },
+  });
+  const s = { ...useKitchen.getState(), game: g, applicants: [] };
+  const plan = { ...preparation(g), stage: 'staffing' };
+  const candidates = preparationCandidates(s, plan);
+  assert.ok(candidates.some((c) => c.id === 'crew_chef_sous'));
+  assert.match(candidates.find((c) => c.id === 'crew_chef').label, /連勤2\/3/);
+  const request = benchRequest(s, { preparing: true, plan, candidates });
+  assert.match(request.questions.next_action.instructions, /Assign sous as the ONLY heat cook/);
 });

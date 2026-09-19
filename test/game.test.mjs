@@ -1005,6 +1005,18 @@ test('retired manager candidates have a one-percent gate and require a paid rehi
   assert.ok(!useKitchen.getState().applicants.includes('veteran'));
 });
 
+test('a reserve cook is offered when one cook is already hired', (t) => {
+  for (const random of [0, 0.2, 0.5, 0.99]) {
+    t.mock.method(Math, 'random', () => random);
+    const g = createGame({ level: 8, stock: 20, hired: ['helper', 'chef'], duty: ['chef'] });
+    useKitchen.setState({ game: g, phase: 'playing', tutorial: null, cleared: false });
+    g.served = g.quota;
+    g.time = SHIFT_MS;
+    tick(0);
+    assert.ok(useKitchen.getState().applicants.includes('sous'));
+  }
+});
+
 test('mentor retirement offers a cooking hire and preserves trained campaign saves', (t) => {
   for (const random of [0, 0.2, 0.5, 0.99]) {
     t.mock.method(Math, 'random', () => random);

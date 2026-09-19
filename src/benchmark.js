@@ -152,7 +152,7 @@ export function preparationCandidates(state, plan) {
       if (quote.error) continue;
       const label = `${EQUIPMENT[kind].name}の${action === 'add' ? '増設' : '強化'}`;
       candidates.push({
-        id: `equipment_${purchaseId}`,
+        id: `equipment_${pending ? 'cancel_' : ''}${purchaseId}`,
         label: `${label}${pending ? 'を取り消す' : 'を予定する'}（${quote.cost - equipmentCost}コイン）`,
         equipmentPurchases: next,
       });
@@ -212,7 +212,7 @@ export function preparationCandidates(state, plan) {
       if (minimum.error) continue;
       lineups.push({
         id: `crew_${crew.join('_') || 'solo'}`,
-        label: `${crew.map((id) => `${STAFF[id].name}（${STAFF[id].capabilities.join('/')}）`).join(' ＋ ') || 'ひとり営業'} / 給与${payroll(crew)}コイン`,
+        label: `${crew.map((id) => `${STAFF[id].name}（${STAFF[id].capabilities.join('/')}・連勤${available[id].worked}/${STAFF[id].maxConsecutive}）`).join(' ＋ ') || 'ひとり営業'} / 給与${payroll(crew)}コイン`,
         duty: crew,
       });
     }
@@ -309,6 +309,9 @@ export function benchRequest(state, { preparing, plan, candidates }) {
         ...(plan.selected ? [plan.selected] : []),
       ]
     : [];
+  const cook = restedCrew
+    .filter((id) => STAFF[id].capabilities.includes('cook'))
+    .sort((a, b) => (bill.staffState[a]?.worked ?? 0) - (bill.staffState[b]?.worked ?? 0))[0];
   return {
     state: {
       ...(preparing
@@ -402,11 +405,16 @@ export function benchRequest(state, { preparing, plan, candidates }) {
             instructions:
               {
                 hiring:
-                  restedCrew.length < Math.min(2, bill.slots)
-                    ? 'Too few hired crew are available next shift because of rest. Recruit an affordable helper to cover the gap. A server frees the human to cook; a cook frees the human to serve. Prefer hiring over skipping.'
-                    : 'Choose one affordable recruit or skip. First hire a chef or sous for cooking. Later recruit only to fill an available slot or cover forced rest from Lv9. Skip redundant hires when the next crew is covered: preserve money for stock and permanent upgrades. Hiring alone does not assign duty.',
-                staffing: restedCrew.some((id) => STAFF[id].capabilities.includes('cook'))
-                  ? 'Assign ONE heat cook (chef or sous), preferring the lowest worked count; rest the other cook to reset consecutive shifts. Never exhaust both cooks together. Fill remaining useful slots with prep and serving staff. Each option is the complete roster, not an individual addition.'
+                  g.level >= 8 &&
+                  Object.keys(bill.staffState).filter((id) =>
+                    STAFF[id].capabilities.includes('cook'),
+                  ).length < 2
+                    ? 'Hire another heat cook (chef or sous) if affordable. Two cooks are needed to alternate shifts and avoid forced rest leaving the kitchen without a cook. Prefer hiring the cook over skipping or hiring another role.'
+                    : restedCrew.length < Math.min(2, bill.slots)
+                      ? 'Too few hired crew are available next shift because of rest. Recruit an affordable helper to cover the gap. A server frees the human to cook; a cook frees the human to serve. Prefer hiring over skipping.'
+                      : 'Choose one affordable recruit or skip. First hire a chef or sous for cooking. Later recruit only to fill an available slot or cover forced rest from Lv9. Skip redundant hires when the next crew is covered: preserve money for stock and permanent upgrades. Hiring alone does not assign duty.',
+                staffing: cook
+                  ? `Assign ${cook} as the ONLY heat cook; rest the other cooks to reset their consecutive shifts. Fill remaining useful slots with prep and serving staff. Each option is the complete roster, not an individual addition.`
                   : 'No available crew can heat food. The human must cook. Assign available prep and serving staff to help; choose the strongest affordable complete roster. Do not choose crew_solo when staff can work.',
                 stock:
                   'Choose the purchase quantity closest to recommended_purchase, or confirm_stock if it already matches. One tomato makes one dish. Sell beyond quota for profit; leftovers carry over. Stock should cover the whole shift, not only quota.',
@@ -415,7 +423,7 @@ export function benchRequest(state, { preparing, plan, candidates }) {
                     ? 'Multiple crew share only one board. Prioritize equipment_add_board if affordable. Otherwise open_shift and save for that expansion; do not spend its budget on smaller upgrades.'
                     : bill.training.human?.move === MAX_TRAINING &&
                         bill.training.human?.cook === MAX_TRAINING
-                      ? 'Human training is complete. First train movement of the assigned cook (vitamin_move_chef or vitamin_move_sous) to maximum, then movement of other working crew. Then upgrade pots for soup, grills for roast, boards for salad. Buy useful upgrades while affordable; keep pending purchases instead of cancelling them. Open when no useful upgrade is affordable.'
+                      ? 'Human training is complete. First train movement of the assigned cook (vitamin_move_chef or vitamin_move_sous) to maximum. Then invest for the next recipe mix: add a second pot for soup-heavy days, a second grill for roast-heavy days, then upgrade them. Train movement of other working crew with spare coins. Keep pending purchases; open when useful upgrades are unaffordable.'
                       : 'Invest remaining coins before opening. Choose vitamin_move_human when available, then vitamin_cook_human. With multiple cooks, prioritize a second board. Otherwise upgrade useful equipment or regular crew. Choose open_shift when saving for necessary equipment or no useful upgrade is affordable.',
               }[plan.stage] ??
               'Prepare the next shift within cash: hire, assign rested staff, buy surplus stock and invest, then open_shift. Each choice edits a pending plan.',

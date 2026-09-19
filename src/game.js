@@ -368,12 +368,10 @@ function drawApplicants(hired) {
   }
   if (!hired.includes('veteran') && Math.random() < 0.01) pool.unshift('veteran');
   const applicants = pool.slice(0, 3);
-  // A cooking hire must be an available strategy after the mentor leaves.
-  if (
-    !hired.some((id) => id === 'chef' || id === 'sous') &&
-    !applicants.some((id) => id === 'chef' || id === 'sous')
-  )
-    applicants[applicants.length - 1] = pool.find((id) => id === 'chef' || id === 'sous');
+  // Keep hiring and rotating cooks available without requiring a lucky draw.
+  const cook = pool.find((id) => id === 'chef' || id === 'sous');
+  if (cook && !applicants.some((id) => id === 'chef' || id === 'sous'))
+    applicants[applicants.length - 1] = cook;
   return applicants;
 }
 
