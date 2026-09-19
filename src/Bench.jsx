@@ -1,15 +1,20 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useKitchen } from './game.js';
+import { STAFF } from './staff.js';
 import { runBenchmark, stopBenchmark, useBenchmark } from './benchmark.js';
 import './bench.css';
 
 const Kitchen = lazy(() => import('./Kitchen.jsx'));
 const statusNames = {
-  completed: '目標クリア',
+  completed: '全レベルクリア',
   failed: 'ノルマ未達',
-  error: 'API / 実行エラー',
+  error: '実行エラー',
   stopped: '中断',
-  budget: '判断上限',
+  budget: 'call 上限',
+};
+const timer = (ms) => {
+  const seconds = Math.floor(ms / 1000);
+  return `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 };
 
 function download(results) {
@@ -28,28 +33,20 @@ export default function Bench() {
   const kitchen = useKitchen();
   const [models, setModels] = useState([]);
   const [modelId, setModelId] = useState('jev');
-  const [attempts, setAttempts] = useState(1);
-  const [maxLevel, setMaxLevel] = useState(100);
-  const [maxRequests, setMaxRequests] = useState(1000);
   const [error, setError] = useState('');
   useEffect(() => {
     document.title = 'jev-bench | SIDEKICK kitchen';
     const controller = new AbortController();
     fetch('/api/bench/models', { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok)
-          throw new Error(
-            'モデル一覧を取得できませんでした。接続設定を確認して再読み込みしてください。',
-          );
-        const data = await response.json();
-        setModels(data.models);
+        if (!response.ok) throw new Error('モデル一覧の取得に失敗しました');
+        setModels((await response.json()).models);
       })
       .catch((e) => {
         if (!controller.signal.aborted) setError(e.message);
       });
     const hidden = () => {
-      if (document.hidden && useBenchmark.getState().running)
-        stopBenchmark('タブが非表示になったため中断しました');
+      if (document.hidden && useBenchmark.getState().running) stopBenchmark('タブ非表示で中断');
     };
     document.addEventListener('visibilitychange', hidden);
     return () => {
@@ -60,32 +57,86 @@ export default function Bench() {
   }, []);
   const start = (event) => {
     event.preventDefault();
+    const form = new FormData(event.currentTarget);
     setError('');
     void runBenchmark({
       model: models.find((model) => model.id === modelId),
-      attempts,
-      maxLevel,
-      maxRequests,
+      frequency: Number(form.get('frequency')),
+      maxRequests: Number(form.get('maxRequests')),
     }).catch((e) => setError(e.message));
   };
-  const finished = bench.results.filter((result) =>
-    ['completed', 'failed'].includes(result.status),
-  );
-  const cleared = finished.filter((result) => result.status === 'completed').length;
   const game = kitchen.game;
+  const latest = bench.results.at(-1);
+  const status = bench.running
+    ? kitchen.phase === 'finished'
+      ? '開店準備'
+      : '営業中'
+    : statusNames[latest?.status] || '待機中';
   return (
     <main className="bench-page">
       <header className="bench-header">
-        <div>
-          <h1>jev-bench</h1>
-          <p>この厨房を、AIはどこまでクリアできるか。</p>
-        </div>
+        <h1>jev-bench</h1>
         <a href="/">自分でプレイ</a>
       </header>
-      <div className="bench-workspace">
-        <section className="bench-controls" aria-label="ベンチマークの実行条件">
-          <h2>挑戦するモデル</h2>
-          <form onSubmit={start}>
+      <div className="bench-broadcast">
+        <section className="bench-screen" aria-label="実行中のゲーム">
+          <div className="bench-screen-title">
+            <span>SIDEKICK kitchen</span>
+            <span>{status}</span>
+          </div>
+          <div className="bench-stage" inert>
+            <div className="app-shell">
+              <Suspense fallback={<p>厨房を準備中…</p>}>
+                <Kitchen showUI={false} />
+              </Suspense>
+            </div>
+          </div>
+        </section>
+        <aside className="bench-sidebar" aria-label="進行状況と設定">
+          <section className="bench-clock" aria-label="経過時間">
+            <span>TIME</span>
+            <strong>{timer(bench.running ? bench.elapsedMs : (latest?.wallMs ?? 0))}</strong>
+          </section>
+          <dl className="bench-stats">
+            <div>
+              <dt>LEVEL</dt>
+              <dd>
+                {game.level}
+                <small> / 100</small>
+              </dd>
+            </div>
+            <div>
+              <dt>配膳</dt>
+              <dd>
+                {game.served}
+                <small> / {game.quota}</small>
+              </dd>
+            </div>
+            <div>
+              <dt>営業残り</dt>
+              <dd>
+                {Math.max(0, Math.ceil((game.duration - game.time) / 1000))}
+                <small> 秒</small>
+              </dd>
+            </div>
+            <div>
+              <dt>CALLS</dt>
+              <dd>{bench.requests}</dd>
+            </div>
+            <div>
+              <dt>SCORE</dt>
+              <dd>{game.score}</dd>
+            </div>
+            <div>
+              <dt>所持金</dt>
+              <dd>{game.cash}</dd>
+            </div>
+            <div>
+              <dt>相棒</dt>
+              <dd className="bench-staff">{STAFF[game.staffId]?.name}</dd>
+            </div>
+          </dl>
+          <form className="bench-controls" onSubmit={start} aria-label="実行条件">
             <fieldset disabled={bench.running}>
               <label>
                 モデル
@@ -97,53 +148,40 @@ export default function Bench() {
                   ))}
                 </select>
               </label>
-              <div className="bench-fields">
-                <label>
-                  試行数
-                  <input
-                    type="number"
-                    min="1"
-                    max="5"
-                    required
-                    value={attempts}
-                    onChange={(e) => setAttempts(Number(e.target.value))}
-                  />
-                </label>
-                <label>
-                  目標レベル
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    required
-                    value={maxLevel}
-                    onChange={(e) => setMaxLevel(Number(e.target.value))}
-                  />
-                </label>
-              </div>
               <label>
-                1試行の判断上限
+                frequency / 秒
                 <input
+                  name="frequency"
                   type="number"
-                  min="1"
-                  max="10000"
+                  inputMode="decimal"
+                  min="0.1"
+                  max="10"
+                  step="any"
                   required
-                  value={maxRequests}
-                  onChange={(e) => setMaxRequests(Number(e.target.value))}
+                  defaultValue="1"
                 />
               </label>
-              <button
-                className="bench-start"
-                type="submit"
-                disabled={!kitchen.ready || !models.length}
-              >
-                {kitchen.ready ? '挑戦を開始' : '厨房を準備中…'}
+              <label>
+                最大 call 数
+                <input
+                  name="maxRequests"
+                  type="number"
+                  inputMode="numeric"
+                  min="1"
+                  max="10000"
+                  step="1"
+                  required
+                  defaultValue="1000"
+                />
+              </label>
+              <button type="submit" disabled={!kitchen.ready || !models.length}>
+                {kitchen.ready ? 'START' : '準備中…'}
               </button>
             </fieldset>
           </form>
           {bench.running && (
             <button className="bench-stop" onClick={() => stopBenchmark()}>
-              試行を中断
+              STOP
             </button>
           )}
           {error && (
@@ -151,111 +189,77 @@ export default function Bench() {
               {error}
             </p>
           )}
-          <div className="bench-rules">
-            <h3>全モデル、同じ条件で。</h3>
-            <p>
-              Lv.1・120コインから開始。相棒は固定ルールのハル。各営業90秒、ノルマ達成で次のレベルへ進みます。
-            </p>
-            <p>
-              採用とダッシュは行わず、次のノルマ＋2個を自動仕入れ。APIの待ち時間も営業に含みます。
-            </p>
-            <p>
-              実行にはモデルのAPI利用料が発生します。タブを表示したままにしてください。通常プレイの保存データは更新しません。
-            </p>
+        </aside>
+        <section className="bench-commentary" aria-label="AIの判断ログ">
+          <div className="bench-runner">
+            <strong>{models.find((model) => model.id === modelId)?.name || '—'}</strong>
+            <span>{status}</span>
           </div>
-        </section>
-        <section className="bench-live" aria-label="実行中のゲーム">
-          <div className="bench-live-heading">
-            <h2>{bench.running ? `試行 ${bench.attempt} / ${attempts}` : 'キッチン環境'}</h2>
-            <span>
-              {bench.running
-                ? `Lv.${game.level}　${game.served} / ${game.quota}皿　${game.score}点　残り${Math.ceil((game.duration - game.time) / 1000)}秒`
-                : 'プレイヤー：評価モデル / 相棒：固定ルール'}
-            </span>
-          </div>
-          <div className="bench-stage" inert>
-            <div className="app-shell">
-              <Suspense fallback={<p>キッチンを準備しています…</p>}>
-                <Kitchen showUI={false} />
-              </Suspense>
-            </div>
-          </div>
-          <div className="bench-action" role="status">
-            <span>
-              {bench.running
-                ? bench.action || '開始しています…'
-                : bench.results.at(-1)?.error ||
-                  statusNames[bench.results.at(-1)?.status] ||
-                  'モデルを選んで、挑戦を開始してください。'}
-            </span>
-            <span>{bench.requests} 判断</span>
+          <div className="bench-log">
+            <p className="bench-current" role="status">
+              {bench.running ? bench.action || '開始中…' : latest?.error || status}
+            </p>
+            <ol>
+              {bench.log
+                .slice(0, -1)
+                .reverse()
+                .map((entry) => (
+                  <li key={entry.call}>
+                    <span>#{entry.call}</span> {entry.action}
+                  </li>
+                ))}
+            </ol>
           </div>
         </section>
       </div>
       <section className="bench-results" aria-label="比較結果">
         <div className="bench-results-heading">
-          <div>
-            <h2>挑戦の記録</h2>
-            <p>
-              条件が同じ試行どうしを比較してください。到達は挑戦したレベル、クリアはノルマ達成数です。
-            </p>
-          </div>
+          <h2>RESULTS</h2>
           <button disabled={!bench.results.length} onClick={() => download(bench.results)}>
-            結果をJSONで保存
+            JSON 保存
           </button>
         </div>
-        {bench.results.length ? (
-          <>
-            <p className="bench-summary">
-              {bench.results.length} 試行 / 目標クリア {cleared} / 営業で決着 {finished.length} /
-              中断・エラー・判断上限 {bench.results.length - finished.length}
-            </p>
-            <div className="bench-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>モデル</th>
-                    <th>条件</th>
-                    <th>結果</th>
-                    <th>到達 / クリア</th>
-                    <th>判断</th>
-                    <th>平均 / p95</th>
+        {bench.results.length > 0 && (
+          <div className="bench-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>モデル</th>
+                  <th>frequency / 上限</th>
+                  <th>結果</th>
+                  <th>到達 / クリア</th>
+                  <th>calls</th>
+                  <th>平均 / p95</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bench.results.map((result, index) => (
+                  <tr key={`${result.startedAt}-${index}`}>
+                    <th scope="row">{result.model.name}</th>
+                    <td>
+                      {result.conditions.frequency} / {result.conditions.maxRequests}
+                    </td>
+                    <td>
+                      {statusNames[result.status]}
+                      {result.error && <small>{result.error}</small>}
+                    </td>
+                    <td>
+                      Lv.{result.reachedLevel} / {result.clearedLevels}
+                    </td>
+                    <td>
+                      {result.requests}
+                      <small>破棄 {result.staleResponses}</small>
+                    </td>
+                    <td>
+                      {result.meanMs ?? '—'} / {result.p95Ms ?? '—'} ms
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {bench.results.map((result, index) => (
-                    <tr key={`${result.startedAt}-${index}`}>
-                      <th scope="row">{result.model.name}</th>
-                      <td>
-                        Lv.{result.conditions.maxLevel} / {result.conditions.maxRequests}判断まで
-                      </td>
-                      <td>
-                        {statusNames[result.status]}
-                        {result.error && <small>{result.error}</small>}
-                      </td>
-                      <td>
-                        Lv.{result.reachedLevel} / {result.clearedLevels}
-                      </td>
-                      <td>
-                        {result.requests}
-                        <small>応答破棄 {result.staleResponses}</small>
-                      </td>
-                      <td>
-                        {result.meanMs ?? '—'} / {result.p95Ms ?? '—'} ms
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : (
-          <p className="bench-empty">最初の試行を、比較の基準に。</p>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
-      <footer className="bench-footer">
-        Jev Choice互換のdecision endpointに対応。実行結果はこのタブ内に保持されます。
-      </footer>
     </main>
   );
 }

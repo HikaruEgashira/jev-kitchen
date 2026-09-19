@@ -3,6 +3,7 @@ import {
   createGame,
   stationAt,
   moveToward,
+  movePlayer,
   interact,
   advance,
   buildCandidates,
@@ -14,7 +15,6 @@ import {
   dash,
   STATIONS,
   activeStationIds,
-  kitchenBounds,
   completeOnboarding,
   quotaForLevel,
   MAX_LEVEL,
@@ -340,7 +340,7 @@ export function startShift() {
   }
 }
 
-// Benchmark campaigns have a fresh wallet, fixed partner, and no persistent game writes.
+// Benchmark campaigns use normal mechanics without persistent game writes.
 export function startBenchmark() {
   if (!state().ready) return false;
   update({ benchmark: true, menuOpen: false, mode: 'rule', policy: '', sound: false });
@@ -350,14 +350,20 @@ export function startBenchmark() {
 
 export function benchmarkAction(candidate) {
   const { game, phase, benchmark } = state();
-  if (
-    !benchmark ||
-    phase !== 'playing' ||
-    game.human.intent ||
-    !isFeasible(game, candidate, 'human')
-  )
-    return false;
-  game.human.intent = { ...candidate, startedAt: game.time };
+  if (!benchmark || phase !== 'playing' || !isFeasible(game, candidate, 'human')) return false;
+  const selected = buildCandidates(game, 'human').find((c) => c.id === candidate.id);
+  if (selected.id === 'continue') return true;
+  if (selected.id === 'dash') return dash(game);
+  if (selected.dash) {
+    if (!dash(game)) return false;
+    selected.id = selected.baseId;
+  }
+  if (selected.id === 'interact') {
+    game.human.intent = null;
+    humanInteract();
+    return true;
+  }
+  game.human.intent = { ...selected, startedAt: game.time };
   return true;
 }
 
@@ -691,8 +697,7 @@ export function tick(delta) {
     const best = Math.max(state().best, g.score);
     const cleared = g.served >= (Number.isFinite(g.quota) ? g.quota : quotaForLevel(g.level));
     const campaignComplete = cleared && g.level >= MAX_LEVEL;
-    const applicants =
-      cleared && !campaignComplete && !state().benchmark ? drawApplicants(g.hired ?? []) : [];
+    const applicants = cleared && !campaignComplete ? drawApplicants(g.hired ?? []) : [];
     const checkpoint = campaignComplete
       ? writeCheckpoint(shiftSnapshot ?? snapshot(g), true)
       : state().checkpoint;
@@ -721,18 +726,9 @@ export function tick(delta) {
   const ay =
     Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
   const step = SPEED * dt * (g.time < g.human.dashUntil ? 2.7 : 1);
-  const bounds = kitchenBounds(g);
   if (ax || ay) {
-    const length = Math.hypot(ax, ay);
     // Camera-relative movement: right stays right in the isometric view.
-    g.human.x = Math.max(
-      bounds.minX,
-      Math.min(bounds.maxX, g.human.x + ((ax * 0.874 + ay * 0.486) / length) * step),
-    );
-    g.human.y = Math.max(
-      bounds.minY,
-      Math.min(bounds.maxY, g.human.y + ((-ax * 0.486 + ay * 0.874) / length) * step),
-    );
+    movePlayer(g, ax, ay, step);
   } else if (target) {
     const station = STATIONS[target];
     if (moveToward(g.human, station.x, station.y, step)) humanInteract(true);
@@ -757,6 +753,15 @@ export function tick(delta) {
     if (intent.id === 'wait') {
       const decisionMs = who === 'human' ? 250 : Number(STAFF[g.staffId]?.decisionMs) || 1800;
       if (g.time - intent.startedAt > decisionMs) actor.intent = null;
+    } else if (who === 'human' && intent.dx !== undefined) {
+      const remaining = Math.max(0, 250 - (g.time - dt * 1000 - intent.startedAt));
+      movePlayer(
+        g,
+        intent.dx,
+        intent.dy,
+        SPEED * Math.min(dt, remaining / 1000) * (g.time < actor.dashUntil ? 2.7 : 1),
+      );
+      if (g.time - intent.startedAt >= 250) actor.intent = null;
     } else if (!isFeasible(g, intent, who)) {
       actor.intent = null;
     } else if (intent.id === 'discard') {
@@ -779,7 +784,7 @@ export function tick(delta) {
       const actorSpeed = who === 'human' ? 1 : 0.9 * staff.speed;
       const dashSpeed = g.time < actor.dashUntil ? 2.7 : 1;
       if (moveToward(actor, station.x, station.y, SPEED * dt * actorSpeed * dashSpeed)) {
-        if (isFeasible(g, intent, who)) {
+        if (!intent.id.startsWith('move_') && isFeasible(g, intent, who)) {
           const result = interact(g, who, intent.station);
           if (result.ok) record(who, result);
         }
