@@ -6,7 +6,7 @@ import { ScreenSizer } from '@react-three/drei/core/ScreenSizer';
 import { Text3D } from '@react-three/drei/core/Text3D';
 import { Center } from '@react-three/drei/core/Center';
 import { Lettering, Plaque, INK, PAPER, WOOD } from './Surface.jsx';
-import { screen, preparation, purchase } from './ui.js';
+import { screen, preparation, purchase, compactControls } from './ui.js';
 import { ProductPreview } from './Food.jsx';
 import {
   useKitchen,
@@ -208,6 +208,9 @@ function Screen() {
       case 'interact':
         humanInteract();
         break;
+      case 'station':
+        goTo(value);
+        break;
       case 'dash':
         humanDash();
         break;
@@ -291,7 +294,10 @@ function Screen() {
     window.addEventListener('keydown', keydown, true);
     return () => window.removeEventListener('keydown', keydown, true);
   }, []);
-  const stations = s.phase === 'playing' && !ui.modal ? activeStationIds(s.game) : [];
+  const stations =
+    !compactControls(size.width, size.height) && s.phase === 'playing' && !ui.modal
+      ? activeStationIds(s.game)
+      : [];
   return (
     <>
       <ScreenSpace depth={10}>

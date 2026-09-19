@@ -5,9 +5,13 @@ import {
   quotaForLevel,
   stationAt,
   actionHint,
+  STATIONS,
+  activeStationIds,
 } from './model.js';
 import { STAFF } from './staff.js';
 import { TUTORIAL_STEPS } from './game.js';
+
+export const compactControls = (width, height) => width < 600 || height < 500;
 
 export function preparation(g) {
   return {
@@ -40,7 +44,7 @@ export function purchase(g, view) {
 export function screen(s, view, width, height) {
   const g = s.game;
   const items = [];
-  const narrow = width < 600;
+  const narrow = compactControls(width, height);
   const compactHud = width < 1060;
   const playing = s.phase === 'playing';
   const practice = s.tutorial !== null;
@@ -130,39 +134,63 @@ export function screen(s, view, width, height) {
       panel(
         'lesson',
         width / 2 - Math.min(width - 24, 380) / 2,
-        height - 140,
+        height - (narrow ? 160 : 140),
         Math.min(width - 24, 380),
-        68,
+        narrow ? 36 : 68,
         { color: '#f4cd75' },
       );
       label(
         'lesson-copy',
-        `WASDで移動・Eで作業\n${step.label}`,
+        narrow ? `${STATIONS[step.station].name}をタップ` : `WASDで移動・Eで作業\n${step.label}`,
         width / 2 - Math.min(width - 32, 372) / 2,
-        height - 135,
+        height - (narrow ? 158 : 135),
         Math.min(width - 32, 372),
-        56,
+        narrow ? 32 : 56,
         { size: 15 },
       );
     } else if (s.toast && g.time < s.toastUntil) {
       const tw = Math.min(width - 24, 520);
-      panel('toast-board', (width - tw) / 2, height - 112, tw, 38);
+      panel('toast-board', (width - tw) / 2, height - (narrow ? 160 : 112), tw, 38);
       label(
         'toast',
         s.toast.replace(/\p{Extended_Pictographic}|\uFE0F/gu, ''),
         (width - tw) / 2 + 4,
-        height - 110,
+        height - (narrow ? 158 : 110),
         tw - 8,
         32,
         { size: 14, live: true },
       );
+    }
+    if (narrow) {
+      const stations = activeStationIds(g);
+      const gap = 4;
+      const w = (width - 24 - gap * (stations.length - 1)) / stations.length;
+      stations.forEach((id, index) => {
+        button(
+          `station-${id}`,
+          id === 'pot' ? 'スープ' : STATIONS[id].name,
+          12 + index * (w + gap),
+          height - 112,
+          w,
+          'station',
+          {
+            value: id,
+            label: `${STATIONS[id].name}へ移動して作業`,
+            disabled: practice && step?.station !== id,
+            pressed: practice ? step?.station === id : reached && near.id === id,
+            size: 13,
+          },
+        );
+      });
     }
     const aw = Math.min(width - 24, 520);
     const ax = (width - aw) / 2;
     const side = narrow ? 62 : 106;
     button(
       'interact',
-      reached ? `E  ${practice ? '作業する' : actionHint(g, near.id)}` : '作業台へ移動',
+      reached
+        ? `${narrow ? '' : 'E  '}${practice ? '作業する' : actionHint(g, near.id)}`
+        : '作業台へ移動',
       ax,
       height - 60,
       aw - side * 2 - 16,

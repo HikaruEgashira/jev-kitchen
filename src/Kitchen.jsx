@@ -2,6 +2,7 @@ import { Children, Component, memo, useEffect, useLayoutEffect, useRef, useState
 import { Canvas, events, useFrame, useThree } from '@react-three/fiber';
 import { WorldLabel, Typography, prepareFont, resetFont } from './Surface.jsx';
 import SceneUI from './SceneUI.jsx';
+import { compactControls } from './ui.js';
 import { Block, Ball, Cylinder, Tomato, Food } from './Food.jsx';
 import * as THREE from 'three/webgpu';
 import { graphicsLost, TUTORIAL_STEPS, useKitchen, goTo, tick } from './game.js';
@@ -228,6 +229,7 @@ function Steam({ active }) {
 
 function Station({ id }) {
   useKitchen((s) => s.revision);
+  const narrow = useThree((s) => compactControls(s.size.width, s.size.height));
   const g = useKitchen.getState().game,
     station = STATIONS[id],
     st = g.stations[id];
@@ -432,13 +434,21 @@ function Station({ id }) {
       )}
       <WorldLabel
         position={[0, id === 'pot' || id === 'grill' ? 2.3 : 1.95, 0]}
-        visible={graphicsReady && phase !== 'ready'}
+        visible={
+          graphicsReady &&
+          phase !== 'ready' &&
+          (!narrow || working || ready || burnt || st.state === 'chopped')
+        }
         text={
-          tutorialTarget
-            ? tutorialStep.label
+          narrow
+            ? danger
+              ? '焦げ注意'
+              : working
+                ? '調理中'
+                : '完成'
             : `${station.name}${ready || st.state === 'chopped' ? ' 完成' : ''}${danger ? ' 焦げ注意' : ''}`
         }
-        width={tutorialTarget ? 210 : danger ? 144 : 100}
+        width={narrow ? 80 : danger ? 144 : 100}
         color={
           focused
             ? '#f4cd75'

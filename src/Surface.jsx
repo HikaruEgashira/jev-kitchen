@@ -5,6 +5,7 @@ import { createContext, useContext } from 'react';
 import { useThree } from '@react-three/fiber';
 import { Text, useMsdf } from '@pmndrs/glyph/react';
 import { defineTextMaterial } from '@pmndrs/glyph/three';
+import { compactControls } from './ui.js';
 
 export const INK = '#245e50';
 export const PAPER = '#fff9e8';
@@ -99,9 +100,9 @@ export function WorldLabel({
   visible = true,
   onClick,
 }) {
-  const narrow = useThree((s) => s.size.width < 600);
+  const narrow = useThree((s) => compactControls(s.size.width, s.size.height));
   const labelWidth = narrow ? width * 0.8 : width;
-  const labelHeight = narrow ? 28 : 36;
+  const labelHeight = narrow ? 24 : 30;
   return (
     <Billboard position={position} visible={visible}>
       <ScreenSizer>
@@ -116,7 +117,7 @@ export function WorldLabel({
             text={text}
             width={labelWidth - 6}
             height={labelHeight - 4}
-            size={narrow ? 11 : 14}
+            size={narrow ? 11 : 12}
           />
           {progress != null && (
             <mesh

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createGame } from '../src/model.js';
-import { useKitchen } from '../src/game.js';
+import { createGame, STATIONS, activeStationIds } from '../src/model.js';
+import { useKitchen, TUTORIAL_STEPS } from '../src/game.js';
 import { preparation, purchase, screen } from '../src/ui.js';
 
 test('title screen contains no playing HUD, orders, stock or staff', () => {
@@ -44,6 +44,7 @@ test('every sheet keeps distinct, reachable 44px controls in portrait and landsc
   for (const [width, height] of [
     [320, 568],
     [568, 320],
+    [844, 390],
     [390, 844],
     [768, 1024],
     [1440, 900],
@@ -102,4 +103,61 @@ test('the stock field rejects incomplete, non-integer and unaffordable purchases
   }
   assert.match(purchase(g, { ...view, selected: 'veteran' }).error, /コイン/);
   assert.equal(purchase({ ...g, stock: 20 }, { ...view, quantity: 0 }).error, '');
+});
+
+test('phone station buttons stay below the kitchen and respect onboarding restrictions', () => {
+  for (const [width, height] of [
+    [320, 568],
+    [390, 844],
+    [568, 320],
+    [844, 390],
+  ]) {
+    TUTORIAL_STEPS.forEach((step, tutorial) => {
+      const game = createGame({ practice: true });
+      Object.assign(game.human, { x: STATIONS[step.station].x, y: STATIONS[step.station].y });
+      const state = { ...useKitchen.getState(), game, tutorial, phase: 'playing', ready: true };
+      const ui = screen(state, preparation(game), width, height);
+      assert.equal(
+        ui.items.find((i) => i.id === 'lesson-copy').text,
+        `${STATIONS[step.station].name}をタップ`,
+      );
+      const action = ui.items.find((i) => i.id === 'interact');
+      assert.equal(action.text, '作業する');
+      assert.equal(action.disabled, false);
+      assert.ok(action.w >= 44 && action.h >= 44);
+      const stations = ui.items.filter((i) => i.action === 'station');
+      assert.deepEqual(
+        stations.map((i) => i.value),
+        activeStationIds(game),
+      );
+      assert.deepEqual(
+        stations.filter((i) => !i.disabled).map((i) => i.value),
+        [step.station],
+      );
+      assert.ok(stations.every((i) => i.y + i.h < action.y));
+      const lesson = ui.items.find((i) => i.id === 'lesson');
+      assert.ok(lesson.y + lesson.h < stations[0].y);
+    });
+    for (const level of [1, 2, 3, 100]) {
+      const game = createGame({ level });
+      const ui = screen(
+        { ...useKitchen.getState(), game, tutorial: null, phase: 'playing', ready: true },
+        preparation(game),
+        width,
+        height,
+      );
+      const stations = ui.items.filter((i) => i.action === 'station');
+      assert.deepEqual(
+        stations.map((i) => i.value),
+        activeStationIds(game),
+      );
+      for (const [index, item] of stations.entries()) {
+        assert.equal(item.disabled, false);
+        assert.ok(item.w >= 44 && item.h >= 44);
+        assert.ok(item.x >= 0 && item.x + item.w <= width);
+        assert.ok([...item.text].length * item.size <= item.w - 8, `${item.id} label fits`);
+        if (index) assert.ok(stations[index - 1].x + stations[index - 1].w <= item.x);
+      }
+    }
+  }
 });
