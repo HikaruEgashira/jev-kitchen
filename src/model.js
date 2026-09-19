@@ -551,6 +551,8 @@ function crewIds(g) {
 
 export function handoffOption(g) {
   if (g.practice || g.time >= g.duration || !g.human.carrying) return null;
+  // E works a workstation in reach before passing items; step away to hand off.
+  if (stationAt(g, 'human').inReach) return null;
   const human = g.human;
   const partner = crewIds(g)
     .filter((id) => {
