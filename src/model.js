@@ -1186,7 +1186,7 @@ export function buildQuestions(cands, who = 'ai') {
       type: 'choice',
       instructions:
         who === 'human'
-          ? 'You control the HUMAN player. Choose one action in this cooperative cooking game. The objective is to clear each shift by serving its quota before time runs out. Coins buy ingredients, staff and permanent upgrades for later shifts.'
+          ? 'You control the HUMAN player in a cooking campaign. Choose one action to reach the highest level you can. A shift clears when the team serves its quota before time runs out; then a harder shift follows. Earnings, ingredients, hired staff and upgrades carry over between shifts.'
           : 'You control the AI sous-chef. Choose one feasible action that complements the human and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Burnt cookware is unavailable until cleaned. Respect the collaboration policy, including Japanese. Finished dishes without matching orders cannot be served; Q discards held items. Heating continues without an actor at the station.',
       criteria: Object.fromEntries(cands.map((c) => [c.id, c.label])),
     },

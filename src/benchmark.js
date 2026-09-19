@@ -305,7 +305,7 @@ export function compactDecisionState(s) {
       phase: s.phase,
       preparation: {
         stage,
-        cash_before_purchase: s.cash,
+        ...(stage === 'hiring' || stage === 'staffing' ? { cash_before_purchase: s.cash } : {}),
         cash_remaining: b.cash,
         next_level: {
           level: p.next_level.level,
@@ -313,13 +313,12 @@ export function compactDecisionState(s) {
           staffSlots: p.next_level.staffSlots,
           recipeMix: p.next_level.recipeMix,
         },
-        selected: p.selected,
         duty: p.duty,
         stock: b.stock,
-        quantity: p.quantity,
-        recommended_purchase: p.recommended_purchase,
         ...(stage === 'stock'
           ? {
+              quantity: p.quantity,
+              recommended_purchase: p.recommended_purchase,
               previous_sales: p.previous_sales,
               stock_price: STOCK_PRICE,
               menu_prices: Object.fromEntries(
@@ -398,7 +397,12 @@ export function benchRequest(
 ) {
   const g = state.game;
   const recent = decisions
-    .filter((d) => d.level === g.level && d.phase === (preparing ? 'preparation' : 'playing'))
+    .filter(
+      (d) =>
+        d.level === g.level &&
+        d.phase === (preparing ? 'preparation' : 'playing') &&
+        (!preparing || d.stage === plan.stage),
+    )
     .slice(-6);
   const looping = preparing ? repeatedPlanVisits >= 2 : repeatsActions(recent, g);
   const bill = preparing ? purchase(g, plan) : null;

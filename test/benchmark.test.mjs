@@ -648,6 +648,11 @@ test('repeated purchase reversals stop before consuming the whole call budget', 
     const choice = choices[calls++];
     assert.ok(Object.hasOwn(request.questions.next_action.criteria, choice));
     assert.ok(request.state.recent_actions.length <= 6);
+    if (request.state.preparation?.stage === 'investment') {
+      assert.equal(request.state.preparation.quantity, undefined);
+      assert.equal(request.state.preparation.recommended_purchase, undefined);
+      assert.ok(request.state.recent_actions.every((d) => d.action.startsWith('equipment_')));
+    }
     if (calls === 7) {
       assert.match(request.state.loop_warning, /same purchase plan/);
       assert.deepEqual(
