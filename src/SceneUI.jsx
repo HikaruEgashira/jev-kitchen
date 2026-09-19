@@ -16,6 +16,7 @@ import {
   togglePause,
   setMenuOpen,
   setMenuPage,
+  resetGame,
   setCameraMode,
   setMovementMode,
   setPreparationPreview,
@@ -308,6 +309,9 @@ function Screen() {
         break;
       case 'close-menu':
         setMenuOpen(false);
+        break;
+      case 'reset':
+        resetGame();
         break;
       case 'sound':
         toggleSound();

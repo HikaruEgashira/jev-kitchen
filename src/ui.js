@@ -903,7 +903,7 @@ export function screen(s, view, width, height) {
           value: 'stages',
           disabled: !Object.keys(s.stages ?? {}).length,
         });
-      const lw = (inside - 8) / 2;
+      const lw = (inside - 16) / 3;
       button('license', 'ライセンス', x + 16, footerY - 54, lw, 'link', {
         href: '/licenses.html',
         size: 13,
@@ -912,6 +912,11 @@ export function screen(s, view, width, height) {
         href: '/third-party-notices.html',
         size: 13,
       });
+      if (!s.benchmark)
+        button('reset', 'リセット', x + 32 + lw * 2, footerY - 54, lw, 'reset', {
+          size: 13,
+          label: '保存した進行を初期化',
+        });
     }
     primary('閉じる', 'close-menu');
   } else if (s.phase === 'ready') {
