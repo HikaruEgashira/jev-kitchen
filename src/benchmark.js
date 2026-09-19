@@ -301,6 +301,14 @@ export function benchRequest(state, { preparing, plan, candidates }) {
   const sous = partner(g);
   const actions = new Set(candidates.map((c) => c.id));
   const bill = preparing ? purchase(g, plan) : null;
+  const restedCrew = preparing
+    ? [
+        ...Object.entries(bill.staffState)
+          .filter(([, schedule]) => schedule.rest === 0)
+          .map(([id]) => id),
+        ...(plan.selected ? [plan.selected] : []),
+      ]
+    : [];
   return {
     state: {
       ...(preparing
@@ -394,9 +402,12 @@ export function benchRequest(state, { preparing, plan, candidates }) {
             instructions:
               {
                 hiring:
-                  'Choose one affordable recruit or skip. First hire a chef or sous for cooking. Later recruit only to fill an available slot or cover forced rest from Lv9. Skip redundant hires when the next crew is covered: preserve money for stock and permanent upgrades. Hiring alone does not assign duty.',
-                staffing:
-                  'Choose the best complete crew for the next shift. The human covers every role. For soup/grill, prioritize at least one cook: chef or sous. With one slot prefer a cook over a prep-only or delivery-only worker. With more slots combine cooking and serving. Fill useful slots when affordable. A new hire may stay in reserve; do not replace a strong cook just because someone was newly hired. Balance payroll and available fatigue/rest; each option is a complete duty roster.',
+                  restedCrew.length < Math.min(2, bill.slots)
+                    ? 'Too few hired crew are available next shift because of rest. Recruit an affordable helper to cover the gap. A server frees the human to cook; a cook frees the human to serve. Prefer hiring over skipping.'
+                    : 'Choose one affordable recruit or skip. First hire a chef or sous for cooking. Later recruit only to fill an available slot or cover forced rest from Lv9. Skip redundant hires when the next crew is covered: preserve money for stock and permanent upgrades. Hiring alone does not assign duty.',
+                staffing: restedCrew.some((id) => STAFF[id].capabilities.includes('cook'))
+                  ? 'Assign ONE heat cook (chef or sous), preferring the lowest worked count; rest the other cook to reset consecutive shifts. Never exhaust both cooks together. Fill remaining useful slots with prep and serving staff. Each option is the complete roster, not an individual addition.'
+                  : 'No available crew can heat food. The human must cook. Assign available prep and serving staff to help; choose the strongest affordable complete roster. Do not choose crew_solo when staff can work.',
                 stock:
                   'Choose the purchase quantity closest to recommended_purchase, or confirm_stock if it already matches. One tomato makes one dish. Sell beyond quota for profit; leftovers carry over. Stock should cover the whole shift, not only quota.',
                 investment:
@@ -404,7 +415,7 @@ export function benchRequest(state, { preparing, plan, candidates }) {
                     ? 'Multiple crew share only one board. Prioritize equipment_add_board if affordable. Otherwise open_shift and save for that expansion; do not spend its budget on smaller upgrades.'
                     : bill.training.human?.move === MAX_TRAINING &&
                         bill.training.human?.cook === MAX_TRAINING
-                      ? 'Human training is complete. Invest spare coins in kitchen equipment for the next shift recipe mix. For a soup-heavy shift prioritize more or faster pots; for grilled food prioritize grills; for salads prioritize boards. Then train working crew. Open only if useful investments are unaffordable or saving for a needed expansion.'
+                      ? 'Human training is complete. First train movement of the assigned cook (vitamin_move_chef or vitamin_move_sous) to maximum, then movement of other working crew. Then upgrade pots for soup, grills for roast, boards for salad. Buy useful upgrades while affordable; keep pending purchases instead of cancelling them. Open when no useful upgrade is affordable.'
                       : 'Invest remaining coins before opening. Choose vitamin_move_human when available, then vitamin_cook_human. With multiple cooks, prioritize a second board. Otherwise upgrade useful equipment or regular crew. Choose open_shift when saving for necessary equipment or no useful upgrade is affordable.',
               }[plan.stage] ??
               'Prepare the next shift within cash: hire, assign rested staff, buy surplus stock and invest, then open_shift. Each choice edits a pending plan.',

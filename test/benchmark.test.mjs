@@ -80,7 +80,7 @@ test('work and navigation pages expose every legal human control', () => {
 });
 
 test('player instructions distinguish starting prep, serving hot food and discarding an unordered dish', () => {
-  const g = createGame({ level: 7, stock: 12 });
+  const g = createGame({ level: 7, stock: 12, hired: ['chef'], duty: ['chef'] });
   g.orders = [{ recipe: 'soup', deadline: 30000 }];
   const instruction = () =>
     buildQuestions(buildCandidates(g, 'human'), 'human', g).next_action.instructions;
@@ -543,5 +543,5 @@ test('investment considers the pending second board before recommending further 
   assert.match(instruction(), /only one board/);
   plan.equipmentPurchases = ['add_board'];
   assert.doesNotMatch(instruction(), /only one board/);
-  assert.match(instruction(), /next shift recipe mix/);
+  assert.match(instruction(), /assigned cook/);
 });
