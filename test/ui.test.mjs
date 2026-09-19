@@ -489,3 +489,27 @@ test('preparation hint warns only when the stock is below the next quota', () =>
   assert.equal(screenContext(state, short, 1440, 900).status, shortUi.status);
   assert.equal(screenContext(state, view, 1440, 900).status, null);
 });
+
+test('Lv3 hands the roster to Haru and a rare manager applicant can be rehired', () => {
+  const g = createGame({ level: 3, stock: 11, cash: 2000 });
+  const view = preparation(g);
+  assert.deepEqual(view.duty, ['helper']);
+  const bill = purchase(g, view);
+  assert.ok(!Object.hasOwn(bill.staffState, 'veteran'));
+  const base = {
+    ...useKitchen.getState(),
+    game: g,
+    phase: 'finished',
+    cleared: true,
+    applicants: ['veteran'],
+  };
+  const ordinary = screen(base, { ...view, page: 2 }, 390, 844);
+  assert.ok(!ordinary.items.some((i) => i.id === 'duty-veteran'));
+  const rehiring = { ...view, page: 2, selected: 'veteran', duty: ['veteran'] };
+  const rehireBill = purchase(g, rehiring);
+  assert.equal(rehireBill.error, '');
+  assert.equal(rehireBill.hiring, STAFF.veteran.cost);
+  assert.equal(rehireBill.wages, STAFF.veteran.wage);
+  const rehire = screen(base, rehiring, 390, 844);
+  assert.equal(rehire.items.find((i) => i.id === 'duty-veteran').disabled, false);
+});

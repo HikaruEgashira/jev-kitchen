@@ -324,7 +324,7 @@ export function createGame({
     initialHired.map((id) => {
       const profile = STAFF[id];
       const supplied = staffState?.[id] ?? {};
-      if (id !== 'veteran' && !initialConfig.fatigueEnabled) return [id, { worked: 0, rest: 0 }];
+      if (!initialConfig.fatigueEnabled) return [id, { worked: 0, rest: 0 }];
       const worked = Number.isSafeInteger(supplied.worked)
         ? Math.max(0, Math.min(profile.maxConsecutive - 1, supplied.worked))
         : 0;

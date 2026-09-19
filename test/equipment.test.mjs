@@ -51,7 +51,7 @@ test('the catalog preserves the automatic station unlocks and investment gates',
     ),
     {
       board: ['まな板', 1],
-      pot: ['スープ鍋', 4],
+      pot: ['スープ鍋', 3],
       grill: ['グリル', 7],
       warmer: ['保温台', 6],
       kitchen: ['厨房拡張', 1],
@@ -108,8 +108,8 @@ test('validateEquipment is strict and optionally enforces level unlocks', () => 
     false,
   );
   assert.equal(validateEquipment({ ...DEFAULT_EQUIPMENT, board: { count: 2, level: 1 } }, 2), true);
-  assert.equal(validateEquipment({ ...DEFAULT_EQUIPMENT, pot: { count: 1, level: 2 } }, 3), false);
-  assert.equal(validateEquipment({ ...DEFAULT_EQUIPMENT, pot: { count: 1, level: 2 } }, 5), true);
+  assert.equal(validateEquipment({ ...DEFAULT_EQUIPMENT, pot: { count: 1, level: 2 } }, 2), false);
+  assert.equal(validateEquipment({ ...DEFAULT_EQUIPMENT, pot: { count: 1, level: 2 } }, 3), true);
   assert.equal(
     validateEquipment({ ...DEFAULT_EQUIPMENT, grill: { count: 2, level: 1 } }, 9),
     false,

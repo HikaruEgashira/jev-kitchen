@@ -564,7 +564,7 @@ test('observations expose active station coordinates and the saved layout', () =
 
 test('a moved station survives the next unlock without colliding with the new station', () => {
   const equipment = { kitchen: { count: 1, level: 3 } };
-  const before = createGame({ level: 3, stock: 8, equipment, layout: { board: 'pot' } });
+  const before = createGame({ level: 2, stock: 8, equipment, layout: { board: 'pot' } });
   assert.equal(before.layout.board, 'pot');
   assert.equal(before.layout.pot, undefined);
 

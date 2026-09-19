@@ -2,7 +2,7 @@ export const MAX_LEVEL = 100;
 
 const FIRST_LEVEL = 1;
 export const FEATURE_LEVELS = Object.freeze({
-  pot: 4,
+  pot: 3,
   grill: 7,
   boost: 5,
   burning: 6,
@@ -52,12 +52,12 @@ function unlockLabel(level) {
   if (level >= 12) return '3人で分担';
   if (level >= FEATURE_LEVELS.rush) return 'ラッシュ注文';
   if (level >= FEATURE_LEVELS.fatigue) return '連勤と休み';
-  if (level >= 8) return '店長復帰・2人稼働';
+  if (level >= 8) return '2人で役割分担';
   if (level >= FEATURE_LEVELS.grill) return 'グリルと鍋を並行';
   if (level >= FEATURE_LEVELS.burning) return '焦げる前に回収';
   if (level >= FEATURE_LEVELS.boost) return '仕上げブースト';
-  if (level >= FEATURE_LEVELS.pot) return 'スープはあなたの担当';
-  if (level === 3) return 'ハルと役割分担';
+  if (level === 4) return '店長退職・ハルと営業';
+  if (level >= FEATURE_LEVELS.pot) return '店長とスープを覚えよう';
   if (level === 2) return '店長と初めての営業';
   return '時間無制限で一皿';
 }
@@ -73,7 +73,7 @@ export function levelConfig(level = FIRST_LEVEL) {
     quota: quota(normalized),
     orderWindowMs: orderWindowMs(normalized),
     recipeMix: recipeMix(normalized),
-    partner: normalized === 2 ? 'veteran' : normalized === 3 ? 'helper' : null,
+    partner: normalized === 2 || normalized === 3 ? 'veteran' : null,
     staffSlots:
       normalized === 1 ? 0 : normalized >= 16 ? 4 : normalized >= 12 ? 3 : normalized >= 8 ? 2 : 1,
     boostEnabled: normalized >= FEATURE_LEVELS.boost,

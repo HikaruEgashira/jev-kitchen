@@ -16,7 +16,7 @@ import {
   STOCK_PRICE,
   levelConfig,
 } from './model.js';
-import { STAFF } from './staff.js';
+import { STAFF, nextStaffState, nextDuty } from './staff.js';
 import { preparation, purchase, screenContext } from './ui.js';
 
 export const BENCH_PROTOCOL = 'jev-bench-v1';
@@ -79,7 +79,8 @@ function prepare(candidate, plan, g) {
     plan.selected = candidate.selected;
     if (candidate.selected) plan.duty = [candidate.selected];
     else {
-      const fallback = plan.duty.find((id) => g.hired.includes(id)) ?? g.duty?.[0] ?? null;
+      const fallback =
+        plan.duty.find((id) => Object.hasOwn(nextStaffState(g), id)) ?? nextDuty(g)[0] ?? null;
       plan.duty = fallback ? [fallback] : [];
     }
   }
@@ -146,7 +147,7 @@ export function benchRequest(state, { preparing, plan, candidates }) {
               bill: purchase(g, plan),
               stock_price: STOCK_PRICE,
               applicants: state.applicants.map((id) => ({ id, ...STAFF[id] })),
-              roster: g.hired.map((id) => ({ id, ...STAFF[id] })),
+              roster: Object.keys(nextStaffState(g)).map((id) => ({ id, ...STAFF[id] })),
             },
           }
         : {}),
@@ -257,7 +258,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
         maxRequests,
         partner: 'rule',
         initialStaff: null,
-        scriptedPartners: { 2: 'veteran', 3: 'helper' },
+        scriptedPartners: { 2: 'veteran', 3: 'veteran' },
         tutorialQuota: 1,
         tutorialSeconds: null,
         shiftSeconds: 90,

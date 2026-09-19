@@ -30,7 +30,7 @@ import { equipmentState, validateEquipment, quoteEquipment } from './equipment.j
 
 const BEST_KEY = 'sidekick-best-v2';
 export const CHECKPOINT_KEY = 'sidekick-campaign-v1';
-const CHECKPOINT_VERSION = 3;
+const CHECKPOINT_VERSION = 4;
 const STARTING_CASH = 180;
 
 function savedBest() {
@@ -81,8 +81,9 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
       ),
     };
   }
-  const legacy = value.version === 2;
-  if (legacy) value = { ...value, version: CHECKPOINT_VERSION };
+  const sourceVersion = value.version;
+  const legacy = sourceVersion === 2;
+  if (legacy || sourceVersion === 3) value = { ...value, version: CHECKPOINT_VERSION };
   if (value.version !== CHECKPOINT_VERSION || typeof value.completed !== 'boolean') return null;
   if (!Number.isSafeInteger(value.level) || value.level < 1 || value.level > MAX_LEVEL) return null;
   if (value.equipment !== undefined && !validateEquipment(value.equipment, value.level))
@@ -125,16 +126,18 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
   if (!value.staffState || typeof value.staffState !== 'object') return null;
   for (const id of value.hired) {
     const status = value.staffState[id];
+    const profile =
+      id === 'veteran' && sourceVersion === 3 ? { maxConsecutive: 1, restShifts: 5 } : STAFF[id];
     if (
       !status ||
       !Number.isInteger(status.worked) ||
       status.worked < 0 ||
-      status.worked >= STAFF[id].maxConsecutive ||
+      status.worked >= profile.maxConsecutive ||
       !Number.isInteger(status.rest) ||
       status.rest < 0 ||
-      status.rest > STAFF[id].restShifts ||
+      status.rest > profile.restShifts ||
       (status.rest > 0 && status.worked !== 0) ||
-      (id !== 'veteran' &&
+      ((id !== 'veteran' || sourceVersion >= 4) &&
         !levelConfig(value.level).fatigueEnabled &&
         (status.rest !== 0 || status.worked !== 0))
     )
@@ -142,6 +145,29 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
   }
   if (!value.duty.every((id) => value.hired.includes(id) && staffAvailable(value.staffState, id)))
     return null;
+  if (sourceVersion < 4) {
+    const partner = levelConfig(value.level).partner;
+    const hired = value.hired.filter(
+      (id) => sourceVersion !== 3 || value.level <= 3 || id !== 'veteran',
+    );
+    if (partner && !hired.includes(partner)) hired.push(partner);
+    const duty = partner ? [partner] : value.duty.filter((id) => hired.includes(id));
+    if (
+      !duty.length &&
+      value.duty.includes('veteran') &&
+      staffAvailable(value.staffState, 'helper')
+    )
+      duty.push('helper');
+    value = {
+      ...value,
+      hired,
+      duty,
+      staffState: {
+        ...value.staffState,
+        ...(partner ? { [partner]: { worked: 0, rest: 0 } } : {}),
+      },
+    };
+  }
   const frozenApplicants =
     value.frozenApplicants == null
       ? null
@@ -168,10 +194,10 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
   if (value.rollback == null) return { ...record, rollback: null };
   if (typeof value.rollback !== 'object' || Array.isArray(value.rollback)) return null;
   const preparation = value.rollback.preparation
-    ? normalizeRollbackEntry(value.rollback.preparation, true, legacy ? 2 : CHECKPOINT_VERSION)
+    ? normalizeRollbackEntry(value.rollback.preparation, true, sourceVersion)
     : null;
   const previous = value.rollback.previous
-    ? normalizeRollbackEntry(value.rollback.previous, false, legacy ? 2 : CHECKPOINT_VERSION)
+    ? normalizeRollbackEntry(value.rollback.previous, false, sourceVersion)
     : null;
   if ((value.rollback.preparation && !preparation) || (value.rollback.previous && !previous))
     return null;
@@ -315,11 +341,14 @@ function snapshot(g) {
 }
 
 function drawApplicants(hired) {
-  const pool = Object.keys(STAFF).filter((id) => id !== 'helper' && !hired.includes(id));
+  const pool = Object.keys(STAFF).filter(
+    (id) => id !== 'helper' && id !== 'veteran' && !hired.includes(id),
+  );
   for (let index = pool.length - 1; index > 0; index--) {
     const swap = Math.floor(Math.random() * (index + 1));
     [pool[index], pool[swap]] = [pool[swap], pool[index]];
   }
+  if (!hired.includes('veteran') && Math.random() < 0.01) pool.unshift('veteran');
   return pool.slice(0, 3);
 }
 
@@ -914,7 +943,7 @@ function finishShift() {
     cleared && !campaignComplete && g.level >= 3
       ? frozenApplicants
         ? [...frozenApplicants]
-        : drawApplicants(g.hired ?? [])
+        : drawApplicants(Object.keys(nextStaffState(g)))
       : [];
   const checkpoint = campaignComplete
     ? writeCheckpoint(shiftSnapshot ?? snapshot(g), true)

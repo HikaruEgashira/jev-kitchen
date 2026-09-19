@@ -325,10 +325,10 @@ function Screen() {
         });
         break;
       case 'hire':
-        patch({ selected: value });
+        patch({ selected: value, duty: view.duty.filter((id) => id !== view.selected) });
         break;
       case 'skip':
-        patch({ selected: null });
+        patch({ selected: null, duty: view.duty.filter((id) => id !== view.selected) });
         break;
       case 'quantity':
         patch({ quantity: Math.min(99, Math.max(0, (Number(view.quantity) || 0) + value)) });

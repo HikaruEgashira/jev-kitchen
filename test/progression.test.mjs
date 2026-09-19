@@ -24,10 +24,11 @@ test('each early level adds a distinct lesson before numeric scaling', () => {
   assert.equal(levelConfig(1).quota, 1);
   assert.equal(levelConfig(1).orderWindowMs, Infinity);
   assert.equal(levelConfig(1).staffSlots, 0);
+  assert.equal(levelConfig(4).partner, null);
   assert.equal(levelConfig(2).partner, 'veteran');
-  assert.equal(levelConfig(3).partner, 'helper');
-  assert.equal(levelConfig(3).kitchenTier, 1);
-  assert.equal(levelConfig(4).kitchenTier, 2);
+  assert.equal(levelConfig(3).partner, 'veteran');
+  assert.equal(levelConfig(2).kitchenTier, 1);
+  assert.equal(levelConfig(3).kitchenTier, 2);
   for (const [feature, first] of [
     ['boostEnabled', 5],
     ['burningEnabled', 6],

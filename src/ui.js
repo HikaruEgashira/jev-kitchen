@@ -77,7 +77,7 @@ export function purchase(g, view) {
   const wages = payroll(duty);
   const staffState = forecastStaffState(g);
   const available = duty.every(
-    (id) => (!g.staffState?.[id] && id === view.selected) || staffAvailable(staffState, id),
+    (id) => (!staffState[id] && id === view.selected) || staffAvailable(staffState, id),
   );
   const stock = (g.stock ?? 0) + quantity;
   const equipmentPurchases = [
@@ -796,17 +796,18 @@ export function screen(s, view, width, height) {
       roster.forEach((id, index) => {
         const staff = STAFF[id];
         const projected = nextState[id] ?? { worked: 0, rest: 0 };
-        const available =
-          (!g.staffState?.[id] && id === view.selected) || staffAvailable(nextState, id);
+        const available = (!nextState[id] && id === view.selected) || staffAvailable(nextState, id);
         const onDuty = duty.includes(id);
         const availability =
-          fatigueVisible || id === 'veteran'
-            ? projected.rest > 0
-              ? `休${projected.rest}`
-              : `あと${staff.maxConsecutive - projected.worked}勤`
-            : onDuty
-              ? '出勤'
-              : '待機';
+          id === 'veteran' && g.level < 3
+            ? 'Lv3で退職'
+            : fatigueVisible
+              ? projected.rest > 0
+                ? `休${projected.rest}`
+                : `あと${staff.maxConsecutive - projected.worked}勤`
+              : onDuty
+                ? '出勤'
+                : '待機';
         const employment = staff.employment ?? '雇用';
         const wage = staff.wage ?? 0;
         const row = Math.floor(index / columns);

@@ -116,13 +116,13 @@ export const STAFF = Object.freeze({
     icon: '🌟',
     color: '#8b6bd6',
     role: 'expediter',
-    description: '全工程とダッシュ。1営業働くと5営業休む。',
+    description: '全工程とダッシュ。Lv3で退職。その後の応募率は1%。',
     capabilities: ['prep', 'cook', 'serve'],
     canDash: true,
     employment: '正社員',
     wage: 85,
-    maxConsecutive: 1,
-    restShifts: 5,
+    maxConsecutive: 2,
+    restShifts: 2,
     cost: investmentCost(16),
     decisionMs: 300,
     speed: 1.15,
@@ -153,10 +153,9 @@ export function nextStaffState(g) {
   const duty = new Set(Array.isArray(g.duty) ? g.duty : []);
   return Object.fromEntries(
     [...new Set([...(g.hired ?? []), levelConfig(g.level + 1).partner].filter(Boolean))]
-      .filter((id) => Object.hasOwn(STAFF, id))
+      .filter((id) => Object.hasOwn(STAFF, id) && !(g.level === 3 && id === 'veteran'))
       .map((id) => {
-        if (id !== 'veteran' && !levelConfig(g.level).fatigueEnabled)
-          return [id, { worked: 0, rest: 0 }];
+        if (!levelConfig(g.level).fatigueEnabled) return [id, { worked: 0, rest: 0 }];
         const profile = STAFF[id];
         const current = staffStateOf(g, id);
         if (current.rest > 0) return [id, { worked: 0, rest: Math.max(0, current.rest - 1) }];
@@ -173,7 +172,8 @@ export function nextDuty(g) {
   const config = levelConfig(g.level + 1);
   if (config.partner) return [config.partner];
   const state = nextStaffState(g);
-  return g.duty.filter((id) => staffAvailable(state, id));
+  const duty = g.duty.filter((id) => staffAvailable(state, id));
+  return g.level === 3 && !duty.length ? ['helper'] : duty;
 }
 
 // Relative strengths for the hiring screen. Higher ratio is always better, so
