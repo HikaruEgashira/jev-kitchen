@@ -19,7 +19,7 @@
   "durable_objects": {
     "bindings": [{ "name": "RUNS", "class_name": "GameStore" }],
   },
-  "migrations": [{ "tag": "v1", "new_classes": ["GameStore"] }],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameStore"] }],
   "ratelimits": [
     {
       "name": "SESSION_LIMITER",
