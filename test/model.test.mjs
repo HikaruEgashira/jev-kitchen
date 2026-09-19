@@ -215,6 +215,34 @@ test('all 100 levels follow a bounded curve and reproducible recipe proportions'
   }
 });
 
+test('board boost preserves base duration and never delays fast staff at the window edges', () => {
+  for (const who of ['human', 'chef']) {
+    for (const progress of [0.25, 0.65]) {
+      const g = createGame({ level: 15, stock: 2, hired: ['helper', 'chef'], duty: ['chef'] });
+      g.time = 1000;
+      (who === 'human' ? g.human : g.crew[who]).carrying = 'tomato';
+      assert.equal(interact(g, who, 'board').ok, true);
+      const board = g.stations.board;
+      const { duration, startedAt, busyUntil } = board;
+      assert.equal(duration, who === 'human' ? CHOP_MS : Math.round(CHOP_MS * 0.55));
+      advance(g, duration * progress);
+      assert.ok(buildCandidates(g, 'human').some((c) => c.id === 'boost_board'));
+      assert.equal(interact(g, 'human', 'board').ok, true);
+      assert.ok(board.busyUntil <= busyUntil, `${who} at ${progress}: boost delayed completion`);
+      assert.equal(board.duration, duration);
+      assert.equal(board.startedAt, startedAt);
+      assert.equal(board.quality, true);
+      assert.equal(interact(g, 'human', 'board').ok, false);
+      advance(g, board.busyUntil - g.time - 1);
+      assert.equal(board.state, 'chopping');
+      advance(g, 1);
+      assert.equal(board.state, 'chopped');
+      assert.equal(interact(g, 'human', 'board').ok, true);
+      assert.equal(board.duration, 0);
+    }
+  }
+});
+
 test('human boost is a one-shot quality bonus and AI cannot farm it', () => {
   const g = createGame({ level: 15, stock: 2 });
   g.orders[0].recipe = 'dish';

@@ -387,7 +387,10 @@ function boostAvailable(g, st) {
 function tryBoost(g, who, st) {
   if (who !== 'human') return { ok: false, reason: '相棒は自動で仕上げるよ' };
   if (!boostAvailable(g, st)) return { ok: false, reason: '仕上げの合図を待とう' };
-  st.busyUntil = g.time + Math.max(350, Math.round((st.busyUntil - g.time) * 0.45));
+  st.busyUntil = Math.min(
+    st.busyUntil,
+    g.time + Math.max(350, Math.round((st.busyUntil - g.time) * 0.45)),
+  );
   st.boosted = true;
   st.quality = true;
   return { ok: true, action: '調理を早めた', quality: true };
