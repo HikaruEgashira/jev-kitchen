@@ -8,7 +8,11 @@ import {
   isFeasible,
   rulePick,
   CHOP_MS,
-} from '../public/model.js';
+  COOK_MS,
+  SHIFT_MS,
+  discard,
+  dash,
+} from '../src/model.js';
 
 test('the four-step pipeline produces one served dish', () => {
   const g = createGame();
@@ -86,18 +90,9 @@ test('unknown actions are never feasible', () => {
   assert.equal(isFeasible(g, null), false);
 });
 
-// Jev の Choice は 2..255 択。候補が1つになる盤面があるので、呼び出し側は
-// 問い合わせずに実行する必要がある（game.js の maybeDecide）。
+// A single wait candidate is handled locally, without an invalid Jev request.
 test('some reachable states leave exactly one feasible action', () => {
   const cases = [
-    (g) => {
-      g.ai.carrying = 'tomato';
-      g.stations.board.state = 'chopped'; // 人間が先に盛り付けた
-    },
-    (g) => {
-      g.ai.carrying = 'plate';
-      g.stations.board.state = 'idle';
-    },
     (g) => {
       g.ai.carrying = 'plate';
       g.stations.board.state = 'chopping';
@@ -111,4 +106,85 @@ test('some reachable states leave exactly one feasible action', () => {
     assert.equal(cands.length, 1);
     assert.equal(cands[0].id, 'wait');
   }
+});
+
+test('soup cooks asynchronously and needs a plate before serving', () => {
+  const g = createGame();
+  interact(g, 'human', 'crate');
+  interact(g, 'human', 'board');
+  advance(g, CHOP_MS);
+  interact(g, 'human', 'board');
+  assert.equal(g.human.carrying, 'chopped');
+  assert.equal(interact(g, 'human', 'pot').ok, true);
+  assert.equal(g.stations.pot.state, 'cooking');
+  interact(g, 'human', 'plates');
+  assert.equal(interact(g, 'human', 'pot').ok, false);
+  advance(g, COOK_MS);
+  assert.equal(interact(g, 'human', 'pot').ok, true);
+  assert.equal(g.human.carrying, 'soup');
+  assert.ok(interact(g, 'human', 'serve').points >= 140);
+  assert.equal(g.stations.pot.state, 'idle');
+  assert.equal(g.served, 1);
+});
+
+test('hands can recover, and chopped tomatoes can be plated directly', () => {
+  const g = createGame();
+  for (const station of ['crate', 'plates']) {
+    assert.equal(interact(g, 'human', station).ok, true);
+    assert.equal(interact(g, 'human', station).ok, true);
+    assert.equal(g.human.carrying, null);
+  }
+  g.human.carrying = 'chopped';
+  assert.equal(interact(g, 'human', 'plates').ok, true);
+  assert.equal(g.human.carrying, 'dish');
+  assert.equal(discard(g, 'human'), true);
+  assert.equal(g.human.carrying, null);
+  g.ai.carrying = 'tomato';
+  g.stations.board.state = 'chopped';
+  assert.ok(buildCandidates(g).some((c) => c.id === 'return_tomato'));
+});
+
+test('orders, combos, expiry and the end of a shift have consistent boundaries', () => {
+  const g = createGame();
+  for (let i = 0; i < 3; i++) {
+    g.human.carrying = g.orders[0].recipe;
+    assert.ok(interact(g, 'human', 'serve').points > 0);
+    assert.equal(g.combo, i + 1);
+    assert.equal(g.orders.length, 3);
+    advance(g, 1000);
+  }
+  advance(g, 12_001);
+  assert.equal(g.combo, 0);
+  const expiringId = g.orders[0].id;
+  advance(g, g.orders[0].deadline - g.time);
+  assert.equal(g.missed, 1);
+  assert.ok(!g.orders.some((o) => o.id === expiringId));
+  g.orders = g.orders.map((o) => ({ ...o, recipe: 'soup' }));
+  g.human.carrying = 'dish';
+  assert.equal(interact(g, 'human', 'serve').ok, false);
+  assert.equal(g.human.carrying, 'dish');
+  advance(g, SHIFT_MS);
+  const score = g.score;
+  g.human.carrying = 'soup';
+  assert.equal(g.time, SHIFT_MS);
+  assert.equal(interact(g, 'human', 'serve').ok, false);
+  assert.equal(g.score, score);
+});
+
+test('the rule companion can finish soup and stale station targets are rejected', () => {
+  const g = createGame();
+  g.orders[0].recipe = 'soup';
+  for (let step = 0; step < 40 && !g.served; step++) {
+    const candidate = rulePick(g, buildCandidates(g));
+    assert.equal(isFeasible(g, candidate), true);
+    if (candidate.station) assert.equal(interact(g, 'ai', candidate.station).ok, true);
+    advance(g, 500);
+  }
+  assert.equal(g.served, 1);
+  assert.ok(g.score >= 140);
+  assert.equal(isFeasible(g, { id: 'fetch_tomato', station: 'serve' }), false);
+  assert.equal(dash(g), true);
+  assert.equal(dash(g), false);
+  advance(g, 1800);
+  assert.equal(dash(g), true);
 });

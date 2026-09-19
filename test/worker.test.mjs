@@ -143,10 +143,10 @@ test('a failed direct call surfaces the upstream status and body', async () => {
   const original = globalThis.fetch;
   globalThis.fetch = async () => new Response('insufficient credits', { status: 402 });
   try {
-    const res = await worker.fetch(
-      post('/api/decide', { state: 'x', questions: validQuestions }),
-      { TYPESAFE_API_KEY: 'sk-test', AI: { run: async () => ({}) } },
-    );
+    const res = await worker.fetch(post('/api/decide', { state: 'x', questions: validQuestions }), {
+      TYPESAFE_API_KEY: 'sk-test',
+      AI: { run: async () => ({}) },
+    });
     assert.equal(res.status, 502);
     const body = await res.json();
     assert.equal(body.ok, false);

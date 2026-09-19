@@ -1,7 +1,5 @@
 name: Test
 
-# Cloudflare のトークンは CI に置かない（デプロイは手元の wrangler から行う）。
-# ここは資格情報が不要な検証だけを回す。
 on:
   push:
     branches: [main]
@@ -19,7 +17,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 11.26.0
 
       - uses: actions/setup-node@v4
         with:
@@ -31,3 +29,7 @@ jobs:
       - run: pnpm test
 
       - run: pnpm typecheck
+
+      - run: pnpm check
+
+      - run: pnpm build

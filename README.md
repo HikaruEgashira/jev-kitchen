@@ -1,138 +1,79 @@
 # SIDEKICK kitchen
 
-人間とAIが同じ厨房で注文をさばく、小さな協力ゲーム。AI（相棒）は指示を待たず、
-人間が触っていない作業を見つけて引き継ぐ。プレイ中に方針を変えると、同じ盤面でも選ぶ行動が変わる。
+AIの相棒と90秒のランチ営業。トマトサラダとスープを作り、注文期限とコンボを意識して三つ星を目指す3D協力ゲーム。
 
-Cloudflare Workers（静的アセット + API）と、Jev（TypeSafe の System One モデル）で動く。
+React Three Fiber・Drei・Zustand（pmndrs）、Three.js の WebGPURenderer、Vite+ を使用。
+WebGPU を優先し、非対応環境は WebGL 2 にフォールバックする。実際の描画方式は「相棒の判断ログ」に表示する。
 
-## 責務の分担
+## 遊び方
 
-- **この repo**: ソースコードと wrangler だけ。Cloudflare のトークンは持たない。デプロイは手元で実行する。
-- **egahika.dev repo**: Cloudflare リソース（custom domain `jev-kitchen.egahika.dev` と Cloudflare Access）。
-  Worker 本体はここにコピーせず、Worker 名で参照する（`email_routing_rule` の `agentic-inbox` と同じ結合）。
-- `workers_dev` は無効。公開経路は Access で保護された custom domain のみ。
+- 作業台をクリック／タップすると移動して作業する。キーボードは WASD／矢印で移動、Eで作業、Shiftでダッシュ、Qで手元を片付ける。
+- サラダ: トマト → まな板 → お皿を持ってまな板 → 配膳。切ったトマトをお皿の台へ運んでも作れる。
+- スープ: トマト → まな板 → 切ったトマトを鍋へ → お皿を持って鍋 → 配膳。
+- 12秒以内の連続配膳で最大3倍。注文の失効と片付けでコンボがリセットされる。星は300／700／1200点。
+- Escで一時停止。タブを離れても自動停止する。営業終了後は再挑戦でき、ベストスコアは端末に保存される。
+- 「相棒にひとこと」で協働方針を変更する。Jev／固定ルール／比較用LLMを切り替えられる。固定ルールは方針入力を解釈しない。
 
-## 仕組み
+## 開発
 
-```
-ゲーム内の実状態・人間の直近操作・現在の方針   ← ブラウザが唯一の正（サーバに状態を持たない）
-        ↓
-コードで実行可能な行動候補を列挙（model.js の buildCandidates）
-        ↓
-Jev が Choice で次の一手を選ぶ（Worker は薄いプロキシ）
-        ↓
-実行直前に isFeasible() で再検証 → 古い判断は捨てる
-        ↓
-実行して再観測（次の一手）
-```
-
-- 担当の分離: 移動・調理時間・前提条件・候補列挙はコード（`public/model.js`）。**協働方針に照らした選択だけ**を Jev が持つ。
-- 行動と対象はセットで選ばせる（`{id, label, station}` をそのまま Choice の criteria にする）。組み合わせの不整合が起きない。
-- 判断は約420msごと。飛行中の観測は積まず、応答が来たら最新状態で再検証して無効なら破棄する（HUDの「破棄した古い判断」）。
-- `confidence` は確率分布から出る指標なので確率として扱わない。表示のみ。
-
-## Jev への接続は2経路
-
-| 経路 | 条件 | 課金 | 実測 |
-| --- | --- | --- | --- |
-| TypeSafe 直API | `TYPESAFE_API_KEY` を設定 | TypeSafe の利用枠 | 日本から 温 約430ms / 初回TLS 約1.2s |
-| Workers AI バインディング | キー未設定 | AI Gateway のクレジットが必要 | 未計測 |
-
-Workers AI は第三者が提供するモデルを AI Gateway の課金に載せるため、クレジット未購入だと
-`2021: Insufficient AI Gateway credits` で失敗する。そこで**直APIを既定**にし、キーを外せば
-Workers AI に切り替わるようにしてある。どちらで応答したかは `/api/health` と HUD の `via` に出る。
-
-## ファイル
-
-| path | 役割 |
-| --- | --- |
-| `public/index.html` | 画面・HUD |
-| `public/game.js` | 描画・入力・意思決定ループ |
-| `public/model.js` | 純粋なゲームロジック（DOM/通信なし。node から import して検証できる） |
-| `src/worker.ts` | `/api/decide`（Jev）/ `/api/decide-llm`（比較用LLM）/ `/api/health` |
-| `test/` | model.js と worker.ts の自己チェック |
-
-## ローカル実行
+Node.js 24 と pnpm 11 を使用する。
 
 ```sh
 pnpm install
-
-cp .dev.vars.example .dev.vars   # TYPESAFE_API_KEY を入れる（.dev.vars は git 管理外）
-pnpm test
-pnpm typecheck
-
-pnpm exec wrangler login         # AI バインディングを宣言しているため dev でも認証が要る
-pnpm dev                         # http://127.0.0.1:8787
-curl http://127.0.0.1:8787/api/health   # 会場での応答時間をここで測る（via も出る）
+cp .dev.vars.example .dev.vars # TYPESAFE_API_KEY を設定。git管理外
+pnpm exec wrangler login
+pnpm dev:api                  # Worker + API: http://127.0.0.1:8787
 ```
 
-操作: WASD で移動、E で作業。右パネルの「協働方針」に自由記述（例:「最後の盛り付けは自分でやりたい」）。
-エンジンは `Jev / 固定ルール / 低遅延LLM` を切り替えて比較できる。
-
-## デプロイ（手元から）
-
-**CI に Cloudflare のトークンは置かない。** `wrangler login` 済みの手元で実行する。
+別ターミナルで `pnpm dev` を実行し、`http://127.0.0.1:5173` を開く。
+Vite+ が `/api` を8787へ転送する。API未接続でも固定ルールで遊べる。
 
 ```sh
-pnpm test && pnpm typecheck                        # 先に検証
-pnpm exec wrangler secret put TYPESAFE_API_KEY     # 初回のみ
-pnpm deploy                                        # wrangler deploy
+pnpm test                    # 純粋ロジック、非同期判断、Workerの入力境界
+pnpm typecheck               # WorkerのTypeScript検査
+pnpm check                   # Vite+ format / lint
+pnpm build                   # 本番アセット → dist/
+pnpm exec wrangler deploy --dry-run
 ```
 
-- ホスト名の付与と Cloudflare Access は **egahika.dev repo の Terraform** が持つ。
-  初回は「egahika.dev を apply → ここで deploy」の順（custom domain は Worker を要求する）。
-- CI（`.github/workflows/test.yml`）は資格情報が要らない `pnpm test` / `pnpm typecheck` のみ。
-  デプロイのワークフローは置かない。
+3D描画と入力の変更時はブラウザでも、WebGPU表示、両レシピの配膳、停止／再開、営業終了／再挑戦、狭い画面の操作を確認する。
+`prefers-reduced-motion` では装飾アニメーションを抑える。音はヘッダーで切り替える。
 
-## セキュリティ
+## 構成
 
-- `workers_dev` を無効化しているため、公開されるのは `jev-kitchen.egahika.dev` のみ。
-  そこは Cloudflare Access で Cloudflare アカウントのメンバーだけが許可される
-  （`type = "cloudflare"` の IdP + `login_method`、egahika.dev repo 側で定義）。
-- **アクセス制限は既存 IdP の "Restrict to account members" に依存する。** これを OFF にすると
-  Cloudflare アカウントを持つ誰でもログインできる。Zero Trust → Identity providers で確認すること。
-- **`/api/decide` は呼ばれた分だけ TypeSafe の利用枠を消費する。** Access を有効にする前に
-  `TYPESAFE_API_KEY` を本番へ入れると、URL を知っている第三者が枠を燃やせる。
-- アプリ層: `state` の型/長さ、`questions` の形（型・1..8問・choice 2..255・score 2..10）を検証して
-  からモデルを呼ぶ（課金前に弾く）。出力は候補IDに照合し、実行直前に `isFeasible()` で再検証するので、
-  プロンプト注入で自由な行動をさせられない。サーバに状態を持たない。
-- 未対応: Worker 側で Access JWT を検証していない（エッジで弾かれるため必須ではない）。レート制限は未設定。
+| ファイル                        | 責務                                                |
+| ------------------------------- | --------------------------------------------------- |
+| `src/model.js`                  | DOM・通信に依存しない調理、注文、得点、実行可能候補 |
+| `src/game.js`                   | Zustand状態、入力、移動、AI判断、効果音             |
+| `src/Kitchen.jsx`               | WebGPU描画、3D厨房・キャラクター・演出              |
+| `src/App.jsx` / `src/style.css` | 日本語HUD、操作、結果、レスポンシブ表示             |
+| `src/worker.ts`                 | Jev・比較用LLMへのAPIプロキシ、ヘルスチェック       |
 
-## デモ台本
+ブラウザのゲーム状態が唯一の正。コードが合法な行動を列挙し、Jevはその中から次の一手だけを選ぶ。
+移動先に到着した時点で再検証する。リセット・一時停止・方針／エンジンの変更では通信を中止し、古い回答を破棄する。
+通信失敗時は10秒間固定ルールで補い、その旨を表示する。秘密はWorker側にのみ保持する。
 
-1. 説明を聞かずにトマトを切り始める → 相棒が皿を用意する。
-2. 途中で鍋（別の作業）へ移る → 相棒が残った下準備を引き継ぐ。
-3. 自分が運ぼうとした皿には手を出さない。
-4. 「最後の盛り付けは自分でやりたい」と入力 → 盛り付けを残したまま材料と皿を揃える。
-5. 「今は注文を最優先。私のやりかけも引き継いでいい」→ 同じ盤面で選ぶ行動が変わる。
-6. 操作を止める → 補佐役から、自分で進める役に切り替わる。
+`TYPESAFE_API_KEY` があればTypeSafe直API、なければWorkers AIを使う。
+後者はAI Gatewayクレジットが必要。`/api/health` と判断ログで実際の経路を確認できる。
+比較用LLMの経路と日本語方針の解釈精度は、別途モデルごとに検証する。
 
-HUD には「相棒の行動」「判断に使った状態の時刻」「鮮度（観測からの経過）」「応答時間（via付き）」「確信度」「破棄した古い判断」を出す。
+## 配信と復旧
 
-## 検証済み / 未検証
+Worker名は `jev-kitchen`。`pnpm deploy` はVite+でビルドしてから、アセットとWorkerを同時に配信する。
+デプロイ前に上記の品質検証を行い、配信後は認証済みブラウザでゲームと実APIを確認する。
 
-検証済み:
+```sh
+pnpm exec wrangler deployments list  # 配信前のversionを記録
+pnpm deploy
+pnpm exec wrangler rollback <version-id> # 復旧時のみ
+```
 
-- `pnpm test` 12件 / `pnpm typecheck` / `wrangler deploy --dry-run`
-- TypeSafe 直API の実呼び出し（日本から 温 0.43s / 初回 1.2s。`model` フィールド必須）
-- egahika.dev の Terraform apply で custom domain と Access を作成（Cloudflare provider v5）
-- Access が実際に効いていること: `https://jev-kitchen.egahika.dev/` と `/api/decide` が未ログインで
-  302 → `0xhikae.cloudflareaccess.com` に飛び、ログイン画面は
-  `Sign in with: Cloudflare ・ Cloudflare account members`（メール OTP は出ない）。
-  `https://jev-kitchen.hikae.workers.dev/` は 404（workers_dev 無効）
+公開先は `https://jev-kitchen.egahika.dev`。custom domainとCloudflare Accessは `egahika.dev` リポジトリのTerraformが管理する。
+`workers_dev` は無効。Accessのアカウントメンバー制限を維持する。未認証アクセスはAccessへリダイレクトされる。
+WorkerではAPI入力の型・サイズ・候補数を検証してから有料モデルを呼ぶ。
 
-未検証:
+## 残る制約
 
-- Workers AI バインディング経路（AI Gateway クレジット未購入のため 2021 エラー。課金すれば切り替わる）
-- 実 Jev を回したときのゲームの手触り（決定ループの体感、破棄が起きる頻度）
-- 日本語の方針入力の解釈精度（Jev は英語最適化）
-- 比較用LLMの既定モデル `@cf/meta/llama-3.1-8b-instruct` は会場で差し替え可
-
-## 技術負債メモ
-
-- `.env` / `.env.keys`（旧 TypeSafe 直API 案の dotenvx 暗号化ファイル）は削除した。秘密は `.dev.vars` と
-  `wrangler secret` に一本化。
-- `.github/workflows/test.yml` の actions はタグ参照。egahika.dev は SHA 固定なので、安定後に揃える。
-- デプロイが手元実行なので、main と本番が一致しない時間帯がある。デプロイ忘れは CI では検知できない。
-- 比較用LLMは `state` を JSON で詰める素朴なプロンプト。Jev と同じ情報を渡す最小構成で、プロンプト最適化はしていない。
-- Worker 側で Access JWT を検証していない（エッジで弾かれるため必須ではない）。レート制限も未設定。
+- ゲーム状態は端末内のみ。同期対戦とクラウドセーブは扱わない。
+- Worker自身のAccess JWT検証とレート制限は未実装。Accessを無効化して公開しない。
+- Workers AI経路はクレジット未設定の環境では動作しない。API障害時も固定ルールで継続する。

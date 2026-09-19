@@ -3,3 +3,8 @@
 allowBuilds:
   esbuild: true
   workerd: true
+overrides:
+  'vite@*': npm:@voidzero-dev/vite-plus-core@0.3.2
+peerDependencyRules:
+  allowedVersions:
+    vite: '*'

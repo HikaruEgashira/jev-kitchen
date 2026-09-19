@@ -28,8 +28,7 @@ const json = (data: unknown, status = 200): Response =>
     headers: { 'content-type': 'application/json; charset=utf-8' },
   });
 
-const errMessage = (e: unknown): string =>
-  e instanceof Error ? e.message : String(e);
+const errMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /**
  * Two routes to the same model.
@@ -192,8 +191,9 @@ async function decideLlm(request: Request, env: Env): Promise<Response> {
     });
     const text = String(out?.response ?? '');
     const choice =
-      ids.find((id) => new RegExp(`\\b${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(text)) ??
-      null;
+      ids.find((id) =>
+        new RegExp(`\\b${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(text),
+      ) ?? null;
     return json({
       ok: true,
       engine: 'llm',
