@@ -2,10 +2,7 @@ import { create } from 'zustand';
 import {
   createGame,
   stationAt,
-  moveToward,
-  movePlayer,
   interact,
-  advance,
   buildCandidates,
   isFeasible,
   buildQuestions,
@@ -19,9 +16,7 @@ import {
   levelConfig,
   MAX_LEVEL,
   STOCK_PRICE,
-  SPEED,
   actor,
-  stationInfo,
   resolveLayout,
   recommendedStock,
   handoffOption,
@@ -29,9 +24,10 @@ import {
 } from './model.js';
 import { createAudio } from './audio.js';
 import { apiFetch } from './api-client.js';
+import { tickWorld } from './engine.js';
 import { STAFF, nextStaffState, payroll, staffAvailable, nextDuty } from './staff.js';
 import { equipmentState, validateEquipment, quoteEquipment } from './equipment.js';
-import { quoteVitamins, trainingMultiplier, trainingState, validateTraining } from './training.js';
+import { quoteVitamins, trainingState, validateTraining } from './training.js';
 
 const BEST_KEY = 'sidekick-best-v2';
 export const CHECKPOINT_KEY = 'sidekick-campaign-v1';
@@ -348,8 +344,6 @@ let target = null,
 const decisions = new Map();
 let audio;
 const MODES = new Set(['jev', 'rule', 'llm']);
-// Keep 1 FPS timing honest; visibility and blur pause longer stalls.
-const MAX_FRAME_DELTA = 1;
 const POLICY_DEBOUNCE_MS = 420;
 export const TUTORIAL_STEPS = Object.freeze([
   Object.freeze({ station: 'crate', label: 'トマトへ WASD', icon: '🍅' }),
@@ -1075,92 +1069,34 @@ function finishShift() {
 
 export function tick(delta) {
   if (state().phase !== 'playing') return;
-  const g = state().game,
-    dt = Math.min(MAX_FRAME_DELTA, Math.max(0, Number.isFinite(delta) ? delta : 0));
-  const practice = g.practice;
-  const missed = g.missed;
+  const g = state().game;
   const previousSeconds = Math.ceil((g.duration - g.time) / 1000);
-  advance(g, dt * 1000);
+  const { missed, finished } = tickWorld(g, delta, {
+    ax:
+      Number(keys.has('d') || keys.has('arrowright')) -
+      Number(keys.has('a') || keys.has('arrowleft')),
+    ay:
+      Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup')),
+    target,
+    movementMode: state().movementMode,
+    benchmark: state().benchmark,
+    stillPlaying: () => state().phase === 'playing',
+    onTargetArrive: () => humanInteract(true),
+    onHumanArrive: (intent) => humanInteract(intent.automatic, true),
+    onRecord: record,
+  });
   const seconds = Math.ceil((g.duration - g.time) / 1000);
-  if (!practice && seconds >= 1 && seconds <= 5 && seconds < previousSeconds)
+  if (!g.practice && seconds >= 1 && seconds <= 5 && seconds < previousSeconds)
     playSound('countdown');
-  if (!practice && g.missed > missed) {
+  if (missed && !g.practice) {
     notify('お客さまをお待たせしました。');
     playSound('failure');
   }
-  if ((practice && g.served >= g.quota) || (!practice && g.time >= g.duration)) {
+  if (finished) {
     finishShift();
     return;
   }
-  const ax =
-    Number(keys.has('d') || keys.has('arrowright')) -
-    Number(keys.has('a') || keys.has('arrowleft'));
-  const ay =
-    Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
-  const humanStep = SPEED * trainingMultiplier(g.training, 'human', 'move');
-  const step = humanStep * dt * (g.time < g.human.dashUntil ? 2.7 : 1);
-  if (ax || ay) {
-    movePlayer(g, ax, ay, step, state().movementMode);
-  } else if (target) {
-    const station = stationInfo(g, target);
-    if (moveToward(g.human, station.x, station.y, step)) humanInteract(true);
-  }
-  if (state().phase !== 'playing') return;
-  for (const who of ['human', ...g.duty]) {
-    const near = stationAt(g, who);
-    actor(g, who).station = near.inReach ? near.id : null;
-  }
-  const activeActors = state().benchmark ? ['human', ...g.duty] : g.duty;
-  for (const who of activeActors) {
-    const cook = actor(g, who);
-    if (!cook) continue;
-    const intent = cook.intent;
-    if (!intent) continue;
-    if (intent.id === 'wait') {
-      const waitMs = who === 'human' ? 250 : (STAFF[who]?.decisionMs ?? 1800);
-      if (g.time - intent.startedAt > waitMs) cook.intent = null;
-    } else if (who === 'human' && intent.dx !== undefined) {
-      const remaining = Math.max(0, 250 - (g.time - dt * 1000 - intent.startedAt));
-      movePlayer(
-        g,
-        intent.dx,
-        intent.dy,
-        humanStep * Math.min(dt, remaining / 1000) * (g.time < cook.dashUntil ? 2.7 : 1),
-        'screen',
-      );
-      if (g.time - intent.startedAt >= 250) cook.intent = null;
-    } else if (!isFeasible(g, intent, who)) {
-      cook.intent = null;
-    } else if (intent.id === 'discard') {
-      discard(g, who);
-      cook.intent = null;
-    } else {
-      const station = stationInfo(g, intent.station);
-      const staff = STAFF[who] ?? STAFF.helper;
-      if (
-        who !== 'human' &&
-        staff.canDash &&
-        g.time >= cook.dashReadyAt &&
-        g.time >= cook.dashUntil
-      ) {
-        cook.dashUntil = g.time + 220;
-        cook.dashReadyAt = g.time + 1800;
-      }
-      const actorSpeed = who === 'human' ? 1 : 0.9 * staff.speed;
-      const actorStep = SPEED * trainingMultiplier(g.training, who, 'move');
-      const dashSpeed = g.time < cook.dashUntil ? 2.7 : 1;
-      if (moveToward(cook, station.x, station.y, actorStep * dt * actorSpeed * dashSpeed)) {
-        if (who === 'human' && intent.id.startsWith('visit_')) {
-          humanInteract(intent.automatic, true);
-        } else if (!intent.id.startsWith('move_') && isFeasible(g, intent, who)) {
-          const result = interact(g, who, intent.station);
-          if (result.ok) record(who, result);
-        }
-        cook.intent = null;
-      }
-    }
-  }
-  if (!practice) for (const who of g.duty) void decide(who);
+  if (!g.practice) for (const who of g.duty) void decide(who);
   if (g.time - lastPublish >= 100) {
     lastPublish = g.time;
     publish();

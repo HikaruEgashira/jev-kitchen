@@ -64,23 +64,26 @@ pnpm exec wrangler deploy --dry-run
 
 ## 構成
 
-| ファイル                                               | 責務                                              |
-| ------------------------------------------------------ | ------------------------------------------------- |
-| `src/model.js`                                         | DOM・通信に依存しない調理、営業、在庫、得点、候補 |
-| `src/progression.js`                                   | Lv1〜100の解放条件、難易度曲線、同時出勤上限      |
-| `src/equipment.js`                                     | 設備価格・効果・設置上限・投資の検証              |
-| `src/training.js`                                      | 育成薬の価格・効果・段階上限・対象の検証          |
-| `src/staff.js`                                         | 相棒候補の能力と役割                              |
-| `src/game.js`                                          | Zustand状態、入力、移動、営業、採用、AI判断、音   |
-| `src/Kitchen.jsx`                                      | WebGPU描画、3D厨房・商品・オンボーディング演出    |
-| `src/camera.js`                                        | 固定角度の追従・全体カメラ                        |
-| `src/ui.js` / `src/SceneUI.jsx`                        | ThreeのHUD・設定・結果・フォームと操作用DOM       |
-| `src/Surface.jsx` / `src/Food.jsx`                     | Glyphの文字、看板、共有商品モデル                 |
-| `src/App.jsx` / `src/style.css`                        | Canvasの起動、不可視の操作要素、描画障害時の案内  |
-| `src/benchmark.js` / `src/Bench.jsx` / `src/bench.css` | jev-benchの試行ループ、画面、スタイル             |
-| `src/worker.ts`                                        | 課金APIの入口、入力検証、Jev・比較用LLMへの転送   |
-| `src/session.ts`                                       | run ticketの発行・検証とレート制限の境界          |
-| `src/api-client.js`                                    | ticketを付けて課金APIを呼ぶクライアント           |
+| ファイル                                               | 責務                                                |
+| ------------------------------------------------------ | --------------------------------------------------- |
+| `src/model.js`                                         | DOM・通信に依存しない調理、営業、在庫、得点、候補   |
+| `src/progression.js`                                   | Lv1〜100の解放条件、難易度曲線、同時出勤上限        |
+| `src/equipment.js`                                     | 設備価格・効果・設置上限・投資の検証                |
+| `src/training.js`                                      | 育成薬の価格・効果・段階上限・対象の検証            |
+| `src/staff.js`                                         | 相棒候補の能力と役割                                |
+| `src/game.js`                                          | Zustand状態、入力、移動、営業、採用、AI判断、音     |
+| `src/engine.js`                                        | 本編とリプレイで共有する決定論的な1フレーム処理     |
+| `src/replay.js`                                        | 固定シナリオの決定論的リプレイと検証済みスコア      |
+| `src/Kitchen.jsx`                                      | WebGPU描画、3D厨房・商品・オンボーディング演出      |
+| `src/camera.js`                                        | 固定角度の追従・全体カメラ                          |
+| `src/ui.js` / `src/SceneUI.jsx`                        | ThreeのHUD・設定・結果・フォームと操作用DOM         |
+| `src/Surface.jsx` / `src/Food.jsx`                     | Glyphの文字、看板、共有商品モデル                   |
+| `src/App.jsx` / `src/style.css`                        | Canvasの起動、不可視の操作要素、描画障害時の案内    |
+| `src/benchmark.js` / `src/Bench.jsx` / `src/bench.css` | jev-benchの試行ループ、画面、スタイル               |
+| `src/worker.ts`                                        | 課金APIの入口、入力検証、Jev・比較用LLMへの転送     |
+| `src/session.ts`                                       | run ticketの発行・検証とレート制限の境界            |
+| `src/api-client.js`                                    | ticketを付けて課金APIを呼ぶクライアント             |
+| `src/run-store.ts` / `src/game-store.ts`               | 検証済みrunとリーダーボードの保存（Durable Object） |
 
 ブラウザのゲーム状態が唯一の正。コードが合法な行動を列挙し、Jevはその中から次の一手だけを選ぶ。
 移動先に到着した時点で再検証する。リセット・一時停止では通信を中止し、古い回答を破棄する。
@@ -129,7 +132,7 @@ Cloudflare Accessは使わず一般公開する。`workers_dev` は無効。
 ## 受入境界
 
 - 公開範囲は一般公開とする。Accessは使わない。課金ルートはrun ticketで保護する。
-- 公開ランキングは未提供。改ざん不能な順位にはサーバ実行型かリプレイ検証型が必要で、どちらも未実装。検証が無いリーダーボードは公開しない。設計は[公開API仕様](docs/public-api.md)。
+- ランキングは検証済み1営業（ranked shift）のみ。サーバが発行した決定列をサーバが再実行してスコアを確定し、上位20件を返す。複数シフト・準備・人間入力のリプレイは対象外。設計は[公開API仕様](docs/public-api.md)。
 - リリース判定は自動検査（test / typecheck / check / build）、ブラウザでの描画、初回の一皿、ノルマ・星、仕入れ、採用、リトライ、設定内ログ、停止／再開、狭い画面の確認を満たすこと。
 - Jev／Workers AI／Cloudflareの利用料、上流サービスの可用性、契約・プライバシー条件はこのリポジトリから保証しない。比較用LLMはコアゲームの必須条件ではない。
 - AIリクエストのabort／timeoutはブラウザの待ち時間と古い応答の破棄を制御するだけで、上流処理の停止や利用料の請求停止を保証しない。
@@ -139,7 +142,7 @@ Cloudflare Accessは使わず一般公開する。`workers_dev` は無効。
 
 - ゲーム状態は端末内のみ。同期対戦とクラウドセーブは扱わない。
 - run ticketはステートレスで、有効期限内の再利用を防がない。run単位のcall予算とTurnstileは未実装。IPレート制限と口座側のspend limitで費用を縛る。
-- ランキングは未実装。サーバ実行型ベンチかリプレイ検証のどちらかを先に作る。
+- ランキングは1営業のみ。シフト間の準備と複数シフト、人間入力の記録は対象外。検証モデルの詳細は[公開API仕様](docs/public-api.md)。
 - Workers AI経路はクレジット未設定の環境では動作しない。API障害時も固定ルールで継続する。
 
 ## 現在の状態

@@ -14,6 +14,10 @@ import {
   type RateLimiter,
   type Ticket,
 } from './session.ts';
+import { runReplayShift, RANKED_LEVEL, RANKED_PROTOCOL } from './replay.js';
+import { durableRunStore, type BoardEntry, type RunStore } from './run-store.ts';
+
+export { GameStore } from './game-store.ts';
 
 interface AiBinding {
   run(model: string, input: unknown, options?: unknown): Promise<any>;
@@ -31,6 +35,10 @@ export interface Env {
   /** Per-IP limits for starting a run and for spending a model call. */
   SESSION_LIMITER?: RateLimiter;
   DECIDE_LIMITER?: RateLimiter;
+  /** Durable Object namespace for verified runs and the leaderboard. */
+  RUNS?: any;
+  /** Test/local override for the run store. */
+  RUN_STORE?: RunStore;
 }
 
 const JEV_MODEL = 'typesafe/jev';
@@ -41,7 +49,14 @@ const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_UPSTREAM_BYTES = 128 * 1024;
 const UPSTREAM_TIMEOUT_MS = 8_000;
 const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
+const MAX_RUN_DECISIONS = 20_000;
 const ACTION_ID = /^[a-z][a-z0-9_]{0,63}$/;
+
+function runStore(env: Env): RunStore | null {
+  if (env.RUN_STORE) return env.RUN_STORE;
+  if (env.RUNS) return durableRunStore(env.RUNS);
+  return null;
+}
 
 class BodyTooLargeError extends Error {}
 
@@ -294,21 +309,28 @@ async function session(request: Request, env: Env): Promise<Response> {
     mode,
     exp: now + SESSION_TTL_MS,
   };
+  if (mode === 'bench') {
+    const store = runStore(env);
+    if (store) await store.init(ticket.sid, RANKED_LEVEL, RANKED_PROTOCOL);
+  }
   return json({
     ok: true,
     mode,
     seed: ticket.seed,
     expiresAt: ticket.exp,
     ticket: await signTicket(env.TICKET_SECRET, ticket),
+    ...(mode === 'bench' ? { ranked: { protocol: RANKED_PROTOCOL, level: RANKED_LEVEL } } : {}),
   });
 }
 
 async function benchmark(request: Request, env: Env, list: boolean): Promise<Response> {
   if (request.method !== (list ? 'GET' : 'POST'))
     return json({ ok: false, error: 'method not allowed' }, 405);
+  let ticket: Ticket | null = null;
   if (!list) {
     const auth = await authorize(request, env, 'bench');
     if ('response' in auth) return auth.response;
+    ticket = auth.ticket;
   }
   let endpoints;
   try {
@@ -350,6 +372,12 @@ async function benchmark(request: Request, env: Env, list: boolean): Promise<Res
       )
     )
       throw new UpstreamFailureError();
+    // Record the server-issued choice so finish() replays the real chain.
+    const store = runStore(env);
+    if (store && ticket)
+      await store
+        .append(ticket.sid, projected.answers.next_action.choice as string)
+        .catch(() => {});
     return json({
       ok: true,
       engine: body.modelId,
@@ -362,6 +390,52 @@ async function benchmark(request: Request, env: Env, list: boolean): Promise<Res
   }
 }
 
+/** Re-simulate the server-issued decision chain and publish a verified score. */
+async function finishRun(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);
+  const auth = await authorize(request, env, 'bench');
+  if ('response' in auth) return auth.response;
+  const store = runStore(env);
+  if (!store) return json({ ok: false, error: 'run store unavailable' }, 503);
+  const run = await store.finish(auth.ticket.sid);
+  if (!run) return json({ ok: false, error: 'unknown run' }, 404);
+  if (run.protocol !== RANKED_PROTOCOL) return json({ ok: false, error: 'protocol mismatch' }, 409);
+  if (
+    !Array.isArray(run.decisions) ||
+    run.decisions.length > MAX_RUN_DECISIONS ||
+    run.decisions.some((id) => typeof id !== 'string' || !ACTION_ID.test(id))
+  )
+    return json({ ok: false, error: 'invalid run log' }, 409);
+  const replayed = runReplayShift({ level: run.level, decisions: run.decisions });
+  const entry: BoardEntry = {
+    sid: auth.ticket.sid,
+    level: replayed.level,
+    protocol: replayed.protocol,
+    score: replayed.score,
+    served: replayed.served,
+    quota: replayed.quota,
+    completed: replayed.completed,
+    timeMs: replayed.timeMs,
+    missed: replayed.missed,
+    burned: replayed.burned,
+    at: Date.now(),
+  };
+  await store.submit(entry);
+  return json({ ok: true, result: entry, decisions: run.decisions.length });
+}
+
+async function leaderboard(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'GET') return json({ ok: false, error: 'GET only' }, 405);
+  const store = runStore(env);
+  if (!store) return json({ ok: false, error: 'run store unavailable' }, 503);
+  return json({
+    ok: true,
+    protocol: RANKED_PROTOCOL,
+    level: RANKED_LEVEL,
+    board: await store.board(),
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
@@ -372,6 +446,10 @@ export default {
         return benchmark(request, env, true);
       case '/api/bench/decide':
         return benchmark(request, env, false);
+      case '/api/runs/finish':
+        return finishRun(request, env);
+      case '/api/leaderboard':
+        return leaderboard(request, env);
       case '/api/health':
         return health(request, env);
       case '/api/decide':

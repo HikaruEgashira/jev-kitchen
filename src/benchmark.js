@@ -24,7 +24,14 @@ import { STAFF, nextStaffState, payroll } from './staff.js';
 import { apiFetch } from './api-client.js';
 import { EQUIPMENT, equipmentCapacity, quoteEquipment } from './equipment.js';
 import { VITAMINS, quoteVitamins } from './training.js';
-import { preparation, purchase, preparationAdvice, preparationKey, equipmentEffect } from './ui.js';
+import {
+  preparation,
+  purchase,
+  preparationAdvice,
+  preparationKey,
+  equipmentEffect,
+} from './ui.js';
+import { hasWork, rankedScenario, MAX_REPLAY_STEPS, REPLAY_STEP, RANKED_LEVEL } from './replay.js';
 
 export const BENCH_PROTOCOL = 'jev-bench-v4';
 
@@ -65,6 +72,7 @@ export const useBenchmark = create(() => ({
   elapsedMs: 0,
   requests: 0,
   results: [],
+  verified: null,
 }));
 let controller;
 const sleep = () => new Promise((resolve) => setTimeout(resolve, 50));
@@ -805,4 +813,81 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
     if (controller === session) controller = null;
     useBenchmark.setState({ running: false });
   }
+}
+
+/**
+ * Ask the server to replay its own decision chain and publish the verified
+ * score. Called by the bench screen after a run, never inside `runBenchmark`,
+ * so a stalled request cannot delay or break the run itself.
+ */
+export function submitRun() {
+  return apiFetch('/api/runs/finish', {}, 'bench')
+    .then(async (response) => {
+      const data = await response.json().catch(() => null);
+      if (response.ok && data?.ok) useBenchmark.setState({ verified: data.result });
+    })
+    .catch(() => {
+      /* Ranking is best-effort; the local result still stands. */
+    });
+}
+
+/**
+ * One fixed ranked shift. The client asks the server for each decision and the
+ * server records it; the server later replays that chain at the same cadence
+ * (one decision per ready frame), so the verified score matches this render.
+ */
+export async function runRankedShift({ model, level = RANKED_LEVEL } = {}) {
+  useKitchen.setState({ ready: true, benchmark: true, mode: 'rule', policy: '', sound: false });
+  startBenchmark();
+  useKitchen.setState({ game: createGame(rankedScenario(level)) });
+  useBenchmark.setState({
+    running: true,
+    verified: null,
+    action: '',
+    log: [],
+    requests: 0,
+    results: [],
+  });
+  const decisions = [];
+  let navigating = false;
+  try {
+    for (let step = 0; step < MAX_REPLAY_STEPS; step++) {
+      const state = useKitchen.getState();
+      if (state.phase !== 'playing') break;
+      const g = state.game;
+      if (!g.human.intent && hasWork(g)) {
+        const candidates = playingCandidates(g, navigating);
+        const payload = {
+          modelId: model.id,
+          ...benchRequest(state, { preparing: false, plan: undefined, candidates, decisions }),
+        };
+        const response = await apiFetch('/api/bench/decide', payload, 'bench', {
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
+        const data = await response.json();
+        const selected = candidates.find(
+          (candidate) => candidate.id === data.result?.answers?.next_action?.choice,
+        );
+        if (!selected) throw new Error('モデルが候補外の行動を返しました');
+        decisions.push(selected.id);
+        useBenchmark.setState((current) => ({
+          requests: current.requests + 1,
+          action: selected.label,
+          log: [...current.log.slice(-200), { call: current.requests + 1, action: selected.label }],
+        }));
+        const applied =
+          selected.id === 'navigate' || selected.id === 'back_to_work'
+            ? selected.id === 'navigate'
+            : benchmarkAction(selected);
+        if (selected.id !== 'back_to_work') navigating = selected.id === 'navigate';
+        if (!applied) continue;
+      }
+      tick(REPLAY_STEP);
+    }
+  } finally {
+    if (useKitchen.getState().phase === 'playing') togglePause();
+    useBenchmark.setState({ running: false });
+  }
+  await submitRun();
 }

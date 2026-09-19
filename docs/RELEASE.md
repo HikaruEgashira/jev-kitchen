@@ -26,6 +26,16 @@ MVPを短い協力料理ゲームとして本番公開するための判定台�
 - Access、秘密、課金、外部送信、他repoの権限は本台帳の対象外であり、変更しない。
 - 部門間で競合する変更は、directorがMVPの遊びやすさ・安全性・復旧性を優先して採否を決める。
 
+## 2026-09-19 決定論エンジンと検証済みランキング（B: リプレイ検証。未配信）
+
+- `src/engine.js`へ`tick`のシミュレーション中核を抽出し、本編とリプレイが同じ`tickWorld`を通るようにした。抽出は既存の挙動を変えない（既存テストが回帰検証する）。
+- `src/replay.js`に固定シナリオ（`rankedScenario`、乱数なし）の決定論的1営業リプレイを実装した。入力はサーバが発行した決定列だけで、パートナーは固定ルール（`rulePick`）で動く。`test/replay.test.mjs`がstore駆動の実プレイとリプレイの`served`／`score`／`missed`／`burned`／`timeMs`の一致を検証する。
+- `POST /api/session`（bench）がrunを作成し、`/api/bench/decide`が選択をrunへ順序つきで記録する。`POST /api/runs/finish`が決定列を再実行して検証済みスコアを確定し、`GET /api/leaderboard`が上位20件を返す。保存はDurable Object`GameStore`（`RUNS`／migration v1）。クライアントはスコアも決定列も提出しない。
+- Bench画面の「検証ラン（1営業）」がこの経路を実行し、検証済みスコアと順位を表示する。フルキャンペーンの`runBenchmark`は順位に含めない（リプレイと決定点の並びが一致しないため）。
+- 出荷ゲート: 195テスト、typecheck、check、build、`wrangler deploy --dry-run`がpass。dry-runで`RUNS`・rate limiter・AI bindingの解決を確認した。決定論・実プレイ一致・truncation・未保存／不明run／protocol不一致の拒否・DOのchainとboard順を回帰検証する。
+- 範囲: 順位は1営業のみ。シフト間の準備と複数シフトは`nextShift`再実行の拡張として残す。
+- **未配信。** 配信前に`TICKET_SECRET`、`ratelimits`、`durable_objects`（`RUNS`/`GameStore`）の反映と、AI Gateway／TypeSafeのspend limit設定が必要。
+
 ## 2026-09-19 一般公開向けAPI境界（run ticket・課金GET廃止。未配信）
 
 - Accessを外して一般公開する前提へ切り替え、課金ルートをサーバ発行のrun ticketで保護した。`src/session.ts`がHMAC署名のticket（`{sid, seed, mode, exp}`）を発行・検証し、`TICKET_SECRET`未設定なら課金ルートは503で閉じる。`POST /api/session`が`play`／`bench`のticketを返す。

@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import worker from '../src/worker.ts';
+import worker, { GameStore } from '../src/worker.ts';
 import { signTicket } from '../src/session.ts';
+import { memoryRunStore } from '../src/run-store.ts';
+import { runReplayShift, RANKED_PROTOCOL } from '../src/replay.js';
 
 // Node strips the TypeScript in src/worker.ts, so the real handler runs here.
 // env.AI is a stub: this checks our validation and forwarding, not Jev itself.
@@ -13,8 +15,9 @@ const playTicket = await signTicket(SECRET, {
   mode: 'play',
   exp: Date.now() + 3_600_000,
 });
+const benchSid = 'bench-run';
 const benchTicket = await signTicket(SECRET, {
-  sid: 'bench-run',
+  sid: benchSid,
   seed: 2,
   mode: 'bench',
   exp: Date.now() + 3_600_000,
@@ -32,7 +35,8 @@ const env = () => ({
   },
 });
 
-const ticketFor = (path) => (path === '/api/bench/decide' ? benchTicket : playTicket);
+const ticketFor = (path) =>
+  path === '/api/bench/decide' || path === '/api/runs/finish' ? benchTicket : playTicket;
 
 const post = (path, body, ticket = ticketFor(path)) =>
   new Request(`https://kitchen.test${path}`, {
@@ -561,4 +565,99 @@ test('rate limits fail closed and never reach the model', async () => {
   );
   assert.equal(brokenLimiter.status, 429);
   assert.equal(calls.length, 0);
+});
+
+test('verified runs replay the server-issued chain and rank it', async () => {
+  const store = memoryRunStore();
+  const envWithStore = { ...env(), RUN_STORE: store };
+  await store.init(benchSid, 1, RANKED_PROTOCOL);
+  for (const id of ['fetch_tomato', 'chop', 'fetch_plate', 'plate', 'serve']) {
+    await store.append(benchSid, id);
+  }
+  const response = await worker.fetch(post('/api/runs/finish', {}), envWithStore);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.decisions, 5);
+  const expected = runReplayShift({
+    level: 1,
+    decisions: ['fetch_tomato', 'chop', 'fetch_plate', 'plate', 'serve'],
+  });
+  assert.equal(body.result.score, expected.score);
+  assert.equal(body.result.served, expected.served);
+  assert.equal(body.result.protocol, RANKED_PROTOCOL);
+
+  const board = await worker.fetch(
+    new Request('https://kitchen.test/api/leaderboard'),
+    envWithStore,
+  );
+  const listing = await board.json();
+  assert.equal(listing.ok, true);
+  assert.equal(listing.protocol, RANKED_PROTOCOL);
+  assert.equal(listing.board.length, 1);
+  assert.equal(listing.board[0].sid, benchSid);
+  assert.equal(listing.board[0].score, expected.score);
+});
+
+test('verified runs reject a missing store, an unknown run and a protocol mismatch', async () => {
+  assert.equal((await worker.fetch(post('/api/runs/finish', {}), env())).status, 503);
+
+  const unknown = memoryRunStore();
+  assert.equal(
+    (await worker.fetch(post('/api/runs/finish', {}), { ...env(), RUN_STORE: unknown })).status,
+    404,
+  );
+
+  const stale = memoryRunStore();
+  await stale.init(benchSid, 1, 'some-old-protocol');
+  assert.equal(
+    (await worker.fetch(post('/api/runs/finish', {}), { ...env(), RUN_STORE: stale })).status,
+    409,
+  );
+
+  assert.equal(
+    (await worker.fetch(new Request('https://kitchen.test/api/leaderboard'), env())).status,
+    503,
+  );
+});
+
+test('the run Durable Object stores per-run chains and one sorted board', async () => {
+  const storage = {
+    map: new Map(),
+    async get(key) {
+      return this.map.get(key);
+    },
+    async put(key, value) {
+      this.map.set(key, value);
+    },
+  };
+  const store = new GameStore({ storage }, {});
+  const call = (path, body, method = 'POST') =>
+    store.fetch(
+      new Request(`https://do${path}`, {
+        method,
+        ...(body === undefined
+          ? {}
+          : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+      }),
+    );
+  await call('/init', { sid: 'a', level: 1, protocol: RANKED_PROTOCOL });
+  await call('/init', { sid: 'a', level: 1, protocol: RANKED_PROTOCOL });
+  assert.equal((await (await call('/append', { sid: 'a', choice: 'chop' })).json()).ordinal, 0);
+  assert.equal((await (await call('/append', { sid: 'a', choice: 'serve' })).json()).ordinal, 1);
+  const finished = await (await call('/finish', { sid: 'a' })).json();
+  assert.equal(finished.run.status, 'finished');
+  assert.deepEqual(finished.run.decisions, ['chop', 'serve']);
+  // A closed run rejects further decisions.
+  assert.equal((await call('/append', { sid: 'a', choice: 'serve' })).status, 409);
+  const missing = await (await call('/run?sid=missing', undefined, 'GET')).json();
+  assert.equal(missing.run, null);
+  await call('/board', { sid: 'a', score: 100, timeMs: 9000, at: 1 });
+  await call('/board', { sid: 'b', score: 250, timeMs: 8000, at: 2 });
+  await call('/board', { sid: 'c', score: 100, timeMs: 7000, at: 3 });
+  const board = await (await call('/board', undefined, 'GET')).json();
+  assert.deepEqual(
+    board.board.map((entry) => entry.sid),
+    ['b', 'c', 'a'],
+  );
 });

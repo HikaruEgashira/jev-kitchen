@@ -33,14 +33,16 @@ Cloudflare Access を外して一般公開する前提の、Worker API の境界
 
 ## エンドポイント
 
-| Method | Path                | ticket  | 課金 | 役割                                    |
-| ------ | ------------------- | ------- | ---- | --------------------------------------- |
-| POST   | `/api/session`      | 不要    | なし | `mode` を指定して run ticket を発行する |
-| POST   | `/api/decide`       | `play`  | あり | メインゲームの Jev 判断                 |
-| POST   | `/api/decide-llm`   | `play`  | あり | 比較用 LLM の判断                       |
-| POST   | `/api/bench/decide` | `bench` | あり | jev-bench のモデル判断                  |
-| GET    | `/api/bench/models` | 不要    | なし | 登録モデルのラベル一覧                  |
-| GET    | `/api/health`       | 不要    | なし | 設定プローブ。モデルを呼ばない          |
+| Method | Path                | ticket  | 課金 | 役割                                        |
+| ------ | ------------------- | ------- | ---- | ------------------------------------------- |
+| POST   | `/api/session`      | 不要    | なし | `mode` を指定して run ticket を発行する     |
+| POST   | `/api/decide`       | `play`  | あり | メインゲームの Jev 判断                     |
+| POST   | `/api/decide-llm`   | `play`  | あり | 比較用 LLM の判断                           |
+| POST   | `/api/bench/decide` | `bench` | あり | jev-bench のモデル判断（選択を run に記録） |
+| POST   | `/api/runs/finish`  | `bench` | なし | 決定列を再実行し検証済みスコアを確定する    |
+| GET    | `/api/leaderboard`  | 不要    | なし | 検証済み上位20件                            |
+| GET    | `/api/bench/models` | 不要    | なし | 登録モデルのラベル一覧                      |
+| GET    | `/api/health`       | 不要    | なし | 設定プローブ。モデルを呼ばない              |
 
 課金ルートは `content-type: application/json` と `x-run-ticket` ヘッダを必須とする。
 
@@ -66,47 +68,45 @@ Cloudflare Access を外して一般公開する前提の、Worker API の境界
 | 503    | `TICKET_SECRET` 未設定（課金ルートを閉じている） |
 | 502    | 上流の失敗・timeout（本文は秘匿）                |
 
-## ランキング基盤（設計。未実装）
+## ランキング基盤（B: リプレイ検証。実装済み）
 
-### なぜ現状のままではランキングできないか
+### 検証モデル
 
-スコアと状態はクライアントが生成し、端末保存のみでサーバ権威が無い（`src/game.js`）。worker は「候補IDが criteria に
-含まれるか」しか見ない。したがって、クライアントが提出するスコアや状態は信頼できない。改ざん不能な順位には、次のどちらかが要る。
+順位の単位は **1営業（ranked shift）**。固定シナリオ（`src/replay.js` の `rankedScenario`。乱数なし）で、
+サーバが発行した意思決定IDの列をサーバが再実行し、スコアを再計算する。クライアントはスコアも決定列も提出しない。
 
-| 案                | 内容                                                                             | 長所                                           | コスト                                                         |
-| ----------------- | -------------------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- |
-| A: サーバ実行型   | サーバ（Durable Object）が run を回し、モデル呼び出しも採点も行う                | 提出物を信頼する必要が無い。AIモデル順位に最適 | game.js をWorkerへ同梱し、長時間実行をalarm/Workflowで継続する |
-| B: リプレイ検証型 | クライアントが入力と選択のログを提出し、サーバが同一revisionで再実行して照合する | 人間プレイの順位も出せる                       | 固定ステップ・seed固定のヘッドレス決定論エンジンへの抽出が必要 |
+- リプレイは本編と同じ `tickWorld`（`src/engine.js`）を通る。抽出により本編とリプレイの乖離を防ぐ。
+  `test/replay.test.mjs` が実プレイ（store駆動）と `runReplayShift` の結果一致を検証する。
+- パートナーは固定ルール（`rulePick`）で、モデル入力はプレイヤーの意思決定だけ。
+- 決定列はサーバが保持する（`GameStore`）。クライアントは分岐・取捨できない。手元のローカルスコアは順位に使わない。
+- `frequency` は端末側の呼び出し間隔であり順位に影響しない（リプレイは決定列だけを再実行する）。
 
-現状はどちらも未実装。**検証が無いリーダーボードは公開しない。** 実装できるまで `GET /api/leaderboard` も `POST` 提出も公開しない。
+### エンドポイント
 
-### 採用案: A → B の順
+| Method | Path               | ticket | 役割                                               |
+| ------ | ------------------ | ------ | -------------------------------------------------- |
+| POST   | `/api/runs/finish` | bench  | 保存済み決定列を再実行し、検証済みスコアを確定する |
+| GET    | `/api/leaderboard` | 不要   | 検証済み上位20件を返す                             |
 
-1. **AIモデル順位（A）**。`/bench` は既にヘッドレスで回る（`scripts/bench.mjs` が `tick` と `runBenchmark` を
-   Nodeで実行する）。同じ処理を Durable Object へ載せ、モデル呼び出しを binding 直にすれば、スコアは構成上サーバ権威になる。
-   - `POST /api/bench/runs`（ticket必須）で run を作成し、DO が実行、`GET /api/bench/runs/:id` で進捗を返す。
-   - 到達レベルと条件（revision・frequency・最大call数）を記録する。モデルと条件が違えば順位を混ぜない。
-2. **人間プレイ順位（B）**。固定ステップ化したヘッドレスエンジンを抽出し、入力ログを再実行してスコアを再計算する。
-   - ログ: `{ revision, ticketSid, seed, events: [{ atMs, actor, actionId }] }`。
-   - 応答者の抽選は `seed` から決定論的に生成する。`Math.random` をシミュレーションから排除する（`src/game.js` の `drawApplicants`）。
-   - サーバは再計算したスコアだけを保存する。提出値は保存しない。
+`POST /api/session`（mode `bench`）が run を作成し、`ranked: { protocol, level }` を返す。
+`/api/bench/decide` はモデルの選択を返すたびに、その run へ順序つきで記録する。
+`/api/runs/finish` は run を閉じ、決定列を `runReplayShift` で再実行して `GET /api/leaderboard` へ載せる。
+`protocol` 不一致の run は409で拒否する（配信をまたいだ run を混ぜない）。
 
-### 保存スキーマ（案）
+### 保存
 
-Durable Object（単一インスタンスで直列化）または D1。
+Cloudflare Durable Object `GameStore`（`wrangler.jsonc` の `RUNS`）。run ごとに1インスタンス、リーダーボードは `board`
+インスタンス。`RunStore` インターフェース（`src/run-store.ts`）を挟み、テストは `memoryRunStore` を注入する。
 
-```
-run:   { sid, mode, modelId, revision, conditions, startedAt, status, result }
-score: { sid, mode, modelId, revision, verified, value, levelsCleared, at }
-```
+### 意図的な範囲
 
-`GET /api/leaderboard?mode=bench|play&revision=...` は `verified = true` のみを値降順で返す。
-`verified` は「サーバが実行した」または「リプレイが一致した」時だけ true。
+- 1営業のみ。順位は専用の「検証ラン（1営業）」（`runRankedShift`）だけを対象とし、フルキャンペーンの`runBenchmark`は含めない。
+  シフト間の準備（採用・勤務・仕入れ・投資）を足す場合は、決定列に準備行動（`hire_*`/`crew_*`/`stock_*`/`equipment_*`/`vitamin_*`/`open_shift`）を記録して `nextShift` を再実行する。
+- リプレイは `MAX_REPLAY_STEPS`（60Hz×5分）で有界。長時間runでもサーバCPUは線形で抑えられる。
 
-### 追加で必要な防御（ランキング有効化まで）
+### 追加で必要な防御（ランキング本格運用まで）
 
-- run 単位の call 予算を DO カウンタで強制する（現状はIPレート制限のみ）。
-- `sid` ごとの提出は1回。ticket の `exp` と DO の状態で拒否する。
+- run 単位の call 予算を DO カウンタで強制する（現状はIPレート制限と決定列の上界のみ）。
 - Turnstile をセッション発行に付ける（分散IP対策。未実装）。
 - 上流の spend limit を口座側で設定する。
 
@@ -115,10 +115,11 @@ score: { sid, mode, modelId, revision, verified, value, levelsCleared, at }
 公開前チェック:
 
 1. `wrangler secret put TICKET_SECRET`（16文字以上）を設定する。
-2. `wrangler.jsonc` の `ratelimits` が配信されていることを確認する。
+2. `wrangler.jsonc` の `ratelimits` と `durable_objects`（`RUNS` / `GameStore`、migration `v1`）が配信されていることを確認する。
 3. AI Gateway / TypeSafe の spend limit を設定する。
 4. `GET /api/health` の `configured.sessions` と `configured.rateLimit` が両方 true であることを確認する。
 5. 未認証の `POST /api/decide` が401、`POST /api/session` が200を返すことを確認する。
+6. `POST /api/session`（bench）→ `/api/bench/decide` → `/api/runs/finish` の順で1 run を完了し、`GET /api/leaderboard` に載ることを確認する。
 
 復旧は `wrangler deployments list` で配信前versionを記録してから `wrangler rollback <version-id>`。
 `TICKET_SECRET` を外すと課金ルートは503で閉じるので、事故時はまずこれを外して止める。

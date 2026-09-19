@@ -113,3 +113,10 @@ Workerは既存の入力64KiB／応答128KiB制限、上流8秒timeoutを共有�
 ブラウザ側の待機上限は10秒。中断・timeoutは上流処理や課金の停止を保証しない。
 課金ルートは`POST /api/session`（mode: `bench`）が発行するrun ticketを`x-run-ticket`で要求する。
 境界は[公開API仕様](public-api.md)を正とする。
+
+## 検証済み順位
+
+`POST /api/runs/finish`で順位を確定する。サーバは自分が発行した決定列を`runReplayShift`（`src/replay.js`）で再実行し、
+再計算したスコアだけを`GET /api/leaderboard`へ載せる。クライアントはスコアも決定列も提出しない。
+順位の単位は固定シナリオの1営業で、画面の「検証ラン（1営業）」がこの経路を実行する。フルキャンペーンの`runBenchmark`は順位に含めない。
+`frequency`は順位に影響しない。

@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { useKitchen } from './game.js';
 import {
   runBenchmark,
+  runRankedShift,
   pauseBenchmark,
   pauseBenchmarkWhenAway,
   resumeBenchmark,
@@ -44,6 +45,7 @@ export default function Bench() {
   const [models, setModels] = useState(DEFAULT_MODELS);
   const [modelId, setModelId] = useState('jev');
   const [error, setError] = useState('');
+  const [board, setBoard] = useState([]);
   useEffect(() => {
     document.title = 'jev-bench | SIDEKICK kitchen';
     const controller = new AbortController();
@@ -70,6 +72,16 @@ export default function Bench() {
       if (useBenchmark.getState().running) stopBenchmark();
     };
   }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/leaderboard', { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (data?.ok && Array.isArray(data.board)) setBoard(data.board);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [bench.verified]);
   const start = (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -79,6 +91,12 @@ export default function Bench() {
       frequency: Number(form.get('frequency')),
       maxRequests: Number(form.get('maxRequests')),
     }).catch((e) => setError(e.message));
+  };
+  const startRanked = () => {
+    setError('');
+    void runRankedShift({ model: models.find((model) => model.id === modelId) }).catch((e) =>
+      setError(e.message),
+    );
   };
   const latest = bench.results.at(-1);
   const paused = bench.paused || kitchen.phase === 'paused' || kitchen.menuOpen;
@@ -144,6 +162,36 @@ export default function Bench() {
               </tbody>
             </table>
           </div>
+          {bench.verified && (
+            <p className="bench-current" role="status">
+              検証済みスコア {bench.verified.score}（Lv{bench.verified.level}・
+              {bench.verified.served}/{bench.verified.quota}皿）
+            </p>
+          )}
+          <div className="bench-splits" aria-label="検証済みランキング">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Lv</th>
+                  <th>スコア</th>
+                  <th>皿</th>
+                </tr>
+              </thead>
+              <tbody>
+                {board.map((entry, index) => (
+                  <tr key={entry.sid}>
+                    <th scope="row">{index + 1}</th>
+                    <td>{entry.level}</td>
+                    <td>{entry.score}</td>
+                    <td>
+                      {entry.served}/{entry.quota}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
         <aside className="bench-controls-panel" aria-label="実行条件">
           <form className="bench-controls" onSubmit={start} aria-label="実行条件">
@@ -173,6 +221,13 @@ export default function Bench() {
                 onClick={() => download(latest)}
               >
                 JSON
+              </button>
+              <button
+                type="button"
+                disabled={bench.running || !kitchen.ready}
+                onClick={startRanked}
+              >
+                検証ラン（1営業）
               </button>
             </div>
             <label>
