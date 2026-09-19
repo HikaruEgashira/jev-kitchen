@@ -87,6 +87,12 @@ test('player instructions distinguish starting prep, serving hot food and discar
   assert.match(instruction(), /No food is ready to plate/);
   g.stations.pot.state = 'ready';
   assert.match(instruction(), /Fetch a plate/);
+  g.human.carrying = 'plate';
+  assert.match(instruction(), /Choose plate_soup/);
+  g.stations.pot.state = 'cooking';
+  assert.match(instruction(), /Keep your plate/);
+  g.stations.pot.state = 'idle';
+  assert.match(instruction(), /Return your plate/);
   g.human.carrying = 'dish';
   assert.match(instruction(), /Discard it now/);
   assert.ok(buildCandidates(g, 'human').some((c) => c.id === 'discard'));

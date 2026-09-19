@@ -1085,6 +1085,7 @@ export function buildQuestions(cands, who = 'ai', g) {
         recipe && ordered(recipe) && ['chopped', 'ready', 'cooking'].includes(g.stations[id].state)
       );
     });
+  const plateAction = cands.find((c) => /^plate(?:_|$)/.test(c.id) && plating?.includes(c.station));
   const emptyHands = plating?.length
     ? `Ordered food at ${plating.join(', ')} needs a plate. Fetch a plate to serve it before preparing more ingredients.`
     : cands.some((c) => c.id === 'collect')
@@ -1100,8 +1101,11 @@ export function buildQuestions(cands, who = 'ai', g) {
         tomato: 'Chop your tomato at an idle board. Return it only if all boards are occupied.',
         chopped:
           'Cook or grill your chopped tomato for a visible order. Assemble salad only if a salad is ordered.',
-        plate:
-          'Plate food for a visible order. If the matching food is cooking, wait nearby; if no matching food is being prepared, return the plate and start cooking.',
+        plate: plateAction
+          ? `Ordered food is ready. Choose ${plateAction.id} or its dash_ version to plate it now. Do not return your plate.`
+          : plating?.length
+            ? `Ordered food is cooking at ${plating.join(', ')}. Keep your plate and wait for it; do not return the plate.`
+            : 'No ordered food is ready or cooking. Return your plate to free your hands and prepare ingredients.',
       }[held] ?? emptyHands);
   return {
     next_action: {
