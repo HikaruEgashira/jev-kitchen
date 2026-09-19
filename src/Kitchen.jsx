@@ -16,7 +16,7 @@ import {
   stationInfo,
   stationKind,
 } from './model.js';
-import { ENTRANCE_DURATION, entranceHeight } from './entrance.js';
+import { entranceDuration, entranceHeight } from './entrance.js';
 import { STAFF } from './staff.js';
 
 const world = (x, y, height = 0) => [(x - 450) / 65, height, (y - 270) / 65];
@@ -707,14 +707,13 @@ function Scene() {
   const level = levelConfig(game.level).kitchenTier;
   const expansion = kitchenExpansion(game);
   const stationIds = activeStationIds(game);
-  const timeline = useRef(useKitchen.getState().phase === 'ready' ? 0 : ENTRANCE_DURATION);
+  const duration = entranceDuration(stationIds.length, game.duty.length);
+  const timeline = useRef(useKitchen.getState().phase === 'ready' ? 0 : duration);
   const cameraTarget = useRef(new THREE.Vector3(0, 0.25, 0));
   const cameraInitialized = useRef(false);
   useFrame((_, delta) => {
-    timeline.current = reducedMotion
-      ? ENTRANCE_DURATION
-      : Math.min(ENTRANCE_DURATION, timeline.current + delta);
-    if (timeline.current === ENTRANCE_DURATION && !useKitchen.getState().ready)
+    timeline.current = reducedMotion ? duration : Math.min(duration, timeline.current + delta);
+    if (timeline.current === duration && !useKitchen.getState().ready)
       useKitchen.setState({ ready: true });
     tick(delta);
     const current = useKitchen.getState();
@@ -722,7 +721,14 @@ function Scene() {
     moveCamera(
       camera,
       cameraTarget.current,
-      cameraFraming(framingGame, current.phase, current.cameraMode, size.width, size.height),
+      cameraFraming(
+        framingGame,
+        current.phase,
+        current.cameraMode,
+        size.width,
+        size.height,
+        timeline.current >= duration,
+      ),
       delta,
       reducedMotion || !cameraInitialized.current,
     );

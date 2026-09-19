@@ -34,6 +34,7 @@ import { quoteVitamins, trainingMultiplier, trainingState, validateTraining } fr
 
 const BEST_KEY = 'sidekick-best-v2';
 export const CHECKPOINT_KEY = 'sidekick-campaign-v1';
+export const STAGES_KEY = 'sidekick-stages-v1';
 const CHECKPOINT_VERSION = 5;
 const STARTING_CASH = 180;
 
@@ -230,11 +231,58 @@ function readCheckpoint() {
   }
 }
 
+// Archive each paid opening once; replaying an earlier stage never replaces a later one.
+function archiveEntry(record) {
+  const previous = record.rollback?.previous;
+  return {
+    ...record,
+    rollback: record.rollback
+      ? {
+          ...record.rollback,
+          previous: previous
+            ? { ...previous, snapshot: { ...previous.snapshot, rollback: null } }
+            : null,
+        }
+      : null,
+  };
+}
+
+function readStages(checkpoint, fallback = {}) {
+  const stages = { ...fallback };
+  try {
+    const saved = JSON.parse(globalThis.localStorage?.getItem(STAGES_KEY) ?? '{}');
+    if (saved && typeof saved === 'object' && !Array.isArray(saved))
+      for (const [level, value] of Object.entries(saved)) {
+        const record = validateCheckpoint(value);
+        if (record && String(record.level) === level) stages[level] = archiveEntry(record);
+      }
+  } catch {
+    /* Keep valid legacy and in-memory saves if storage is unavailable. */
+  }
+  for (let record = checkpoint; record; record = record.rollback?.previous?.snapshot) {
+    stages[record.level] ??= archiveEntry(record);
+    const previous = record.rollback?.previous;
+    if (previous && stages[previous.snapshot.level]?.frozenApplicants == null)
+      stages[previous.snapshot.level] = archiveEntry({
+        ...previous.snapshot,
+        frozenApplicants: previous.applicants,
+      });
+  }
+  return stages;
+}
+
 function writeCheckpoint(value, completed = false) {
   if (state().benchmark) return null;
   const record = validateCheckpoint({ ...value, version: CHECKPOINT_VERSION, completed });
   if (!record) return null;
+  const stages = readStages(readCheckpoint(), state().stages);
+  // Import the old rewind chain before changing the current continuation point.
+  Object.assign(stages, readStages(record, stages));
+  stages[record.level] ??= archiveEntry(record);
+  if (completed) stages[record.level] = { ...stages[record.level], completed: true };
+  update({ stages });
   try {
+    globalThis.localStorage?.setItem(STAGES_KEY, JSON.stringify(stages));
     globalThis.localStorage?.setItem(CHECKPOINT_KEY, JSON.stringify(record));
   } catch {
     /* Storage is optional; the in-memory checkpoint still protects this session. */
@@ -267,6 +315,7 @@ export const useKitchen = create(() => ({
   backgroundMode: true,
   best: savedBest(),
   checkpoint: initialCheckpoint,
+  stages: readStages(initialCheckpoint),
   rollback: initialCheckpoint?.rollback ?? null,
   reviewing: false,
   cleared: false,
@@ -329,7 +378,7 @@ function invalidate() {
 }
 
 function publish() {
-  update({ revision: state().revision + 1 });
+  update({ revision: state().revision + 1, movingTo: target });
 }
 
 function notify(text) {
@@ -522,7 +571,7 @@ export function setMenuOpen(open) {
   update({ menuOpen: Boolean(open), ...(open ? { menuPage: null } : {}) });
 }
 
-const MENU_PAGES = new Set(['settings', 'help', 'controls', 'diagnostics', 'hints']);
+const MENU_PAGES = new Set(['settings', 'help', 'controls', 'diagnostics', 'hints', 'stages']);
 
 export function setMenuPage(menuPage) {
   if (menuPage === null || MENU_PAGES.has(menuPage)) update({ menuPage });
@@ -530,6 +579,22 @@ export function setMenuPage(menuPage) {
 
 export function setCameraMode(cameraMode) {
   if (['auto', 'follow', 'overview'].includes(cameraMode)) update({ cameraMode });
+}
+
+export function restoreStage(level) {
+  const current = state();
+  if (
+    !current.ready ||
+    current.benchmark ||
+    !['ready', 'paused', 'finished'].includes(current.phase)
+  )
+    return false;
+  const stages = readStages(readCheckpoint(), current.stages);
+  const saved = Number.isInteger(level) ? stages[level] : null;
+  if (!saved) return false;
+  update({ stages, menuOpen: false, menuPage: null });
+  beginShift(saved);
+  return true;
 }
 
 export function setMovementMode(movementMode) {
@@ -771,6 +836,7 @@ export function goTo(id) {
   }
   current.game.human.intent = null;
   target = id;
+  publish();
 }
 
 export function humanInteract(automatic = false, stationOnly = false) {

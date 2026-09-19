@@ -14,8 +14,10 @@ test('automatic camera follows in portrait, fits in landscape, and honors explic
     cameraFraming(g, 'playing', 'auto', 568, 320),
     cameraFraming(g, 'playing', 'overview', 568, 320),
   );
-  for (const phase of ['ready', 'finished'])
-    assert.deepEqual(cameraFraming(g, phase, 'follow', 320, 568), overview);
+  assert.deepEqual(cameraFraming(g, 'finished', 'follow', 320, 568), overview);
+  assert.deepEqual(cameraFraming(g, 'ready', 'auto', 320, 568, false), overview);
+  assert.deepEqual(cameraFraming(g, 'ready', 'auto', 320, 568, true), follow);
+  assert.deepEqual(cameraFraming(g, 'ready', 'overview', 320, 568, true), overview);
 });
 
 test('portrait follow enlarges the player and keeps their body clear of the fixed HUD', () => {

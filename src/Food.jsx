@@ -151,6 +151,30 @@ export function ProductPreview({ item, size = 40, order }) {
   );
 }
 
+export function StationPreview({ station, size, order }) {
+  const kind = station.replace(/\d+$/, '');
+  return (
+    <Layer.Provider value={order}>
+      <group scale={size} rotation={[0.7, -0.35, 0]}>
+        {kind === 'board' ? (
+          <>
+            <Block size={[1.1, 0.12, 0.7]} color="#bd844d" position={[0, -0.12, 0]} />
+            <Food item="chopped" />
+            <Block size={[0.65, 0.23, 0.045]} color="#d9e3df" position={[0.1, 0.22, -0.2]} />
+            <Block size={[0.3, 0.12, 0.07]} color="#245e50" position={[-0.36, 0.22, -0.2]} />
+          </>
+        ) : (
+          <Food
+            item={
+              { crate: 'tomato', plates: 'plate', pot: 'soup', grill: 'roast', serve: 'dish' }[kind]
+            }
+          />
+        )}
+      </group>
+    </Layer.Provider>
+  );
+}
+
 // Compact sidekick bust for hiring and roster sheets. The theme color ties the
 // portrait back to the full-size chef in the kitchen.
 export function ChefAvatar({ color = '#f0b03b', size = 48, order }) {

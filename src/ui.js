@@ -1,5 +1,6 @@
 import {
   RECIPES,
+  ITEM_NAMES,
   STAR_SCORES,
   STOCK_PRICE,
   quotaForLevel,
@@ -46,6 +47,7 @@ export function preparation(g, reviewing = false) {
     layoutMode: 'equipment',
     layoutSelection: null,
     layoutIndex: 0,
+    stagePage: 0,
   };
 }
 
@@ -305,7 +307,7 @@ function equipmentOptionStatus(error) {
 
 function stationButtonName(id) {
   if (id.startsWith('board')) return `切る${id === 'board' ? '' : '2'}`;
-  if (id.startsWith('pot')) return `鍋${id === 'pot' ? '' : '2'}`;
+  if (id.startsWith('pot')) return `煮る${id === 'pot' ? '' : '2'}`;
   if (id.startsWith('grill')) return `焼く${id === 'grill' ? '' : '2'}`;
   if (id === 'plates') return '皿';
   if (id === 'serve') return '配膳';
@@ -466,12 +468,19 @@ export function screen(s, view, width, height) {
   const step = TUTORIAL_STEPS[s.tutorial];
   const reached = near.inReach && (s.tutorial === null || near.id === step?.station);
   const stations = narrow ? activeStationIds(g) : [];
+  const portrait = width < height;
   const stationGap = 4;
   const stationColumns = narrow
-    ? Math.max(1, Math.floor((width - 24 + stationGap) / (44 + stationGap)))
+    ? Math.min(
+        stations.length,
+        Math.max(Math.ceil(stations.length / 2), Math.floor((width - 20) / (portrait ? 68 : 48))),
+      )
     : 1;
   const stationRows = narrow ? Math.ceil(stations.length / stationColumns) : 0;
-  const stationTop = narrow ? height - 112 - (stationRows - 1) * 48 : height - 112;
+  const stationHeight = portrait ? 64 : 44;
+  const stationTop = narrow
+    ? height - 68 - stationRows * (stationHeight + stationGap)
+    : height - 112;
   if (playing) {
     if (practice && step) {
       const lessonHeight = narrow ? 36 : 68;
@@ -485,7 +494,9 @@ export function screen(s, view, width, height) {
       );
       label(
         'lesson-copy',
-        narrow ? `${STATIONS[step.station].name}をタップ` : `WASDで移動・Eで作業\n${step.label}`,
+        narrow
+          ? `${s.tutorial + 1}/5  ${STATIONS[step.station].name}をタップ`
+          : `WASDで移動・Eで作業\n${step.label}`,
         width / 2 - Math.min(width - 32, 372) / 2,
         narrow ? stationTop - lessonHeight - 10 : height - 135,
         Math.min(width - 32, 372),
@@ -505,7 +516,7 @@ export function screen(s, view, width, height) {
         32,
         { size: 14, live: true },
       );
-    } else if (!practice) {
+    } else if (!practice && (!narrow || !portrait)) {
       const advice =
         s.benchFeedback?.loop || repeatsActions(g.human.lastActions ?? [], g)
           ? '同じ操作が続いています。ヒントで確認しよう'
@@ -522,6 +533,26 @@ export function screen(s, view, width, height) {
       );
     }
     if (narrow) {
+      if (portrait && !step && !(s.toast && g.time < s.toastUntil)) {
+        const held = g.human.carrying;
+        panel('hands-board', 12, stationTop - 50, width - 96, 44);
+        if (!practice)
+          button('advice', 'ヒント', width - 80, stationTop - 50, 64, 'advice', { size: 13 });
+        if (held) add('food', 'hands-food', '', 18, stationTop - 44, 34, 34, { recipe: held });
+        label(
+          'hands',
+          s.movingTo
+            ? `${STATIONS[s.movingTo].name}へ移動中`
+            : held
+              ? `手持ち：${ITEM_NAMES[held]}`
+              : '作業台をタップで移動・作業',
+          held ? 56 : 16,
+          stationTop - 44,
+          width - (held ? 144 : 104),
+          34,
+          { size: 13 },
+        );
+      }
       const w = (width - 24 - stationGap * (stationColumns - 1)) / stationColumns;
       stations.forEach((id, index) => {
         const row = Math.floor(index / stationColumns);
@@ -530,14 +561,18 @@ export function screen(s, view, width, height) {
           `station-${id}`,
           stationButtonName(id),
           12 + col * (w + stationGap),
-          stationTop + row * 48,
+          stationTop + row * (stationHeight + stationGap),
           w,
           'station',
           {
             value: id,
+            h: stationHeight,
+            icon: portrait ? id : null,
             label: `${STATIONS[id].name}へ移動して作業`,
             disabled: s.tutorial !== null && step?.station !== id,
-            pressed: practice ? step?.station === id : reached && near.id === id,
+            pressed: practice
+              ? step?.station === id
+              : s.movingTo === id || (reached && near.id === id),
             size: 13,
           },
         );
@@ -588,7 +623,12 @@ export function screen(s, view, width, height) {
       items,
       modal: null,
       title: 'キッチン',
-      status: practice && step ? step.label : s.toast || '',
+      status:
+        practice && step
+          ? narrow
+            ? `${STATIONS[step.station].name}をタップ`
+            : step.label
+          : s.toast || '',
     };
   if (s.phase === 'ready') items.length = 0;
   // Background HUD stays legible, but never accepts input behind a sheet.
@@ -640,14 +680,59 @@ export function screen(s, view, width, height) {
         ? 'いまのヒント'
         : s.menuPage === 'help'
           ? 'キッチンの手引き'
-          : s.menuPage === 'controls'
-            ? '操作設定'
-            : s.menuPage === 'diagnostics'
-              ? '診断情報'
-              : 'ひと休み',
+          : s.menuPage === 'stages'
+            ? 'ステージを選ぶ'
+            : s.menuPage === 'controls'
+              ? '操作設定'
+              : s.menuPage === 'diagnostics'
+                ? '診断情報'
+                : 'ひと休み',
     );
     const page = s.menuPage ?? 'settings';
-    if (page === 'controls') {
+    if (page === 'stages') {
+      const levels = Object.keys(s.stages ?? {})
+        .map(Number)
+        .sort((a, b) => a - b);
+      const pageCount = Math.max(1, Math.ceil(levels.length / 6));
+      const stagePage = Math.min(pageCount - 1, Math.max(0, view.stagePage ?? 0));
+      const bw = (inside - 16) / 3;
+      copy('stage-help', '開店時の状態を復元。先のステージも残ります。', 54, 28, { size: 12 });
+      levels.slice(stagePage * 6, stagePage * 6 + 6).forEach((level, index) => {
+        button(
+          `stage-${level}`,
+          `Lv.${level}`,
+          x + 16 + (index % 3) * (bw + 8),
+          y + 86 + Math.floor(index / 3) * 48,
+          bw,
+          'restore-stage',
+          {
+            value: level,
+            disabled: !s.ready || s.benchmark,
+            pressed: level === s.checkpoint?.level,
+            label: `Lv.${level}を開店時の状態で復元`,
+          },
+        );
+      });
+      if (!levels.length) copy('stage-empty', '開店するとステージが保存されます。', 98, 48);
+      button('stages-prev', '‹', x + 16, footerY - 52, 44, 'stage-page', {
+        value: stagePage - 1,
+        disabled: stagePage === 0,
+        label: '前のステージ一覧',
+      });
+      label(
+        'stages-page',
+        `${stagePage + 1} / ${pageCount}`,
+        x + 68,
+        footerY - 52,
+        inside - 104,
+        44,
+      );
+      button('stages-next', '›', x + pw - 60, footerY - 52, 44, 'stage-page', {
+        value: stagePage + 1,
+        disabled: stagePage + 1 >= pageCount,
+        label: '次のステージ一覧',
+      });
+    } else if (page === 'controls') {
       const bw = (inside - 16) / 3;
       label('camera-heading', 'カメラ', x + 16, y + 54, inside, 20, {
         size: narrow ? 12 : 14,
@@ -793,10 +878,18 @@ export function screen(s, view, width, height) {
       });
       button('benchmark', 'jev-bench', x + 24 + bw, footerY - 54, bw, 'link', { href: '/bench' });
     } else {
-      button('sound', s.sound ? '音オン' : '音オフ', x + 16, y + 64, inside, 'sound', {
-        pressed: s.sound,
-        size: 13,
-      });
+      button(
+        'sound',
+        s.sound ? '音オン' : '音オフ',
+        x + 16,
+        y + 64,
+        s.benchmark ? inside : 76,
+        'sound',
+        {
+          pressed: s.sound,
+          size: 13,
+        },
+      );
       const nav = (inside - 24) / 4;
       button('controls', '操作設定', x + 16, y + 116, nav, 'menu-page', {
         value: 'controls',
@@ -814,6 +907,11 @@ export function screen(s, view, width, height) {
         value: 'hints',
         size: 13,
       });
+      if (!s.benchmark)
+        button('stages', 'ステージを選ぶ', x + 100, y + 64, inside - 84, 'menu-page', {
+          value: 'stages',
+          disabled: !Object.keys(s.stages ?? {}).length,
+        });
       const lw = (inside - 8) / 2;
       button('license', 'ライセンス', x + 16, footerY - 54, lw, 'link', {
         href: '/licenses.html',
@@ -832,7 +930,19 @@ export function screen(s, view, width, height) {
     copy('welcome', 'kitchen   /   ふたりで、ひと皿。', narrow ? 84 : 116, 36, {
       size: narrow ? 15 : 22,
     });
-    primary(s.ready ? '開店' : 'キッチンを準備中…', 'start', { disabled: !s.ready });
+    primary(
+      s.ready
+        ? s.checkpoint && !s.checkpoint.completed
+          ? `Lv.${s.checkpoint.level}から再開`
+          : '開店'
+        : 'キッチンを準備中…',
+      'start',
+      { disabled: !s.ready },
+    );
+    if (Object.keys(s.stages ?? {}).length)
+      button('stages', 'ステージを選ぶ', x + 16, footerY - 54, inside, 'open-stages', {
+        disabled: !s.ready,
+      });
   } else if (s.phase === 'paused') {
     title('ただいま、ひと休み');
     copy('paused', '営業の時計は止まっています。', 66, 70, { size: 18 });
