@@ -114,7 +114,11 @@ test('phone station buttons stay below the kitchen and respect onboarding restri
   ]) {
     TUTORIAL_STEPS.forEach((step, tutorial) => {
       const game = createGame({ practice: true });
-      Object.assign(game.human, { x: STATIONS[step.station].x, y: STATIONS[step.station].y });
+      Object.assign(game.human, {
+        x: STATIONS[step.station].x,
+        y: STATIONS[step.station].y,
+        carrying: 'tomato',
+      });
       const state = { ...useKitchen.getState(), game, tutorial, phase: 'playing', ready: true };
       const ui = screen(state, preparation(game), width, height);
       assert.equal(
@@ -124,6 +128,7 @@ test('phone station buttons stay below the kitchen and respect onboarding restri
       const action = ui.items.find((i) => i.id === 'interact');
       assert.equal(action.text, '作業する');
       assert.equal(action.disabled, false);
+      assert.equal(ui.items.find((i) => i.id === 'clear').disabled, true);
       assert.ok(action.w >= 44 && action.h >= 44);
       const stations = ui.items.filter((i) => i.action === 'station');
       assert.deepEqual(
