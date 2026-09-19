@@ -13,6 +13,9 @@ const source = [
   'model.js',
   'staff.js',
   'equipment.js',
+  'training.js',
+  'progression.js',
+  'benchmark.js',
 ]
   .map((name) => readFileSync(`src/${name}`, 'utf8'))
   .join('');

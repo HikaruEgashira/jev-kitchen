@@ -6,7 +6,7 @@ import { ScreenSizer } from '@react-three/drei/core/ScreenSizer';
 import { Text3D } from '@react-three/drei/core/Text3D';
 import { Center } from '@react-three/drei/core/Center';
 import { Lettering, Plaque, Meter, INK, PAPER, WOOD } from './Surface.jsx';
-import { screen, preparation, purchase, compactControls } from './ui.js';
+import { screen, preparation, purchase, compactControls, editPreparation } from './ui.js';
 import { ChefAvatar, ProductPreview } from './Food.jsx';
 import {
   useKitchen,
@@ -217,14 +217,15 @@ function Screen() {
   const previewEquipmentKey = JSON.stringify(previewBill?.equipment ?? null);
   const previewLayoutKey = JSON.stringify(previewBill?.layout ?? null);
   const latest = useRef();
-  const patch = (values) => {
+  const updateView = (values, label) => {
     if (s.benchmark && s.benchPreparation)
-      useKitchen.setState({ benchPreparation: { ...view, error: '', ...values } });
-    else setView((v) => ({ ...v, error: '', ...values }));
+      useKitchen.setState({ benchPreparation: editPreparation(view, values, label) });
+    else setView((v) => editPreparation(v, values, label));
   };
   const dispatch = (item, value = item.value) => {
     if (item.disabled || item.inert) return;
     const g = useKitchen.getState().game;
+    const patch = (values) => updateView(values, item.label ?? item.text);
     switch (item.action) {
       case 'start':
         startShift();
@@ -240,6 +241,14 @@ function Screen() {
         break;
       case 'pause':
         togglePause();
+        break;
+      case 'advice':
+        patch({ advicePage: 0 });
+        setMenuOpen(true);
+        setMenuPage('hints');
+        break;
+      case 'advice-page':
+        patch({ advicePage: value });
         break;
       case 'menu':
         setMenuOpen(true);

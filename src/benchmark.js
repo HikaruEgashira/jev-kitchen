@@ -16,11 +16,12 @@ import {
   STOCK_PRICE,
   levelConfig,
   recommendedStock,
+  repeatsActions,
 } from './model.js';
 import { STAFF, nextStaffState, payroll } from './staff.js';
 import { EQUIPMENT, equipmentCapacity, quoteEquipment } from './equipment.js';
-import { MAX_TRAINING, VITAMINS, quoteVitamins } from './training.js';
-import { preparation, purchase } from './ui.js';
+import { VITAMINS, quoteVitamins } from './training.js';
+import { preparation, purchase, preparationAdvice, preparationKey } from './ui.js';
 
 export const BENCH_PROTOCOL = 'jev-bench-v3';
 
@@ -44,6 +45,7 @@ export const PREPARATION_ACTIONS = Object.freeze({
   'vitamin-target': { bench: 'vitamin_*' },
   'vitamin-cancel': { bench: 'vitamin_undo' },
   next: { bench: 'open_shift' },
+  advice: { omitted: '人間向けヒントを表示する' },
   page: { omitted: 'benchは対象ページへ直接遷移する' },
   'equipment-index': { omitted: 'benchは設備候補を全ページ分まとめて出す' },
   'layout-mode': { omitted: '配置は自動レイアウトで確定する' },
@@ -310,6 +312,9 @@ export function compactDecisionState(s) {
         stock: b.stock,
         quantity: p.quantity,
         recommended_purchase: p.recommended_purchase,
+        ...(stage === 'stock'
+          ? { previous_sales: p.previous_sales, stock_price: STOCK_PRICE }
+          : {}),
         ...(stage === 'hiring' || stage === 'staffing'
           ? {
               roster: p.roster.map((x) => ({
@@ -380,31 +385,9 @@ export function benchRequest(
   const recent = decisions
     .filter((d) => d.level === g.level && d.phase === (preparing ? 'preparation' : 'playing'))
     .slice(-6);
-  const cycle = recent.slice(-4);
-  const looping = preparing
-    ? repeatedPlanVisits >= 2
-    : cycle.length === 4 &&
-      cycle.every(
-        (d, i) =>
-          d.applied &&
-          d.stock === g.stock &&
-          d.served === g.served &&
-          d.action === cycle[i % 2].action,
-      ) &&
-      cycle.some((d) => d.action !== 'wait' && d.action !== 'continue');
+  const looping = preparing ? repeatedPlanVisits >= 2 : repeatsActions(recent, g);
   const actions = new Set(candidates.map((c) => c.id));
   const bill = preparing ? purchase(g, plan) : null;
-  const restedCrew = preparing
-    ? [
-        ...Object.entries(bill.staffState)
-          .filter(([, schedule]) => schedule.rest === 0)
-          .map(([id]) => id),
-        ...(plan.selected ? [plan.selected] : []),
-      ]
-    : [];
-  const cook = restedCrew
-    .filter((id) => STAFF[id].capabilities.includes('cook'))
-    .sort((a, b) => (bill.staffState[a]?.worked ?? 0) - (bill.staffState[b]?.worked ?? 0))[0];
   const request = {
     state: {
       ...(preparing
@@ -447,6 +430,7 @@ export function benchRequest(
               unfilled_slots: Math.max(0, levelConfig(g.level + 1).staffSlots - plan.duty.length),
               quantity: plan.quantity,
               recommended_purchase: recommendedStock(g),
+              previous_sales: g.served,
               next_level: levelConfig(g.level + 1),
               equipmentPurchases: plan.equipmentPurchases ?? [],
               bill,
@@ -464,31 +448,7 @@ export function benchRequest(
       ? {
           next_action: {
             type: 'choice',
-            instructions:
-              {
-                hiring:
-                  g.level >= 8 &&
-                  Object.keys(bill.staffState).filter((id) =>
-                    STAFF[id].capabilities.includes('cook'),
-                  ).length < 2
-                    ? 'Hire another heat cook (chef or sous) if affordable. Two cooks are needed to alternate shifts and avoid forced rest leaving the kitchen without a cook. Prefer hiring the cook over skipping or hiring another role.'
-                    : restedCrew.length < Math.min(2, bill.slots)
-                      ? 'Too few hired crew are available next shift because of rest. Recruit an affordable helper to cover the gap. A server frees the human to cook; a cook frees the human to serve. Prefer hiring over skipping.'
-                      : 'Choose one affordable recruit or skip. First hire a chef or sous for cooking. Later recruit only to fill an available slot or cover forced rest from Lv9. Skip redundant hires when the next crew is covered: preserve money for stock and permanent upgrades. Hiring alone does not assign duty.',
-                staffing: cook
-                  ? `Assign ${cook} as the ONLY heat cook; rest the other cooks to reset their consecutive shifts. Fill remaining useful slots with prep and serving staff. Each option is the complete roster, not an individual addition.`
-                  : 'No available crew can heat food. The human must cook. Assign available prep and serving staff to help; choose the strongest affordable complete roster. Do not choose crew_solo when staff can work.',
-                stock:
-                  'Choose the purchase quantity closest to recommended_purchase, or confirm_stock if it already matches. One tomato makes one dish. Sell beyond quota for profit; leftovers carry over. Stock should cover the whole shift, not only quota.',
-                investment:
-                  bill.duty.length >= 2 && bill.equipment.board.count < 2
-                    ? 'Multiple crew share only one board. Prioritize equipment_add_board if affordable. Otherwise open_shift and save for that expansion; do not spend its budget on smaller upgrades.'
-                    : bill.training.human?.move === MAX_TRAINING &&
-                        bill.training.human?.cook === MAX_TRAINING
-                      ? 'Human training is complete. First train movement of the assigned cook (vitamin_move_chef or vitamin_move_sous) to maximum. Then invest for the next recipe mix: add a second pot for soup-heavy days, a second grill for roast-heavy days, then upgrade them. Train movement of other working crew with spare coins. Keep pending purchases; open when useful upgrades are unaffordable.'
-                      : 'Invest remaining coins before opening. Choose vitamin_move_human when available, then vitamin_cook_human. With multiple cooks, prioritize a second board. Otherwise upgrade useful equipment or regular crew. Choose open_shift when saving for necessary equipment or no useful upgrade is affordable.',
-              }[plan.stage] ??
-              'Prepare the next shift within cash: hire, assign rested staff, buy surplus stock and invest, then open_shift. Each choice edits a pending plan.',
+            instructions: preparationAdvice(g, plan).instructions,
             criteria: Object.fromEntries(candidates.map((c) => [c.id, c.label])),
           },
         }
@@ -714,16 +674,25 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
         const requestGeneration = generation;
         const stage = preparing ? plan.stage : null;
         const { stock, served } = g;
-        const body = JSON.stringify({
-          modelId: model.id,
-          ...benchRequest(state, {
-            preparing,
-            plan,
-            candidates,
-            decisions: result.decisions,
-            repeatedPlanVisits,
-          }),
+        const request = benchRequest(state, {
+          preparing,
+          plan,
+          candidates,
+          decisions: result.decisions,
+          repeatedPlanVisits,
         });
+        useKitchen.setState({
+          benchFeedback: {
+            loop: Boolean(request.state.loop_warning),
+            recent: result.decisions
+              .filter(
+                (d) => d.level === g.level && d.phase === (preparing ? 'preparation' : 'playing'),
+              )
+              .slice(-6)
+              .map((d) => `${d.label ?? d.action}${d.applied ? '' : '（状況が変わり未適用）'}`),
+          },
+        });
+        const body = JSON.stringify({ modelId: model.id, ...request });
         const requestStart = performance.now();
         nextCallAt = requestStart + 1000 / frequency;
         result.requests++;
@@ -774,6 +743,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
           served,
           atMs: Math.round(g.time),
           action: selected.id,
+          label: selected.label,
           applied,
           latencyMs: Math.round(latencies.at(-1)),
           via: data.via,
@@ -784,15 +754,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
           requestBytes: new TextEncoder().encode(body).length,
         });
         if (preparing && applied && selected.id !== 'open_shift') {
-          const { selected: hire, duty, quantity, equipmentPurchases, vitamins } = plan;
-          const signature = JSON.stringify({
-            stage: plan.stage,
-            hire,
-            duty,
-            quantity,
-            equipmentPurchases,
-            vitamins,
-          });
+          const signature = preparationKey(plan);
           const visits = (preparationVisits.get(signature) ?? 0) + 1;
           preparationVisits.set(signature, visits);
           repeatedPlanVisits = visits;

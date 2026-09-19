@@ -252,6 +252,7 @@ export const useKitchen = create(() => ({
   phase: 'ready',
   benchmark: false,
   benchPreparation: null,
+  benchFeedback: null,
   preparationPreview: null,
   revision: 0,
   mode: 'jev',
@@ -379,7 +380,10 @@ function record(who, result) {
     cook = actor(g, who);
   cook.action = result.action;
   if (cook.lastActions)
-    cook.lastActions = [...cook.lastActions.slice(-5), { t: g.time, label: result.action }];
+    cook.lastActions = [
+      ...cook.lastActions.slice(-5),
+      { t: g.time, label: result.action, stock: g.stock, served: g.served },
+    ];
   update({ log: [{ who, text: result.action }, ...state().log].slice(0, 6) });
   if (result.points) {
     update({ celebration: state().celebration + 1, lastPoints: result.points });
@@ -428,6 +432,7 @@ function beginShift({
   update({
     game,
     benchPreparation: null,
+    benchFeedback: null,
     preparationPreview: null,
     phase: 'playing',
     tutorial: game.practice && !state().benchmark ? 0 : null,
@@ -517,7 +522,7 @@ export function setMenuOpen(open) {
   update({ menuOpen: Boolean(open), ...(open ? { menuPage: null } : {}) });
 }
 
-const MENU_PAGES = new Set(['settings', 'help', 'controls', 'diagnostics']);
+const MENU_PAGES = new Set(['settings', 'help', 'controls', 'diagnostics', 'hints']);
 
 export function setMenuPage(menuPage) {
   if (menuPage === null || MENU_PAGES.has(menuPage)) update({ menuPage });

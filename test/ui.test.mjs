@@ -2,7 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { activeStationIds, createGame, layoutSlots, STATIONS } from '../src/model.js';
 import { useKitchen, TUTORIAL_STEPS } from '../src/game.js';
-import { compactControls, preparation, purchase, screen, screenContext } from '../src/ui.js';
+import {
+  compactControls,
+  preparation,
+  purchase,
+  screen,
+  screenContext,
+  preparationAdvice,
+  editPreparation,
+} from '../src/ui.js';
 import { STAFF } from '../src/staff.js';
 import { VITAMINS } from '../src/training.js';
 
@@ -54,7 +62,7 @@ test('every sheet keeps distinct, reachable 44px controls in portrait and landsc
   ]) {
     for (const phase of ['ready', 'playing', 'paused', 'finished']) {
       for (const cleared of [false, true]) {
-        for (const menuPage of [null, 'settings', 'controls', 'help', 'diagnostics']) {
+        for (const menuPage of [null, 'settings', 'controls', 'help', 'diagnostics', 'hints']) {
           for (const page of [0, 1, 2, 3]) {
             const ui = screen(
               { ...base, phase, cleared, menuOpen: menuPage !== null, menuPage },
@@ -554,4 +562,45 @@ test('Lv3 hands the roster to Haru and a rare manager applicant can be rehired',
   assert.equal(rehireBill.wages, STAFF.veteran.wage);
   const rehire = screen(base, rehiring, 390, 844);
   assert.equal(rehire.items.find((i) => i.id === 'duty-veteran').disabled, false);
+});
+
+test('human hints share stock facts, cooking advice and bounded preparation history', () => {
+  const game = createGame({ level: 12, cash: 2000, stock: 3, hired: ['helper', 'chef', 'sous'] });
+  game.served = 11;
+  const base = {
+    ...useKitchen.getState(),
+    game,
+    phase: 'finished',
+    cleared: true,
+    menuOpen: true,
+    menuPage: 'hints',
+    benchmark: false,
+  };
+  let view = { ...preparation(game), page: 2 };
+  let text = '';
+  for (let advicePage = 0; advicePage < 12; advicePage++) {
+    const ui = screen(base, { ...view, advicePage }, 320, 568);
+    text += ui.items.find((i) => i.id === 'advice-copy').text.replaceAll('\n', '');
+    if (ui.items.find((i) => i.id === 'advice-next').disabled) break;
+  }
+  assert.ok(text.includes(preparationAdvice(game, { ...view, stage: 'stock' }).hint));
+  assert.match(text, /前回11皿/);
+  assert.match(text, /次の注文/);
+  assert.doesNotMatch(text, /ノルマ後も売/);
+  view = editPreparation(view, { equipmentPurchases: ['upgrade_board'] }, 'まな板を強化');
+  view = editPreparation(view, { equipmentPurchases: [] }, 'まな板の強化を取消');
+  assert.equal(view.looping, true);
+  for (let quantity = 20; quantity < 30; quantity++)
+    view = editPreparation(view, { quantity }, `仕入れ${quantity}個`);
+  assert.equal(view.history.length, 6);
+  assert.equal(view.looping, false);
+  game.human.carrying = 'roast';
+  game.orders = [{ recipe: 'soup', id: 0, deadline: 40000 }];
+  const playing = screen(
+    { ...base, phase: 'playing', menuOpen: false, tutorial: null },
+    view,
+    1280,
+    720,
+  );
+  assert.match(playing.items.find((i) => i.id === 'advice').text, /注文のない料理/);
 });

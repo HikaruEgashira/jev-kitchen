@@ -13,6 +13,8 @@ import {
   resolveLayout,
   stationInfo,
   recommendedStock,
+  cookingAdvice,
+  repeatsActions,
 } from './model.js';
 import {
   STAFF,
@@ -144,14 +146,113 @@ export function purchase(g, view) {
   };
 }
 
-// Warns only when the pending plan cannot open because the stock is below the
-// next quota. A sufficient plan needs no hint; the model already has the numbers
-// in `preparation.bill`. Kept in `screen` so the player and the model see the
-// same warning through `screenContext`.
+// Stock errors use the same bill as the human purchase and benchmark.
 export function preparationHint(bill) {
   if (Number.isFinite(bill.stock) && bill.stock < bill.quota)
     return `あと${bill.quota - bill.stock}個の仕入れが必要`;
   return '';
+}
+
+export function preparationKey(plan) {
+  const { selected: hire, duty, quantity, equipmentPurchases, vitamins } = plan;
+  return JSON.stringify({ stage: plan.stage, hire, duty, quantity, equipmentPurchases, vitamins });
+}
+
+export function editPreparation(view, values, label) {
+  const next = { ...view, error: '', ...values };
+  if (!['selected', 'duty', 'quantity', 'equipmentPurchases', 'vitamins'].some((k) => k in values))
+    return next;
+  const key = preparationKey(next);
+  if (key === preparationKey(view)) return next;
+  const history = view.history ?? [{ key: preparationKey(view), label: '' }];
+  return {
+    ...next,
+    looping: history.some((h) => h.key === key),
+    history: [
+      ...history.slice(-5),
+      { key, label: 'quantity' in values ? `${label}：${next.quantity}個` : label },
+    ],
+  };
+}
+
+export function loopHint(preparing) {
+  return preparing
+    ? '同じ購入予定に戻っています。必要な購入を残し、準備が整ったら開店しよう。'
+    : '同じ操作が続き、仕入れ消費・配膳が進んでいません。注文と相棒の作業を見て、別の仕事や調理待ちを選ぼう。';
+}
+
+export function preparationAdvice(g, plan) {
+  const bill = purchase(g, plan);
+  const restedCrew = [
+    ...Object.entries(bill.staffState)
+      .filter(([, schedule]) => schedule.rest === 0)
+      .map(([id]) => id),
+    ...(plan.selected ? [plan.selected] : []),
+  ];
+  const cook = restedCrew
+    .filter((id) => STAFF[id].capabilities.includes('cook'))
+    .sort((a, b) => (bill.staffState[a]?.worked ?? 0) - (bill.staffState[b]?.worked ?? 0))[0];
+  return (
+    {
+      hiring:
+        g.level >= 8 &&
+        Object.keys(bill.staffState).filter((id) => STAFF[id].capabilities.includes('cook'))
+          .length < 2
+          ? {
+              instructions:
+                'Hire another heat cook (chef or sous) if affordable. Two cooks are needed to alternate shifts and avoid forced rest leaving the kitchen without a cook. Prefer hiring the cook over skipping or hiring another role.',
+              hint: '料理人をもう1人採用し、交代で休ませよう。加熱担当の不在を防げます。',
+            }
+          : restedCrew.length < Math.min(2, bill.slots)
+            ? {
+                instructions:
+                  'Too few hired crew are available next shift because of rest. Recruit an affordable helper to cover the gap. A server frees the human to cook; a cook frees the human to serve. Prefer hiring over skipping.',
+                hint: '休養で勤務人数が不足しています。採用で補おう。配膳係がいれば自分は調理に、料理人がいれば配膳に集中できます。',
+              }
+            : {
+                instructions:
+                  'Choose one affordable recruit or skip. First hire a chef or sous for cooking. Later recruit only to fill an available slot or cover forced rest from Lv9. Skip redundant hires when the next crew is covered: preserve money for stock and permanent upgrades. Hiring alone does not assign duty.',
+                hint: 'まず加熱できる料理人を採用しよう。その後は空き枠・休養に備え、仕入れと強化の資金も残そう。採用後は勤務への配置が必要です。',
+              },
+      staffing: cook
+        ? {
+            instructions: `Assign ${cook} as the ONLY heat cook; rest the other cooks to reset their consecutive shifts. Fill remaining useful slots with prep and serving staff. Each option is the complete roster, not an individual addition.`,
+            hint: `${STAFF[cook].name}を加熱担当にし、他の料理人は休ませよう。連勤がリセットされます。残りの枠は仕込み・配膳で補おう。`,
+          }
+        : {
+            instructions:
+              'No available crew can heat food. The human must cook. Assign available prep and serving staff to help; choose the strongest affordable complete roster. Do not choose crew_solo when staff can work.',
+            hint: '加熱できるスタッフがいないため、自分で調理しよう。出勤できる仕込み・配膳スタッフを配置すると作業を分担できます。',
+          },
+      stock: {
+        instructions:
+          'Choose the purchase quantity or confirm the pending amount. recommended_purchase is an estimate, not a requirement. One tomato makes one dish, unsold stock carries over, and purchases share the same cash balance with wages and upgrades.',
+        hint: `推奨仕入れは${recommendedStock(g)}個（前回${g.served}皿販売・残在庫${g.stock ?? 0}個）。トマト1個で1皿、仕入れは1個${STOCK_PRICE}コイン。残りは次へ持ち越せます。仕入れ量は変更できます。`,
+      },
+      investment:
+        bill.duty.length >= 2 && bill.equipment.board.count < 2
+          ? {
+              instructions:
+                'Multiple crew share only one board. Prioritize equipment_add_board if affordable. Otherwise open_shift and save for that expansion; do not spend its budget on smaller upgrades.',
+              hint: '複数人でまな板1台を共有しています。2台目を優先し、足りなければ小さな強化を控えて資金を残そう。',
+            }
+          : bill.training.human?.move === MAX_TRAINING && bill.training.human?.cook === MAX_TRAINING
+            ? {
+                instructions:
+                  'Human training is complete. First train movement of the assigned cook (vitamin_move_chef or vitamin_move_sous) to maximum. Then invest for the next recipe mix: add a second pot for soup-heavy days, a second grill for roast-heavy days, then upgrade them. Train movement of other working crew with spare coins. Keep pending purchases; open when useful upgrades are unaffordable.',
+                hint: '自分の育成は完了。出勤する料理人の移動を鍛え、スープの日は鍋、焼き物の日はグリルの2台目・強化を検討しよう。余裕があれば他の出勤者も育成。購入予定を保ち、資金不足なら開店しよう。',
+              }
+            : {
+                instructions:
+                  'Invest remaining coins before opening. Choose vitamin_move_human when available, then vitamin_cook_human. With multiple cooks, prioritize a second board. Otherwise upgrade useful equipment or regular crew. Choose open_shift when saving for necessary equipment or no useful upgrade is affordable.',
+                hint: '残額で自分の移動、次に調理を育成しよう。複数人で調理するなら2台目のまな板を優先。設備・いつも働く相棒にも投資し、必要な増設に備える時は貯金しよう。',
+              },
+    }[plan.stage] ?? {
+      instructions:
+        'Prepare the next shift within cash: hire, assign rested staff, buy surplus stock and invest, then open_shift. Each choice edits a pending plan.',
+      hint: '採用・勤務・余裕を持った仕入れ・投資を計画し、開店時にまとめて支払います。',
+    }
+  );
 }
 
 function layoutSlotOf(layout, id) {
@@ -404,6 +505,21 @@ export function screen(s, view, width, height) {
         32,
         { size: 14, live: true },
       );
+    } else if (!practice) {
+      const advice =
+        s.benchFeedback?.loop || repeatsActions(g.human.lastActions ?? [], g)
+          ? '同じ操作が続いています。ヒントで確認しよう'
+          : cookingAdvice(g).hint;
+      const w = Math.min(width - 24, 520);
+      button(
+        'advice',
+        advice,
+        (width - w) / 2,
+        narrow ? stationTop - 50 : height - 112,
+        w,
+        'advice',
+        { size: narrow ? 11 : 14, label: `ヒント：${advice}` },
+      );
     }
     if (narrow) {
       const w = (width - 24 - stationGap * (stationColumns - 1)) / stationColumns;
@@ -520,13 +636,15 @@ export function screen(s, view, width, height) {
     });
   if (s.menuOpen) {
     title(
-      s.menuPage === 'help'
-        ? 'キッチンの手引き'
-        : s.menuPage === 'controls'
-          ? '操作設定'
-          : s.menuPage === 'diagnostics'
-            ? '診断情報'
-            : 'ひと休み',
+      s.menuPage === 'hints'
+        ? 'いまのヒント'
+        : s.menuPage === 'help'
+          ? 'キッチンの手引き'
+          : s.menuPage === 'controls'
+            ? '操作設定'
+            : s.menuPage === 'diagnostics'
+              ? '診断情報'
+              : 'ひと休み',
     );
     const page = s.menuPage ?? 'settings';
     if (page === 'controls') {
@@ -582,6 +700,65 @@ export function screen(s, view, width, height) {
           label: '裏画面でも動き続ける',
         },
       );
+    } else if (page === 'hints') {
+      const preparing = s.phase === 'finished' && s.cleared;
+      const stages =
+        view.page === 2 ? ['staffing', 'stock'] : [view.page === 3 ? 'investment' : 'hiring'];
+      const warning = s.benchmark
+        ? s.benchFeedback?.loop
+        : preparing
+          ? view.looping
+          : repeatsActions(g.human.lastActions ?? [], g);
+      const history = s.benchmark
+        ? (s.benchFeedback?.recent ?? [])
+        : preparing
+          ? (view.history ?? []).map((h) => h.label).filter(Boolean)
+          : (g.human.lastActions ?? []).map((h) => h.label);
+      let text = warning ? `${loopHint(preparing)}\n` : '';
+      if (preparing) {
+        const bill = purchase(g, view);
+        const config = levelConfig(g.level + 1);
+        const capacity = equipmentCapacity(bill.equipment);
+        text += stages.map((stage) => preparationAdvice(g, { ...view, stage }).hint).join('\n');
+        text += `\n次の注文：${Object.entries(config.recipeMix)
+          .filter(([, v]) => v)
+          .map(([id, v]) => `${RECIPES[id].name} ${Math.round(v * 100)}%`)
+          .join('・')}`;
+        text += `\n在庫${bill.stock}個（仕入れ${bill.quantity}個）・支払後${bill.cash}コイン`;
+        text += `\n設備枠${capacity.used}/${capacity.limit}。増設の枠が足りない時は厨房を拡張できます。`;
+      } else {
+        text += `${cookingAdvice(g).hint}\n作業台をタップすると移動して作業します。ダッシュも活用し、相手の役割を見て受け渡そう。\nノルマは合格に必要な皿数です。売上は次の営業資金になり、残在庫は持ち越せます。`;
+        text += `\n在庫${g.stock ?? '無制限'}・配膳${g.served}/${g.quota}皿`;
+      }
+      if (history.length) text += `\n最近の操作（古い順）\n${history.slice(-6).join('\n')}`;
+      const size = narrow ? 12 : 14;
+      const cols = Math.max(1, Math.floor(inside / size));
+      const lines = text
+        .split('\n')
+        .flatMap((line) => line.match(new RegExp(`.{1,${cols}}`, 'gu')) ?? ['']);
+      const perPage = Math.max(3, Math.floor((ph - 180) / (size * 1.5)));
+      const pages = Math.ceil(lines.length / perPage);
+      const pageIndex = Math.min(pages - 1, Math.max(0, view.advicePage ?? 0));
+      copy(
+        'advice-copy',
+        lines.slice(pageIndex * perPage, (pageIndex + 1) * perPage).join('\n'),
+        60,
+        ph - 180,
+        { size },
+      );
+      button('advice-previous', '‹', x + 16, footerY - 54, 44, 'advice-page', {
+        value: pageIndex - 1,
+        disabled: pageIndex === 0,
+        label: '前のヒント',
+      });
+      label('advice-page', `${pageIndex + 1} / ${pages}`, x + 68, footerY - 48, inside - 104, 32, {
+        size: 14,
+      });
+      button('advice-next', '›', x + pw - 60, footerY - 54, 44, 'advice-page', {
+        value: pageIndex + 1,
+        disabled: pageIndex + 1 === pages,
+        label: '次のヒント',
+      });
     } else if (page === 'help') {
       copy(
         'help',
@@ -618,7 +795,7 @@ export function screen(s, view, width, height) {
         pressed: s.sound,
         size: 13,
       });
-      const nav = (inside - 16) / 3;
+      const nav = (inside - 24) / 4;
       button('controls', '操作設定', x + 16, y + 116, nav, 'menu-page', {
         value: 'controls',
         size: 13,
@@ -629,6 +806,10 @@ export function screen(s, view, width, height) {
       });
       button('diagnostics', '診断', x + 32 + nav * 2, y + 116, nav, 'menu-page', {
         value: 'diagnostics',
+        size: 13,
+      });
+      button('hints', 'ヒント', x + 40 + nav * 3, y + 116, nav, 'menu-page', {
+        value: 'hints',
         size: 13,
       });
       const lw = (inside - 8) / 2;
@@ -687,6 +868,7 @@ export function screen(s, view, width, height) {
       });
     }
   } else {
+    button('advice', 'ヒント', x + pw - 80, y + 12, 64, 'advice', { size: 13 });
     const bill = purchase(g, view);
     const hint = preparationHint(bill);
     prepStatus = view.error || hint || (view.page >= 2 ? bill.error : '');
@@ -1342,6 +1524,8 @@ export function screen(s, view, width, height) {
       }
     }
   }
+  if (!s.menuOpen && s.phase === 'finished' && s.cleared && !s.campaignComplete)
+    items.find((item) => item.id === 'title').w -= 76;
   if (!s.menuOpen && ['ready', 'paused'].includes(s.phase)) {
     const main = items.find((item) => item.id === 'primary');
     main.w = Math.min(welcome ? 300 : Infinity, main.w - 60);
@@ -1358,9 +1542,8 @@ export function screen(s, view, width, height) {
   };
 }
 
-// The model must see what the player sees. This projects the rendered screen
-// into model context, so any text added to `screen` reaches the model and the
-// two representations cannot drift apart. `actions` is the controlled actor's
+// Text projection for UI parity checks. Jev uses compact observations and the
+// shared cooking/preparation advice instead of duplicating this whole screen. `actions` is the controlled actor's
 // choice ids: on-screen controls that are not choosable keep their wording but
 // drop their id, so the model cannot answer a choice that is not in `criteria`
 // (e.g. the human's applicant ‹ › navigation). The

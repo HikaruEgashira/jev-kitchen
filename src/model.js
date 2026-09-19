@@ -1072,7 +1072,24 @@ export function isFeasible(g, cand, who) {
   );
 }
 
-export function buildQuestions(cands, who = 'ai', g) {
+export function repeatsActions(decisions, g) {
+  const cycle = decisions.slice(-4);
+  return (
+    cycle.length === 4 &&
+    cycle.every(
+      (d, i) =>
+        d.applied !== false &&
+        d.stock === g.stock &&
+        d.served === g.served &&
+        (d.action ?? d.label) === (cycle[i % 2].action ?? cycle[i % 2].label),
+    ) &&
+    cycle.some(
+      (d) => d.action !== 'wait' && d.action !== 'continue' && d.label !== '今は動かず、様子を見る',
+    )
+  );
+}
+
+export function cookingAdvice(g, cands = buildCandidates(g, 'human')) {
   const held = g?.human.carrying;
   const ordered = (recipe) => g?.orders.some((o) => o.recipe === recipe);
   const plating =
@@ -1087,32 +1104,71 @@ export function buildQuestions(cands, who = 'ai', g) {
     });
   const plateAction = cands.find((c) => /^plate(?:_|$)/.test(c.id) && plating?.includes(c.station));
   const emptyHands = plating?.length
-    ? `Ordered food at ${plating.join(', ')} needs a plate. Fetch a plate to serve it before preparing more ingredients.`
+    ? {
+        instructions: `Ordered food at ${plating.join(', ')} needs a plate. Fetch a plate to serve it before preparing more ingredients.`,
+        hint: '注文の料理を盛るため、お皿を取ろう',
+      }
     : cands.some((c) => c.id === 'collect')
-      ? 'Chopped ingredients are available. Collect them and prepare an ordered soup or roast.'
+      ? {
+          instructions:
+            'Chopped ingredients are available. Collect them and prepare an ordered soup or roast.',
+          hint: '切った食材を取り、注文に合わせて加熱しよう',
+        }
       : cands.some((c) => c.id === 'clean_pot' || c.id === 'clean_grill')
-        ? 'Burnt cookware is blocking production. Clean it with your empty hands.'
-        : 'No food is ready to plate. Fetch a tomato and chop it to start an order.';
+        ? {
+            instructions: 'Burnt cookware is blocking production. Clean it with your empty hands.',
+            hint: '手ぶらで焦げた鍋・グリルを片づけよう',
+          }
+        : {
+            instructions:
+              'No food is ready to plate. Fetch a tomato and chop it to start an order.',
+            hint: 'トマトを取り、切って次の注文を作ろう',
+          };
   const objective = RECIPES[held]
     ? g.orders.some((o) => o.recipe === held)
-      ? 'Serve your finished dish now.'
-      : 'Your finished dish has NO order. Discard it now (Q) to free your hands.'
+      ? { instructions: 'Serve your finished dish now.', hint: '完成した料理を配膳口へ届けよう' }
+      : {
+          instructions: 'Your finished dish has NO order. Discard it now (Q) to free your hands.',
+          hint: '注文のない料理です。Qで片づけよう',
+        }
     : ({
-        tomato: 'Chop your tomato at an idle board. Return it only if all boards are occupied.',
-        chopped:
-          'Cook or grill your chopped tomato for a visible order. Assemble salad only if a salad is ordered.',
+        tomato: {
+          instructions:
+            'Chop your tomato at an idle board. Return it only if all boards are occupied.',
+          hint: '空いたまな板で切ろう。全部使用中なら戻そう',
+        },
+        chopped: {
+          instructions:
+            'Cook or grill your chopped tomato for a visible order. Assemble salad only if a salad is ordered.',
+          hint: '注文を見て煮る・焼く。サラダは注文がある時だけ',
+        },
         plate: plateAction
-          ? `Ordered food is ready. Choose ${plateAction.id} or its dash_ version to plate it now. Do not return your plate.`
+          ? {
+              instructions: `Ordered food is ready. Choose ${plateAction.id} or its dash_ version to plate it now. Do not return your plate.`,
+              hint: 'お皿を返さず、注文の料理を盛り付けよう',
+            }
           : plating?.length
-            ? `Ordered food is cooking at ${plating.join(', ')}. Keep your plate and wait for it; do not return the plate.`
-            : 'No ordered food is ready or cooking. Return your plate to free your hands and prepare ingredients.',
+            ? {
+                instructions: `Ordered food is cooking at ${plating.join(', ')}. Keep your plate and wait for it; do not return the plate.`,
+                hint: '注文の料理を加熱中。お皿を持って待とう',
+              }
+            : {
+                instructions:
+                  'No ordered food is ready or cooking. Return your plate to free your hands and prepare ingredients.',
+                hint: '盛る料理がありません。お皿を戻して仕込もう',
+              },
       }[held] ?? emptyHands);
+  return objective;
+}
+
+export function buildQuestions(cands, who = 'ai', g) {
+  const objective = cookingAdvice(g, cands).instructions;
   return {
     next_action: {
       type: 'choice',
       instructions:
         who === 'human'
-          ? `You control the HUMAN player. ${objective} Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item. Keep selling beyond quota.`
+          ? `You control the HUMAN player. ${objective} Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item.`
           : 'You control the AI sous-chef. Choose one feasible action that complements the human and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Clean burnt cookware before reusing it. Respect the collaboration policy, including Japanese. Keep useful raw ingredients; discard finished dishes without orders. Work ahead while food cooks.',
       criteria: Object.fromEntries(cands.map((c) => [c.id, c.label])),
     },
