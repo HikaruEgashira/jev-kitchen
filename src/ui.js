@@ -677,7 +677,7 @@ export function screen(s, view, width, height) {
       const pageCount = Math.max(1, Math.ceil(levels.length / 6));
       const stagePage = Math.min(pageCount - 1, Math.max(0, view.stagePage ?? 0));
       const bw = (inside - 16) / 3;
-      copy('stage-help', '開店時の状態を復元。先のステージも残ります。', 54, 28, { size: 12 });
+      copy('stage-help', 'どの厨房に戻る？', 54, 28, { size: 12 });
       levels.slice(stagePage * 6, stagePage * 6 + 6).forEach((level, index) => {
         button(
           `stage-${level}`,

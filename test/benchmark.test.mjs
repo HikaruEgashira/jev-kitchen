@@ -602,6 +602,19 @@ test('bounded action feedback flags unproductive cycles, not cooking waits or sa
   assert.equal(request().recent_actions.length, 6);
   assert.equal(request().human.recent_actions, undefined);
   assert.match(request().loop_warning, /repeat without using stock or serving food/);
+  const cycle = decisions.slice(-4);
+  cycle.forEach((d, i) => {
+    d.action = i % 2 ? 'return_tomato' : 'fetch_tomato';
+    d.stock = i % 2 ? 19 : 20;
+  });
+  assert.ok(request().loop_warning, 'returning stock is not forward progress');
+  cycle.forEach((d, i) => {
+    d.stock = 20 - i;
+  });
+  assert.equal(request().loop_warning, undefined, 'consuming stock is progress');
+  cycle.forEach((d) => {
+    d.stock = g.stock;
+  });
   g.served++;
   assert.equal(request().loop_warning, undefined);
   g.served--;

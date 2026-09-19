@@ -938,8 +938,7 @@ export function buildCandidates(g, who) {
       for (const station of boards)
         if (g.stations[station].state === 'idle')
           add('chop', `${stationName(g, station)}で切り始める`, station);
-      if (player || out.length === 0)
-        add('return_tomato', 'トマトを戻して別の仕事を手伝う', 'crate');
+      if (player || out.length === 0) add('return_tomato', 'トマトを戻す', 'crate');
     }
     if (!e.carrying) {
       if (
@@ -985,7 +984,7 @@ export function buildCandidates(g, who) {
       add(
         'discard',
         RECIPES[e.carrying] && !g.orders.some((o) => o.recipe === e.carrying)
-          ? '注文のない料理をQで捨て、次の注文に取りかかる（コンボをリセット）'
+          ? '注文のない料理を捨てる（Q・コンボ終了）'
           : '手元の物を捨てる（コンボをリセット）',
         null,
       );
@@ -1077,10 +1076,11 @@ export function repeatsActions(decisions, g) {
   const cycle = decisions.slice(-4);
   return (
     cycle.length === 4 &&
+    cycle.some((d) => d.stock === g.stock) &&
     cycle.every(
       (d, i) =>
         d.applied !== false &&
-        d.stock === g.stock &&
+        d.stock === cycle[i % 2].stock &&
         d.served === g.served &&
         (d.action ?? d.label) === (cycle[i % 2].action ?? cycle[i % 2].label),
     ) &&
