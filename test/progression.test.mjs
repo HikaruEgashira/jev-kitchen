@@ -50,8 +50,8 @@ test('early levels introduce mechanics at their lesson milestones', () => {
 });
 
 test('the post-Lv10 difficulty curve is numeric, monotonic, and preserves Lv100 targets', () => {
-  let previous = levelConfig(1);
-  for (let level = 2; level <= MAX_LEVEL; level++) {
+  let previous = levelConfig(10);
+  for (let level = 11; level <= MAX_LEVEL; level++) {
     const current = levelConfig(level);
     assert.ok(current.quota >= previous.quota);
     assert.ok(current.orderWindowMs <= previous.orderWindowMs);
@@ -78,13 +78,26 @@ test('legacy finite-stock transition remains at Lv2', () => {
   assert.equal(levelConfig(4).stockFinite, true);
 });
 
-test('Lv5 repeats Lv4 conditions with a ten-dish quota', () => {
+test('new recipes give breathing room, then Lv11..30 rotate production demands', () => {
+  assert.ok(quotaForLevel(3) < quotaForLevel(2));
+  assert.ok(quotaForLevel(7) < quotaForLevel(6));
+  for (let first = 11; first <= 26; first += 5) {
+    const week = Array.from({ length: 5 }, (_, i) => levelConfig(first + i));
+    assert.equal(new Set(week.map((c) => JSON.stringify(c.recipeMix))).size, 5);
+    assert.ok(week[0].recipeMix.dish > 0.5);
+    assert.ok(week[1].recipeMix.soup > 0.5);
+    assert.ok(week[2].recipeMix.roast > 0.4);
+    assert.ok(week.every((c) => c.quota >= 9 && c.quota <= 13 && c.orderWindowMs >= 32000));
+  }
+});
+
+test('Lv5 repeats Lv4 conditions with a seven-dish quota', () => {
   assert.deepEqual(levelConfig(5), {
     ...levelConfig(4),
     level: 5,
-    quota: 10,
-    unlockLabel: '同じ厨房で10皿',
+    quota: 7,
+    unlockLabel: '同じ厨房で7皿',
   });
-  assert.equal(quotaForLevel(6), 10);
-  assert.equal(quotaForLevel(7), 10);
+  assert.equal(quotaForLevel(6), 7);
+  assert.equal(quotaForLevel(7), 6);
 });

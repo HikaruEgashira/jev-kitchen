@@ -23,10 +23,14 @@ import {
   actor,
   stationInfo,
   resolveLayout,
+  recommendedStock,
+  handoffOption,
+  handoff,
 } from './model.js';
 import { createAudio } from './audio.js';
 import { STAFF, nextStaffState, payroll, staffAvailable, nextDuty } from './staff.js';
 import { equipmentState, validateEquipment, quoteEquipment } from './equipment.js';
+import { quoteVitamins, trainingMultiplier, trainingState, validateTraining } from './training.js';
 
 const BEST_KEY = 'sidekick-best-v2';
 export const CHECKPOINT_KEY = 'sidekick-campaign-v1';
@@ -54,9 +58,11 @@ function safeStock(value) {
 function normalizeRollbackEntry(value, allowUnreadyStock = false, version = CHECKPOINT_VERSION) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const source = value.snapshot ?? value;
+  // Keep the nested `rollback` so a previous-stage rewind can offer the same
+  // recovery choices (review / further previous) when that stage fails.
   const snapshot = validateCheckpoint(
     { ...source, version: source.version ?? version, completed: false },
-    false,
+    true,
     allowUnreadyStock,
   );
   if (!snapshot) return null;
@@ -185,6 +191,8 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
         ? [...value.frozenApplicants]
         : null;
   if (value.frozenApplicants != null && frozenApplicants == null) return null;
+  const training = validateTraining(value.training, value.hired);
+  if (training === null) return null;
   const record = {
     version: CHECKPOINT_VERSION,
     level: value.level,
@@ -194,6 +202,7 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
     staffState: Object.fromEntries(value.hired.map((id) => [id, { ...value.staffState[id] }])),
     hired: [...value.hired],
     equipment,
+    training,
     layout,
     completed: value.completed,
     frozenApplicants,
@@ -344,6 +353,7 @@ function snapshot(g) {
     staffState: Object.fromEntries(hired.map((id) => [id, { ...g.staffState[id] }])),
     hired,
     equipment: equipmentState(g.equipment),
+    training: trainingState(g.training),
     layout: { ...g.layout },
   };
 }
@@ -357,7 +367,14 @@ function drawApplicants(hired) {
     [pool[index], pool[swap]] = [pool[swap], pool[index]];
   }
   if (!hired.includes('veteran') && Math.random() < 0.01) pool.unshift('veteran');
-  return pool.slice(0, 3);
+  const applicants = pool.slice(0, 3);
+  // A cooking hire must be an available strategy after the mentor leaves.
+  if (
+    !hired.some((id) => id === 'chef' || id === 'sous') &&
+    !applicants.some((id) => id === 'chef' || id === 'sous')
+  )
+    applicants[applicants.length - 1] = pool.find((id) => id === 'chef' || id === 'sous');
+  return applicants;
 }
 
 function record(who, result) {
@@ -387,6 +404,7 @@ function beginShift({
   stock = null,
   equipment,
   layout,
+  training,
   rollback = null,
   frozenApplicants: successorApplicants = null,
 } = {}) {
@@ -406,6 +424,7 @@ function beginShift({
     stock,
     equipment,
     layout,
+    training,
   });
   const checkpoint = writeCheckpoint({ ...snapshot(game), rollback, frozenApplicants });
   shiftSnapshot = checkpoint;
@@ -469,10 +488,14 @@ export function benchmarkAction(candidate) {
     if (!dash(game)) return false;
     selected.id = selected.baseId;
   }
-  if (selected.id === 'interact') {
+  if (selected.id === 'interact' || selected.partner) {
     game.human.intent = null;
     humanInteract();
     return true;
+  }
+  if (selected.id.startsWith('visit_')) {
+    const near = stationAt(game, 'human');
+    selected.automatic = !(near.inReach && near.id === selected.station);
   }
   game.human.intent = { ...selected, startedAt: game.time };
   return true;
@@ -539,6 +562,7 @@ export function nextShift(
   assignedDuty,
   equipmentPurchases = [],
   layout,
+  vitamins = [],
 ) {
   const current = state();
   if (
@@ -570,7 +594,7 @@ export function nextShift(
   if (applicantId !== null && !selected) return false;
   const stock = Number.isFinite(g.stock) ? Math.max(0, Math.floor(g.stock)) : 0;
   const requiredStock = quotaForLevel(nextLevel);
-  const purchased = buyStock === undefined ? Math.max(0, requiredStock + 2 - stock) : buyStock;
+  const purchased = buyStock === undefined ? recommendedStock(g) : buyStock;
   if (!Number.isInteger(purchased) || purchased < 0 || purchased > 99) return false;
   if (stock + purchased < requiredStock) return false;
   const hiringCost = selected ? Math.max(0, Number(selected.cost) || 0) : 0;
@@ -605,7 +629,13 @@ export function nextShift(
     layout === undefined ? g.layout : layout,
   );
   if (!nextLayout) return false;
-  const total = hiringCost + purchased * STOCK_PRICE + payroll(duty) + investment.cost;
+  const retainedTraining = Object.fromEntries(
+    Object.entries(g.training).filter(([id]) => id === 'human' || hired.includes(id)),
+  );
+  const vitaminQuote = quoteVitamins(retainedTraining, vitamins, ['human', ...hired]);
+  if (vitaminQuote.error) return false;
+  const total =
+    hiringCost + purchased * STOCK_PRICE + payroll(duty) + investment.cost + vitaminQuote.cost;
   if (total > cash) return false;
   beginShift({
     level: nextLevel,
@@ -615,6 +645,7 @@ export function nextShift(
     staffState,
     hired,
     equipment: investment.equipment,
+    training: vitaminQuote.training,
     layout: nextLayout,
     rollback,
   });
@@ -699,7 +730,7 @@ export function rollbackToPreviousStage() {
   if (previous.snapshot.level >= current.game.level) return false;
   beginShift({
     ...previous.snapshot,
-    rollback: null,
+    rollback: previous.snapshot.rollback ?? null,
     frozenApplicants: previous.applicants,
   });
   return true;
@@ -732,7 +763,7 @@ export function goTo(id) {
   }
   const near = stationAt(current.game, 'human');
   if (near.inReach && near.id === id) {
-    humanInteract(false);
+    humanInteract(false, true);
     if (state().tutorial === 3 && current.game.stations.board.state === 'chopping') target = id;
     return;
   }
@@ -740,12 +771,19 @@ export function goTo(id) {
   target = id;
 }
 
-export function humanInteract(automatic = false) {
+export function humanInteract(automatic = false, stationOnly = false) {
   if (state().phase !== 'playing') return;
   const g = state().game,
     near = stationAt(g, 'human');
   const step = tutorialStep();
   if (state().tutorial === TUTORIAL_STEPS.length) return;
+  const transfer = !automatic && !stationOnly && step === null && handoffOption(g);
+  if (transfer) {
+    target = null;
+    const result = handoff(g, transfer.partner);
+    if (result.ok) record('human', result);
+    return;
+  }
   if (step !== null && near.id !== TUTORIAL_STEPS[step].station) {
     if (!automatic) notify(`次は「${TUTORIAL_STEPS[step].label}」`);
     return;
@@ -987,7 +1025,8 @@ export function tick(delta) {
     Number(keys.has('a') || keys.has('arrowleft'));
   const ay =
     Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
-  const step = SPEED * dt * (g.time < g.human.dashUntil ? 2.7 : 1);
+  const humanStep = SPEED * trainingMultiplier(g.training, 'human', 'move');
+  const step = humanStep * dt * (g.time < g.human.dashUntil ? 2.7 : 1);
   if (ax || ay) {
     movePlayer(g, ax, ay, step, state().movementMode);
   } else if (target) {
@@ -1014,7 +1053,7 @@ export function tick(delta) {
         g,
         intent.dx,
         intent.dy,
-        SPEED * Math.min(dt, remaining / 1000) * (g.time < cook.dashUntil ? 2.7 : 1),
+        humanStep * Math.min(dt, remaining / 1000) * (g.time < cook.dashUntil ? 2.7 : 1),
         'screen',
       );
       if (g.time - intent.startedAt >= 250) cook.intent = null;
@@ -1036,9 +1075,12 @@ export function tick(delta) {
         cook.dashReadyAt = g.time + 1800;
       }
       const actorSpeed = who === 'human' ? 1 : 0.9 * staff.speed;
+      const actorStep = SPEED * trainingMultiplier(g.training, who, 'move');
       const dashSpeed = g.time < cook.dashUntil ? 2.7 : 1;
-      if (moveToward(cook, station.x, station.y, SPEED * dt * actorSpeed * dashSpeed)) {
-        if (!intent.id.startsWith('move_') && isFeasible(g, intent, who)) {
+      if (moveToward(cook, station.x, station.y, actorStep * dt * actorSpeed * dashSpeed)) {
+        if (who === 'human' && intent.id.startsWith('visit_')) {
+          humanInteract(intent.automatic, true);
+        } else if (!intent.id.startsWith('move_') && isFeasible(g, intent, who)) {
           const result = interact(g, who, intent.station);
           if (result.ok) record(who, result);
         }

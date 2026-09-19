@@ -19,9 +19,9 @@ the deployed application. Direct dependency ranges are declared in
 The source tree does not copy third-party source files into `src/`. The
 production build can bundle direct and transitive dependencies, so this table
 is only an index. Vite's generated manifest for detected bundle dependencies is
-available at [`/licenses.md`](https://jev-kitchen.egahika.dev/licenses.md);
+available at [`/licenses.html`](https://jev-kitchen.egahika.dev/licenses.html);
 the supplementary fiber and vendored reconciler notices are available at
-[`/third-party-notices.md`](https://jev-kitchen.egahika.dev/third-party-notices.md).
+[`/third-party-notices.html`](https://jev-kitchen.egahika.dev/third-party-notices.html).
 
 ## Build and deployment tools
 

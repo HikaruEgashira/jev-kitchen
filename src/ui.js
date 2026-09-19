@@ -5,12 +5,14 @@ import {
   quotaForLevel,
   stationAt,
   actionHint,
+  handoffOption,
   STATIONS,
   activeStationIds,
   levelConfig,
   layoutSlots,
   resolveLayout,
   stationInfo,
+  recommendedStock,
 } from './model.js';
 import {
   STAFF,
@@ -20,9 +22,9 @@ import {
   staffPerformance,
   nextDuty,
 } from './staff.js';
-import { FEATURE_LEVELS } from './progression.js';
 import { TUTORIAL_STEPS } from './game.js';
 import { EQUIPMENT, equipmentCapacity, quoteEquipment } from './equipment.js';
+import { MAX_TRAINING, VITAMINS, quoteVitamins, trainingLevel } from './training.js';
 
 export const compactControls = (width, height) => width < 600 || height < 500;
 
@@ -33,9 +35,11 @@ export function preparation(g, reviewing = false) {
     applicantIndex: 0,
     selected: null,
     duty,
-    quantity: Math.max(0, quotaForLevel(g.level + 1) + 2 - (g.stock ?? 0)),
+    quantity: recommendedStock(g),
     equipmentPurchases: [],
     equipmentIndex: 0,
+    vitamins: [],
+    vitaminItem: null,
     layout: g.layout ? { ...g.layout } : undefined,
     layoutMode: 'equipment',
     layoutSelection: null,
@@ -86,11 +90,18 @@ export function purchase(g, view) {
   const equipmentQuote = quoteEquipment(g.equipment ?? null, equipmentPurchases, g.level + 1);
   const equipment = equipmentQuote.equipment;
   const equipmentCost = equipmentQuote.cost;
+  const vitamins = Array.isArray(view.vitamins) ? view.vitamins : [];
+  const vitaminTargets = [
+    'human',
+    ...new Set([...Object.keys(staffState), ...(view.selected ? [view.selected] : [])]),
+  ];
+  const vitaminQuote = quoteVitamins(g.training, vitamins, vitaminTargets);
+  const vitaminCost = vitaminQuote.cost;
   const layoutGame = { ...g, level: g.level + 1, equipment };
   const proposedLayout = view.layout ?? g.layout;
   const layout =
     resolveLayout(layoutGame, proposedLayout) ?? normalizedLayout(layoutGame, proposedLayout);
-  const cash = g.cash - hiring - quantity * STOCK_PRICE - wages - equipmentCost;
+  const cash = g.cash - hiring - quantity * STOCK_PRICE - wages - equipmentCost - vitaminCost;
   const quota = quotaForLevel(g.level + 1);
   const error = !valid
     ? '仕入れは0〜99個で入力'
@@ -105,11 +116,13 @@ export function purchase(g, view) {
             ? '休養中の相棒は配置できません'
             : equipmentQuote.error
               ? equipmentQuote.error
-              : !layout
-                ? '設備の配置を確認してください'
-                : cash < 0
-                  ? `コインが${-cash}不足`
-                  : '';
+              : vitaminQuote.error
+                ? vitaminQuote.error
+                : !layout
+                  ? '設備の配置を確認してください'
+                  : cash < 0
+                    ? `コインが${-cash}不足`
+                    : '';
   return {
     quantity,
     hiring,
@@ -123,6 +136,9 @@ export function purchase(g, view) {
     equipment,
     equipmentCost,
     equipmentPurchases,
+    vitamins,
+    training: vitaminQuote.training,
+    vitaminCost,
     layout,
     error,
   };
@@ -414,16 +430,19 @@ export function screen(s, view, width, height) {
     const aw = Math.min(width - 24, 520);
     const ax = (width - aw) / 2;
     const side = narrow ? 62 : 106;
+    const transfer = handoffOption(g);
     button(
       'interact',
-      reached
-        ? `${narrow ? '' : 'E  '}${practice ? '作業する' : actionHint(g, near.id)}`
-        : '作業台へ移動',
+      transfer
+        ? `${narrow ? '' : 'E  '}${transfer.label}`
+        : reached
+          ? `${narrow ? '' : 'E  '}${practice ? '作業する' : actionHint(g, near.id)}`
+          : '作業台へ移動',
       ax,
       height - 60,
       aw - side * 2 - 16,
       'interact',
-      { disabled: !reached, color: '#245e50', ink: '#fff9e8', size: narrow ? 12 : 15 },
+      { disabled: !reached && !transfer, color: '#245e50', ink: '#fff9e8', size: narrow ? 12 : 15 },
     );
     button(
       'dash',
@@ -566,7 +585,7 @@ export function screen(s, view, width, height) {
     } else if (page === 'help') {
       copy(
         'help',
-        `作業台をタップ、または WASD で移動\nE で作業・Shift でダッシュ・Q で片づけ\n切る → お皿をとる → 盛る → 配膳\nLv.${FEATURE_LEVELS.pot} でスープ、Lv.${FEATURE_LEVELS.grill} でグリルが登場`,
+        `作業台をタップ、または WASD で移動\nE で作業・相棒の近くで E で受け渡し\nShift でダッシュ・注文のない料理は Q で片づけ\n切る → お皿をとる → 盛る → 配膳`,
         62,
         110,
         { size: narrow ? 12 : 16 },
@@ -614,11 +633,11 @@ export function screen(s, view, width, height) {
       });
       const lw = (inside - 8) / 2;
       button('license', 'ライセンス', x + 16, footerY - 54, lw, 'link', {
-        href: '/licenses.md',
+        href: '/licenses.html',
         size: 13,
       });
       button('notices', '追加通知', x + 24 + lw, footerY - 54, lw, 'link', {
-        href: '/third-party-notices.md',
+        href: '/third-party-notices.html',
         size: 13,
       });
     }
@@ -911,6 +930,16 @@ export function screen(s, view, width, height) {
       const pending = new Set(bill.equipmentPurchases);
       const nextLevel = g.level + 1;
       const layoutMode = view.layoutMode === 'layout' ? 'layout' : 'equipment';
+      const vitaminItem = Object.hasOwn(VITAMINS, view.vitaminItem) ? view.vitaminItem : null;
+      const vitaminMode = vitaminItem !== null;
+      const vitamins = Array.isArray(view.vitamins) ? view.vitamins : [];
+      const vitaminTargets = [
+        'human',
+        ...new Set([...Object.keys(bill.staffState), ...(view.selected ? [view.selected] : [])]),
+      ];
+      const vitaminLevel = (id, item) =>
+        trainingLevel(g.training, id, item) +
+        vitamins.filter((entry) => entry.target === id && entry.item === item).length;
       const layoutGame = { ...g, level: nextLevel, equipment: bill.equipment };
       const currentLayout = bill.layout ?? view.layout ?? g.layout ?? {};
       const capacity = equipmentCapacity(bill.equipment);
@@ -918,18 +947,24 @@ export function screen(s, view, width, height) {
       const backW = narrow ? 76 : 120;
       const modeW = narrow ? 64 : 88;
       button('back', '仕入れへ', x + 16, footerY, backW, 'page', { value: 2, size: 13 });
-      button(
-        'layout-mode',
-        layoutMode === 'layout' ? '設備' : '配置',
-        x + 24 + backW,
-        footerY,
-        modeW,
-        'layout-mode',
-        {
-          label: layoutMode === 'layout' ? '設備一覧へ戻る' : '設備の配置を変更',
+      if (vitaminMode)
+        button('layout-mode', 'やめる', x + 24 + backW, footerY, modeW, 'vitamin-cancel', {
+          label: '育成の対象選択をやめる',
           size: 13,
-        },
-      );
+        });
+      else
+        button(
+          'layout-mode',
+          layoutMode === 'layout' ? '設備' : '配置',
+          x + 24 + backW,
+          footerY,
+          modeW,
+          'layout-mode',
+          {
+            label: layoutMode === 'layout' ? '設備一覧へ戻る' : '設備の配置を変更',
+            size: 13,
+          },
+        );
       button(
         'primary',
         'この準備で開店',
@@ -945,7 +980,61 @@ export function screen(s, view, width, height) {
         },
       );
 
-      if (layoutMode === 'layout') {
+      if (vitaminMode) {
+        const vitamin = VITAMINS[vitaminItem];
+        label(
+          'vitamin-heading',
+          `${vitamin.icon} ${vitamin.name}を誰に使う？（${vitamin.ability}）`,
+          x + 16,
+          bodyTop,
+          inside,
+          44,
+          { size: narrow ? 12 : 14 },
+        );
+        const columns = 4;
+        const gap = 4;
+        const cellW = (inside - gap * (columns - 1)) / columns;
+        vitaminTargets.forEach((id, index) => {
+          const row = Math.floor(index / columns);
+          const column = index % columns;
+          const current = vitaminLevel(id, vitaminItem);
+          const capped = current >= MAX_TRAINING;
+          button(
+            `vitamin-target-${id}`,
+            `${id === 'human' ? 'あなた' : staffShortName(id)}\nLv${current}${capped ? ' MAX' : `→${current + 1}`}`,
+            x + 16 + column * (cellW + gap),
+            bodyTop + 48 + row * 48,
+            cellW,
+            'vitamin-target',
+            {
+              value: id,
+              disabled: capped,
+              avatar: cellW >= 88 && id !== 'human' ? STAFF[id]?.color : undefined,
+              label: `${id === 'human' ? 'あなた' : (STAFF[id]?.name ?? id)}に${vitamin.name}を使う`,
+              size: narrow ? 11 : 12,
+            },
+          );
+        });
+        label(
+          'vitamin-summary',
+          `使用予定 ${vitamins.length}個  ・  育成費 🪙${bill.vitaminCost} / 残り 🪙${bill.cash}`,
+          x + 16,
+          bodyTop + 48 + Math.ceil(vitaminTargets.length / columns) * 48,
+          inside,
+          28,
+          { size: narrow ? 11 : 13 },
+        );
+        if (vitamins.length)
+          button(
+            'vitamin-undo',
+            `直前の育成を取り消す（${vitamins.length}）`,
+            x + 16,
+            bodyTop + 48 + Math.ceil(vitaminTargets.length / columns) * 48 + 32,
+            inside,
+            'vitamin-undo',
+            { size: narrow ? 11 : 13 },
+          );
+      } else if (layoutMode === 'layout') {
         const slotMap = layoutSlots(layoutGame) ?? {};
         const slots = Object.entries(slotMap);
         const stationIds = [
@@ -1077,14 +1166,15 @@ export function screen(s, view, width, height) {
           size: narrow ? 11 : 13,
         });
       } else {
-        const kinds = Object.keys(EQUIPMENT);
+        const kinds = [...Object.keys(EQUIPMENT), ...Object.keys(VITAMINS)];
         const pageCount = Math.max(1, Math.ceil(kinds.length / 2));
         const equipmentIndex = Math.min(
           pageCount - 1,
           Math.max(0, Math.floor(Number(view.equipmentIndex) || 0)),
         );
         const visibleKinds = kinds.slice(equipmentIndex * 2, equipmentIndex * 2 + 2);
-        const equipmentBudget = g.cash - bill.hiring - bill.quantity * STOCK_PRICE - bill.wages;
+        const equipmentBudget =
+          g.cash - bill.hiring - bill.quantity * STOCK_PRICE - bill.wages - bill.vitaminCost;
         const optionQuote = (id) => {
           const purchases = pending.has(id)
             ? bill.equipmentPurchases.filter((purchaseId) => purchaseId !== id)
@@ -1131,9 +1221,43 @@ export function screen(s, view, width, height) {
         }
         const rowTop = bodyTop + (pageCount > 1 ? 44 : 0);
         visibleKinds.forEach((kind, index) => {
+          const row = rowTop + index * 44;
+          if (Object.hasOwn(VITAMINS, kind)) {
+            const vitamin = VITAMINS[kind];
+            const count = vitamins.filter((entry) => entry.item === kind).length;
+            button(
+              `equipment-label-${kind}`,
+              narrow
+                ? `${vitamin.name}\n${vitamin.ability} ${vitamin.effect}/個`
+                : `${vitamin.icon} ${vitamin.name}  ${vitamin.ability} ${vitamin.effect}/個  🪙${vitamin.cost}`,
+              x + 16,
+              row,
+              labelW,
+              'vitamin',
+              {
+                value: kind,
+                label: `${vitamin.name}を誰に使うか選ぶ`,
+                size: narrow ? 11 : 13,
+              },
+            );
+            button(
+              `equipment-buy-${kind}`,
+              count ? `追加 ${count}` : '使う',
+              x + 16 + labelW + 4,
+              row,
+              inside - labelW - 4,
+              'vitamin',
+              {
+                value: kind,
+                pressed: count > 0,
+                label: `${vitamin.name}を購入して対象を選ぶ`,
+                size: narrow ? 11 : 12,
+              },
+            );
+            return;
+          }
           const meta = EQUIPMENT[kind];
           const current = bill.equipment?.[kind] ?? { count: meta.initialCount ?? 0, level: 1 };
-          const row = rowTop + index * 44;
           const addId = `add_${kind}`;
           const upgradeId = `upgrade_${kind}`;
           const addQuote = optionQuote(addId);
@@ -1201,7 +1325,7 @@ export function screen(s, view, width, height) {
           'equipment-summary',
           bill.error && short
             ? bill.error
-            : `設備枠 ${capacity.used}/${capacity.limit}  投資 🪙${bill.equipmentCost} / 残り 🪙${bill.cash}`,
+            : `設備枠 ${capacity.used}/${capacity.limit}  投資 🪙${bill.equipmentCost + bill.vitaminCost} / 残り 🪙${bill.cash}`,
           x + 16,
           summaryY,
           inside,
@@ -1236,8 +1360,13 @@ export function screen(s, view, width, height) {
 
 // The model must see what the player sees. This projects the rendered screen
 // into model context, so any text added to `screen` reaches the model and the
-// two representations cannot drift apart.
-export function screenContext(s, view, width, height) {
+// two representations cannot drift apart. `actions` is the controlled actor's
+// choice ids: on-screen controls that are not choosable keep their wording but
+// drop their id, so the model cannot answer a choice that is not in `criteria`
+// (e.g. the human's applicant ‹ › navigation). The
+// control's own disabled state is kept as-is: a screen wording can correspond
+// to a choice under a different id (e.g. 「開店」 ↔ `open_shift`).
+export function screenContext(s, view, width, height, actions) {
   const { items, modal, title, status } = screen(s, view, width, height);
   return {
     modal,
@@ -1245,13 +1374,16 @@ export function screenContext(s, view, width, height) {
     status: status || null,
     items: items
       .filter((item) => item.text || item.label || item.recipe)
-      .map((item) => ({
-        id: item.id,
-        text: item.text || null,
-        ...(item.label && item.label !== item.text ? { label: item.label } : {}),
-        ...(item.recipe ? { recipe: item.recipe } : {}),
-        ...(item.disabled ? { disabled: true } : {}),
-        ...(item.pressed ? { pressed: true } : {}),
-      })),
+      .map((item) => {
+        const choosable = !actions || !item.action || actions.has(item.id);
+        return {
+          ...(choosable ? { id: item.id } : {}),
+          text: item.text || null,
+          ...(item.label && item.label !== item.text ? { label: item.label } : {}),
+          ...(item.recipe ? { recipe: item.recipe } : {}),
+          ...(item.disabled ? { disabled: true } : {}),
+          ...(item.pressed ? { pressed: true } : {}),
+        };
+      }),
   };
 }

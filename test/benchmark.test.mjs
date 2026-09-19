@@ -21,7 +21,10 @@ import {
   useBenchmark,
   latencyStats,
   benchRequest,
+  preparationCandidates,
+  kitchenHasWork,
 } from '../src/benchmark.js';
+import { preparation, purchase } from '../src/ui.js';
 
 const writes = [];
 const model = { id: 'jev', name: 'Jev' };
@@ -57,7 +60,7 @@ test('player candidates retain legal actions without partner or recipe heuristic
   assert.ok(choices.some((c) => c.id === 'discard'));
   assert.ok(choices.some((c) => c.id === 'dash_cook'));
   assert.ok(choices.some((c) => c.id === 'move_left'));
-  assert.ok(choices.some((c) => c.id === 'move_pot'));
+  assert.ok(choices.some((c) => c.id === 'visit_pot'));
   assert.match(buildQuestions(choices, 'human').next_action.instructions, /HUMAN player/);
 });
 
@@ -214,10 +217,42 @@ test('dash, directional movement, interruption and boosts use the human mechanic
   assert.equal(writes.length, 0);
 });
 
+test('station taps perform the same arrival work as human clicks, without automatic boosts', () => {
+  startBenchmark();
+  const g = useKitchen.getState().game;
+  const tap = (id) =>
+    benchmarkAction(buildCandidates(g, 'human').find((c) => c.id === `visit_${id}`));
+  const arrive = () => {
+    for (let i = 0; i < 60 && g.human.intent; i++) tick(0.05);
+  };
+  assert.equal(tap('crate'), true);
+  arrive();
+  assert.equal(g.human.carrying, 'tomato');
+  tap('board');
+  arrive();
+  assert.equal(g.stations.board.state, 'chopping');
+  assert.equal(g.human.carrying, null);
+  g.level = 6;
+  g.practice = false;
+  g.human.x = STATIONS.board.x + 110;
+  g.human.y = STATIONS.board.y;
+  tap('board');
+  arrive();
+  assert.equal(g.stations.board.boosted, false);
+  tap('board');
+  arrive();
+  assert.equal(g.stations.board.boosted, true);
+  g.human.carrying = 'dish';
+  tap('serve');
+  arrive();
+  assert.equal(g.served, 1);
+  assert.equal(g.human.carrying, null);
+});
+
 test('frequency spaces calls and the model hires, buys stock and assigns the next partner', async (t) => {
   const calls = [];
   const preparationCash = STAFF.chef.cost + 320;
-  const choices = ['wait', 'hire_chef', 'stock_9', 'assign_helper', 'open_shift'];
+  const choices = ['wait', 'hire_chef', 'crew_chef', 'stock_9', 'open_shift'];
   t.mock.method(globalThis, 'fetch', async (_url, options) => {
     calls.push(performance.now());
     const body = JSON.parse(options.body);
@@ -236,15 +271,22 @@ test('frequency spaces calls and the model hires, buys stock and assigns the nex
       assert.equal(body.state.preparation.applicants[0].id, 'chef');
       if (calls.length === 2) assert.deepEqual(body.state.preparation.duty, ['helper']);
       assert.ok(body.state.screen.items.some((item) => item.id === 'title'));
+      if (calls.length === 3) {
+        // The human's applicant ‹ › navigation is on screen but not a choice,
+        // so its wording stays while its selectable id is dropped.
+        const ids = body.state.screen.items.map((item) => item.id);
+        assert.ok(!ids.includes('previous-applicant') && !ids.includes('next-applicant'));
+        assert.ok(body.state.screen.items.some((item) => item.label === '前の応募者'));
+      }
     }
     return answer(choice);
   });
   await runBenchmark({ model, frequency: 10, maxRequests: 5 });
   const g = useKitchen.getState().game;
   assert.equal(g.level, 4);
-  assert.equal(g.cash, 236);
+  assert.equal(g.cash, 203);
   assert.equal(g.stock, 9);
-  assert.deepEqual(g.duty, ['helper']);
+  assert.deepEqual(g.duty, ['chef']);
   assert.ok(g.hired.includes('chef'));
   const result = useBenchmark.getState().results[0];
   assert.equal(result.status, 'budget');
@@ -259,6 +301,39 @@ test('frequency spaces calls and the model hires, buys stock and assigns the nex
   assert.equal(writes.length, 0);
 });
 
+test('the model can buy equipment and vitamins before opening the shift', async (t) => {
+  const choices = [
+    'wait',
+    'skip_hiring',
+    'crew_helper',
+    'confirm_stock',
+    'equipment_add_board',
+    'vitamin_move_human',
+    'open_shift',
+  ];
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (_url, options) => {
+    const body = JSON.parse(options.body);
+    const choice = choices[calls++];
+    assert.ok(choice in body.questions.next_action.criteria, `${choice} not offered`);
+    if (calls === 1) {
+      const g = createGame({ level: 3, stock: 0 });
+      useKitchen.setState({ game: g });
+      g.cash = 2000;
+      g.served = g.quota;
+      g.time = SHIFT_MS;
+      tick(0);
+      useKitchen.setState({ applicants: ['chef'] });
+    }
+    return answer(choice);
+  });
+  await runBenchmark({ model, frequency: 10, maxRequests: 7 });
+  const g = useKitchen.getState().game;
+  assert.equal(g.level, 4);
+  assert.equal(g.equipment.board.count, 2);
+  assert.equal(g.training.human.move, 1);
+});
+
 test('invalid call limits and frequencies are rejected before a request', async (t) => {
   const fetch = t.mock.method(globalThis, 'fetch', () => {
     throw new Error('unexpected call');
@@ -268,6 +343,97 @@ test('invalid call limits and frequencies are rejected before a request', async 
   for (const maxRequests of [0, -1, 1.5, 10001, NaN])
     await assert.rejects(runBenchmark({ model, maxRequests }));
   assert.equal(fetch.mock.callCount(), 0);
+});
+
+test('bench observes the player and can deploy, rotate and hire a full crew', () => {
+  const g = createGame({
+    level: 15,
+    cash: 2000,
+    stock: 20,
+    hired: ['helper', 'runner', 'chef', 'sous'],
+    duty: ['helper', 'runner', 'chef'],
+  });
+  g.staffState.runner.worked = 1;
+  g.human.carrying = 'chopped';
+  g.crew.helper.carrying = 'plate';
+  const state = { ...useKitchen.getState(), game: g, applicants: ['prep'] };
+  const plan = preparation(g);
+  const observation = benchRequest(state, {
+    preparing: true,
+    plan,
+    candidates: preparationCandidates(state, plan),
+  }).state;
+  assert.equal(
+    observation.actor,
+    undefined,
+    'preparation does not mix in the previous shift actor',
+  );
+  const playing = benchRequest(state, {
+    preparing: false,
+    candidates: buildCandidates(g, 'human'),
+  }).state;
+  assert.equal(playing.actor.carrying, 'chopped');
+  assert.equal(playing.staff, null);
+  assert.equal(observation.preparation.roster.find((s) => s.id === 'runner').rest, 1);
+  assert.equal(observation.preparation.next_level.staffSlots, 4);
+  assert.equal(observation.preparation.recipes.soup.margin, 27);
+  plan.selected = 'prep';
+  for (const id of ['sous', 'prep']) {
+    const option = preparationCandidates(state, plan).find((c) => c.id === `assign_${id}`);
+    assert.ok(option, `can assign ${id}`);
+    plan.duty = option.duty;
+  }
+  assert.deepEqual(plan.duty, ['helper', 'chef', 'sous', 'prep']);
+  assert.equal(purchase(g, plan).error, '');
+  assert.ok(!preparationCandidates(state, plan).some((c) => c.id === 'assign_runner'));
+  const rest = preparationCandidates(state, plan).find((c) => c.id === 'rest_chef');
+  assert.deepEqual(rest.duty, ['helper', 'sous', 'prep']);
+  assert.equal(new Set(rest.duty).size, 3);
+  plan.stage = 'staffing';
+  const crews = preparationCandidates(state, plan);
+  assert.ok(crews.some((c) => c.duty.join() === 'helper,chef,sous,prep'));
+  assert.ok(crews.some((c) => c.duty.join() === 'chef'));
+  assert.ok(crews.some((c) => c.duty.length === 0));
+  for (const option of crews) {
+    assert.ok(option.duty.length <= 4);
+    assert.ok(!option.duty.includes('runner'), 'forced rest is never selectable');
+    assert.equal(purchase(g, { ...plan, duty: option.duty }).error, '');
+  }
+});
+
+test('empty stock sleeps only after every in-flight ingredient is finished', () => {
+  const g = createGame({ level: 10, stock: 0 });
+  g.human.carrying = 'plate';
+  assert.equal(kitchenHasWork(g), false);
+  g.stations.pot.state = 'cooking';
+  assert.equal(kitchenHasWork(g), true);
+  g.stations.pot.state = 'burnt';
+  assert.equal(kitchenHasWork(g), false);
+  g.crew.helper.carrying = 'chopped';
+  assert.equal(kitchenHasWork(g), true);
+  assert.equal(kitchenHasWork(createGame()), true);
+});
+
+test('travel completes without redundant model calls and stale arrival still cancels', async (t) => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    if (++calls === 1) return answer('fetch_tomato');
+    useKitchen.getState().game.human.carrying = null;
+    return answer('return_plate');
+  });
+  const run = runBenchmark({ model, frequency: 10, maxRequests: 2 });
+  await new Promise((resolve) => setTimeout(resolve, 180));
+  assert.equal(calls, 1);
+  const g = useKitchen.getState().game;
+  assert.equal(g.human.intent.id, 'fetch_tomato');
+  // A changed hand makes the destination stale before arrival.
+  g.human.carrying = 'plate';
+  tick(0.05);
+  assert.equal(g.human.intent, null);
+  await run;
+  assert.equal(calls, 2);
+  assert.equal(g.human.carrying, null);
+  assert.equal(useBenchmark.getState().results.at(-1).staleResponses, 1);
 });
 
 test('tab-hidden pausing follows the background mode', () => {
@@ -315,4 +481,19 @@ test('pause and resume retain the campaign and call budget without applying a pe
   assert.equal(result.errors, 0);
   assert.equal(result.staleResponses, 2);
   assert.equal(writes.length, 0);
+});
+
+test('benchmark E uses the same handoff and rejects a partner who moved away', () => {
+  startBenchmark();
+  const g = createGame({ level: 4, stock: 10 });
+  useKitchen.setState({ game: g, tutorial: null });
+  Object.assign(g.human, { x: 500, y: 300, carrying: 'chopped' });
+  Object.assign(g.ai, { x: 520, y: 300 });
+  const choice = buildCandidates(g, 'human').find((c) => c.partner === g.staffId);
+  g.ai.x = 800;
+  assert.equal(benchmarkAction(choice), false);
+  g.ai.x = 520;
+  assert.equal(benchmarkAction(choice), true);
+  assert.equal(g.ai.carrying, 'chopped');
+  assert.equal(g.human.carrying, null);
 });

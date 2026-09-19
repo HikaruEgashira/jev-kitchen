@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ライセンス | SIDEKICK kitchen</title>
+    <link rel="stylesheet" href="/legal.css" />
+  </head>
+  <body>
+    <header class="legal-nav">
+      <a href="/">SIDEKICK kitchen</a>
+      <nav>
+        <a href="/licenses.html">ライセンス</a>
+        <a href="/third-party-notices.html">追加通知</a>
+      </nav>
+    </header>
+    <main class="legal">
+<h1>ライセンス</h1>
+<p>このアプリが同梱または利用する第三者ソフトウェアの一覧と、バンドルされた依存関係のライセンス本文です。</p>
+<h2>Third-party notices</h2>
+<p>This application is an internal, Cloudflare Access-protected game. The following third-party software and services are used by the source tree or by the deployed application. Direct dependency ranges are declared in <code>package.json</code>; the resolved dependency graph is fixed by <code>pnpm-lock.yaml</code>.</p>
+<h3>Runtime JavaScript</h3>
+<table><thead><tr><th>Component</th><th class="right">Version</th><th>License</th><th>Upstream notice</th></tr></thead><tbody><tr><td>React / React DOM</td><td class="right">19.2.8</td><td>MIT</td><td><a href="https://react.dev/">react.dev</a></td></tr><tr><td><code>@react-three/fiber</code></td><td class="right">9.7.0</td><td>MIT</td><td><a href="https://github.com/pmndrs/react-three-fiber/blob/master/LICENSE">pmndrs/react-three-fiber</a></td></tr><tr><td><code>@react-three/drei</code></td><td class="right">10.7.8</td><td>MIT</td><td><a href="https://github.com/pmndrs/drei/blob/master/LICENSE">pmndrs/drei</a></td></tr><tr><td>Three.js</td><td class="right">0.186.0</td><td>MIT</td><td><a href="https://github.com/mrdoob/three.js/blob/dev/LICENSE">three.js LICENSE</a></td></tr><tr><td>Zustand</td><td class="right">5.0.15</td><td>MIT</td><td><a href="https://github.com/pmndrs/zustand/blob/main/LICENSE">pmndrs/zustand</a></td></tr><tr><td><code>@pmndrs/glyph</code></td><td class="right">0.1.0</td><td>MIT</td><td><a href="https://github.com/pmndrs/glyph/blob/main/LICENSE">pmndrs/glyph</a></td></tr></tbody></table>
+<p>The source tree does not copy third-party source files into <code>src/</code>. The production build can bundle direct and transitive dependencies, so this table is only an index. Vite's generated manifest for detected bundle dependencies is available at <a href="https://jev-kitchen.egahika.dev/licenses.html"><code>/licenses.html</code></a>; the supplementary fiber and vendored reconciler notices are available at <a href="https://jev-kitchen.egahika.dev/third-party-notices.html"><code>/third-party-notices.html</code></a>.</p>
+<h3>Build and deployment tools</h3>
+<table><thead><tr><th>Component</th><th class="right">Version</th><th>License</th><th>Upstream notice</th></tr></thead><tbody><tr><td>Vite+</td><td class="right">0.3.2</td><td>MIT</td><td><a href="https://viteplus.dev/guide">vite-plus.dev</a></td></tr><tr><td><code>@vitejs/plugin-react</code></td><td class="right">6.1.1</td><td>MIT</td><td><a href="https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react">vite-plugin-react</a></td></tr><tr><td>TypeScript</td><td class="right">5.x</td><td>Apache-2.0</td><td><a href="https://github.com/microsoft/TypeScript/blob/main/LICENSE.txt">microsoft/TypeScript</a></td></tr><tr><td>Wrangler</td><td class="right">4.x</td><td>MIT OR Apache-2.0</td><td><a href="https://github.com/cloudflare/workers-sdk">cloudflare/workers-sdk</a></td></tr></tbody></table>
+<h3>Fonts</h3>
+<p>The benchmark DOM UI loads the same M PLUS Rounded 1c Bold font as the kitchen. Three UI uses a subset, baked with Glyph into <code>public/fonts/kitchen.font.glb</code>. The original font is stored in <code>assets/fonts</code> for reproducible baking; <code>title.typeface.json</code> contains only the letters used by Drei Text3D for the title. Copyright 2016 The Rounded M+ Project Authors; licensed under SIL Open Font License 1.1, reproduced at <a href="/fonts/OFL.txt"><code>/fonts/OFL.txt</code></a>. Source: <a href="https://github.com/google/fonts/blob/cedcdd46c387ee243991abd07b7d2007fd683baf/ofl/mplusrounded1c/MPLUSRounded1c-Bold.ttf">Google Fonts</a>. Fonts and the Glyph shaping WASM are served from the application's origin. Only the graphics recovery screen uses the device's system font.</p>
+<h3>External services and data flow</h3>
+<ul><li>Cloudflare Workers serves the static build and enforces the existing Cloudflare Access member boundary.</li><li><code>/api/decide</code> sends the game state, legal action candidates, and the user's collaboration-policy text to the configured Jev provider. The current production route uses the TypeSafe API when <code>TYPESAFE_API_KEY</code> is present; Workers AI is the documented fallback.</li><li><code>/api/bench/decide</code> sends the same game state plus the on-screen text to the model selected in jev-bench. The browser only selects an id registered in the server-side <code>BENCH_ENDPOINTS</code>; it never receives the endpoint URL or token.</li><li><code>/api/decide-llm</code> is an optional comparison route backed by the configured Workers AI model. It is not needed for the core game.</li><li>Client aborts and timeouts bound waiting and discard stale responses; they do not guarantee that upstream model processing or billing has stopped.</li></ul>
+<p>Do not enter names, contact details, secrets, or other personal/confidential information into the free-text collaboration policy. This notice records the observed data flow; it is not legal advice or a substitute for the provider terms and privacy review.</p>
+<h3>Review boundary</h3>
+<p>This file is an engineering inventory, not a grant of rights beyond the upstream licenses. Before a public, unauthenticated release, re-check the provider terms, privacy notice, font delivery choice, and the complete production dependency inventory (including transitive packages).</p>
+<h2>Licenses</h2>
+<p>The app bundles dependencies which contain the following licenses:</p>
+<h3>@babel/runtime - 7.29.7 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) 2014-present Sebastian McKenzie and other contributors</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>@pmndrs/glyph - 0.1.0 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) 2026 Poimandres</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>@react-three/drei - 10.7.8 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) 2020 react-spring</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>@react-three/fiber - 9.7.0 (MIT)</h3>
+<h3>its-fine - 2.0.0 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) 2022-2025 Poimandres</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>ktx-parse - 1.1.0 (MIT)</h3>
+<p>The MIT License (MIT)</p>
+<p>Copyright (c) 2020 Don McCurdy</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>react-dom - 19.2.8 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) Meta Platforms, Inc. and affiliates.</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>react-use-measure - 2.1.7 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) 2019-2025 Poimandres</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>react - 19.2.8 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) Meta Platforms, Inc. and affiliates.</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>scheduler - 0.27.0 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) Meta Platforms, Inc. and affiliates.</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>suspend-react - 0.1.3 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) 2021 Paul Henschel</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>three-stdlib - 2.36.1 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) 2021-2023 Poimandres</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>three - 0.186.0 (MIT)</h3>
+<p>The MIT License</p>
+<p>Copyright © 2010-2026 three.js authors</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>unicode-segmenter - 0.15.0 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) 2024 Hyeseong Kim &lt;hey@hyeseong.kim&gt;</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>use-sync-external-store - 1.7.0 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) Meta Platforms, Inc. and affiliates.</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+<h3>zustand - 5.0.15 (MIT)</h3>
+<p>MIT License</p>
+<p>Copyright (c) 2019 Paul Henschel</p>
+<p>Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:</p>
+<p>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+<p>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+    </main>
+  </body>
+</html>

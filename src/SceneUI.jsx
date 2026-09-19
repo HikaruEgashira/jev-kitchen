@@ -30,6 +30,7 @@ import {
   TUTORIAL_STEPS,
 } from './game.js';
 import { STATIONS, activeStationIds } from './model.js';
+import { VITAMINS } from './training.js';
 
 // R3F and React DOM have separate reconcilers; native editing needs its own DOM root.
 function DomBridge({ children }) {
@@ -316,6 +317,32 @@ function Screen() {
       case 'equipment-index':
         patch({ equipmentIndex: Math.max(0, (Number(view.equipmentIndex) || 0) + value) });
         break;
+      case 'vitamin':
+        patch({ vitaminItem: value, layoutMode: 'equipment' });
+        break;
+      case 'vitamin-cancel':
+        patch({ vitaminItem: null });
+        break;
+      case 'vitamin-target': {
+        if (!Object.hasOwn(VITAMINS, view.vitaminItem)) break;
+        const vitamins = [
+          ...(Array.isArray(view.vitamins) ? view.vitamins : []),
+          { item: view.vitaminItem, target: value },
+        ];
+        const nextBill = purchase(g, { ...view, vitamins });
+        patch({
+          vitamins,
+          vitaminItem: null,
+          ...(nextBill.layout ? { layout: nextBill.layout } : {}),
+        });
+        break;
+      }
+      case 'vitamin-undo': {
+        const vitamins = [...(Array.isArray(view.vitamins) ? view.vitamins : [])];
+        vitamins.pop();
+        patch({ vitamins });
+        break;
+      }
       case 'page':
         patch({ page: value });
         break;
@@ -340,7 +367,14 @@ function Screen() {
         const bill = purchase(g, view);
         if (
           !bill.error &&
-          !nextShift(view.selected, bill.quantity, bill.duty, bill.equipmentPurchases, bill.layout)
+          !nextShift(
+            view.selected,
+            bill.quantity,
+            bill.duty,
+            bill.equipmentPurchases,
+            bill.layout,
+            bill.vitamins,
+          )
         )
           patch({ error: '準備内容を確認してください。' });
         break;

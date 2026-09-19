@@ -22,6 +22,16 @@ function progressBetween(level, start, end) {
 }
 
 function recipeMix(level) {
+  if (level >= 11 && level <= 30) {
+    const [dish, soup, roast] = [
+      [0.6, 0.25, 0.15],
+      [0.3, 0.55, 0.15],
+      [0.35, 0.2, 0.45],
+      [0.4, 0.35, 0.25],
+      [0.5, 0.25, 0.25],
+    ][(level - 11) % 5];
+    return Object.freeze({ dish, soup, roast });
+  }
   const soup =
     level >= FEATURE_LEVELS.pot
       ? 0.4 - 0.05 * progressBetween(level, FEATURE_LEVELS.pot, MAX_LEVEL)
@@ -35,20 +45,26 @@ function recipeMix(level) {
 
 function quota(level) {
   if (level === 1) return 1;
-  if (level <= 4) return 9;
-  if (level <= 7) return 10;
-  if (level <= 10) return 11;
-  return 11 + Math.round(5 * Math.sqrt(progressBetween(level, 10, MAX_LEVEL)));
+  if (level === 2) return 7;
+  if (level <= 4 || level === 7) return 6;
+  if (level <= 6) return 7;
+  if (level <= 9) return 8;
+  if (level <= 30) return 9 + Math.floor((level - 10) / 5);
+  return 13 + Math.round(3 * Math.sqrt(progressBetween(level, 30, MAX_LEVEL)));
 }
 
 function orderWindowMs(level) {
   if (level === 1) return Infinity;
-  if (level <= 3) return 30_000;
-  if (level <= 7) return 28_000;
-  return Math.round((28 - 8 * Math.sqrt(progressBetween(level, 7, MAX_LEVEL))) * 1000);
+  if (level <= 7) return 36_000;
+  if (level <= 30) return Math.round((36 - 4 * progressBetween(level, 7, 30)) * 1000);
+  return Math.round((32 - 12 * Math.sqrt(progressBetween(level, 30, MAX_LEVEL))) * 1000);
 }
 
 function unlockLabel(level) {
+  if (level >= 11 && level <= 30)
+    return ['サラダランチ', 'スープの日', 'グリルの日', 'ミックス営業', '週末ラッシュ'][
+      (level - 11) % 5
+    ];
   if (level >= 16) return '4人で連携';
   if (level >= 12) return '3人で分担';
   if (level >= FEATURE_LEVELS.rush) return 'ラッシュ注文';
@@ -56,7 +72,7 @@ function unlockLabel(level) {
   if (level >= 8) return '2人で役割分担';
   if (level >= FEATURE_LEVELS.grill) return 'グリルと鍋を並行';
   if (level >= FEATURE_LEVELS.burning) return '仕上げブーストと焦げ';
-  if (level === 5) return '同じ厨房で10皿';
+  if (level === 5) return '同じ厨房で7皿';
   if (level === 4) return '店長退職・ハルと営業';
   if (level >= FEATURE_LEVELS.pot) return '店長とスープを覚えよう';
   if (level === 2) return '店長と初めての営業';

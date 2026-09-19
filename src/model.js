@@ -1,4 +1,4 @@
-import { STAFF, staffAvailable } from './staff.js';
+import { STAFF, staffAvailable, nextDuty, payroll } from './staff.js';
 import {
   equipmentBurnMultiplier,
   equipmentDurationMultiplier,
@@ -6,6 +6,7 @@ import {
   stationKind,
 } from './equipment.js';
 import { levelConfig } from './progression.js';
+import { trainingMultiplier, trainingState } from './training.js';
 
 export { levelConfig, quotaForLevel, MAX_LEVEL } from './progression.js';
 export {
@@ -61,6 +62,17 @@ export const RECIPES = {
   soup: { name: 'トマトスープ', points: 140 },
   roast: { name: '焼きトマト', points: 180 },
 };
+
+// Stock survives the shift: keep selling after quota, without spending payroll.
+export function recommendedStock(g) {
+  const quota = levelConfig(g.level + 1).quota;
+  const target = Math.max(quota + 6, g.served + 4);
+  const affordable = Math.floor((g.cash - payroll(nextDuty(g))) / STOCK_PRICE);
+  return Math.min(
+    99,
+    Math.max(0, quota - (g.stock ?? 0), Math.min(affordable, target - (g.stock ?? 0))),
+  );
+}
 
 function stockAmount(value) {
   const amount = Number(value);
@@ -192,14 +204,29 @@ function cookDuration(g, who, stationId) {
   const profile = staffProfile(g, who);
   const multiplier = Number(equipmentDurationMultiplier(g.equipment, stationKind(stationId)));
   const equipmentFactor = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
-  return Math.round(base * equipmentFactor * (profile?.cook ?? 1));
+  return Math.round(
+    base *
+      equipmentFactor *
+      trainingMultiplier(g.training, trainedWho(g, who), 'cook') *
+      (profile?.cook ?? 1),
+  );
 }
 
 function chopDuration(g, who, stationId = 'board') {
   const profile = staffProfile(g, who);
   const multiplier = Number(equipmentDurationMultiplier(g.equipment, stationKind(stationId)));
   const equipmentFactor = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
-  return Math.round(CHOP_MS * equipmentFactor * (profile?.chop ?? 1));
+  return Math.round(
+    CHOP_MS *
+      equipmentFactor *
+      trainingMultiplier(g.training, trainedWho(g, who), 'cook') *
+      (profile?.chop ?? 1),
+  );
+}
+
+// `ai` is a selector, not an actor id; training is stored per real actor id.
+function trainedWho(g, who) {
+  return who === 'ai' ? (g?.staffId ?? g?.duty?.[0]) : who;
 }
 
 export function activeStationIds(g = {}) {
@@ -305,6 +332,7 @@ export function createGame({
   stock = null,
   equipment,
   layout,
+  training,
 } = {}) {
   const initialConfig = levelConfig(practice ? 1 : level);
   const initialLevel = initialConfig.level;
@@ -352,6 +380,7 @@ export function createGame({
     staffState: normalizedStaffState,
     stock: initialStock,
     equipment: equipmentState(equipment),
+    training: trainingState(training),
     time: 0,
     served: 0,
     score: 0,
@@ -505,6 +534,48 @@ function crewIds(g) {
   return Array.isArray(g.duty) ? g.duty : Object.keys(g.crew ?? {});
 }
 
+export function handoffOption(g) {
+  if (g.practice || g.time >= g.duration) return null;
+  const human = g.human;
+  const partner = crewIds(g)
+    .filter((id) => {
+      const other = actor(g, id);
+      return (
+        other &&
+        staffAvailable(g.staffState, id) &&
+        Boolean(human.carrying) !== Boolean(other.carrying) &&
+        Math.hypot(human.x - other.x, human.y - other.y) <= REACH
+      );
+    })
+    .sort(
+      (a, b) =>
+        Math.hypot(human.x - actor(g, a).x, human.y - actor(g, a).y) -
+        Math.hypot(human.x - actor(g, b).x, human.y - actor(g, b).y),
+    )[0];
+  if (!partner) return null;
+  const giving = Boolean(human.carrying);
+  const item = giving ? human.carrying : actor(g, partner).carrying;
+  return {
+    partner,
+    item,
+    giving,
+    label: `${STAFF[partner].name}${giving ? 'に' : 'から'}${ITEM_NAMES[item]}を${giving ? '渡す' : '受け取る'}`,
+  };
+}
+
+export function handoff(g, partner) {
+  const option = handoffOption(g);
+  if (!option || option.partner !== partner) return { ok: false };
+  const other = actor(g, partner);
+  const [from, to] = g.human.carrying ? [g.human, other] : [other, g.human];
+  to.carrying = from.carrying;
+  to.quality = from.quality;
+  from.carrying = null;
+  from.quality = false;
+  from.intent = to.intent = null;
+  return { ok: true, action: option.label };
+}
+
 function otherCrew(g, who, predicate) {
   return crewIds(g).some((id) => id !== who && predicate(id, actor(g, id)));
 }
@@ -524,10 +595,16 @@ function actionReserved(g, actionId, who) {
 function canFetchTomato(g, who) {
   if (g.stock !== null && g.stock <= 0) return false;
   if (who === 'human') return true;
-  return (
-    !otherCrew(g, who, (_id, e) => e?.carrying === 'tomato' || e?.intent?.id === 'fetch_tomato') &&
-    g.human.carrying !== 'tomato'
-  );
+  const boards = stationIdsOfKind(g, 'board').filter(
+    (id) => g.stations[id].state === 'idle',
+  ).length;
+  const incoming = [
+    g.human,
+    ...crewIds(g)
+      .filter((id) => id !== who)
+      .map((id) => actor(g, id)),
+  ].filter((e) => e?.carrying === 'tomato' || e?.intent?.id === 'fetch_tomato').length;
+  return boards > incoming;
 }
 
 function plateDemand(g) {
@@ -907,12 +984,35 @@ export function buildCandidates(g, who) {
         add('fetch_plate', 'お皿を用意する', 'plates');
     }
     if (e.carrying && (player || out.length === 0))
-      add('discard', '手元の物を捨てる（コンボをリセット）', null);
+      add(
+        'discard',
+        RECIPES[e.carrying] && !g.orders.some((o) => o.recipe === e.carrying)
+          ? '注文のない料理をQで捨て、次の注文に取りかかる（コンボをリセット）'
+          : '手元の物を捨てる（コンボをリセット）',
+        null,
+      );
     if (player) {
       const near = stationAt(g, 'human');
-      if (near.inReach && out.some((c) => c.station === near.id))
-        add('interact', '近くの作業台で作業する（E）', near.id);
-      for (const id of active) add(`move_${id}`, `${stationName(g, id)}へ移動する`, id);
+      const transfer = handoffOption(g);
+      const interaction = near.inReach && out.find((c) => c.station === near.id);
+      if (transfer)
+        out.push({
+          id: `handoff_${transfer.giving ? 'give' : 'take'}_${transfer.item}_${transfer.partner}`,
+          label: `${transfer.label}（E・相手は${STAFF[transfer.partner].description}）`,
+          station: null,
+          partner: transfer.partner,
+          item: transfer.item,
+          giving: transfer.giving,
+        });
+      else if (interaction) add('interact', `${interaction.label}（E）`, near.id);
+      for (const id of active) {
+        const work = out.find((c) => c.station === id && c.id !== 'interact');
+        add(
+          `visit_${id}`,
+          `${stationName(g, id)}をタップ：${work ? work.label : `移動のみ・${actionHint(g, id)}`}`,
+          id,
+        );
+      }
       for (const [direction, dx, dy] of [
         ['up', 0, -1],
         ['down', 0, 1],
@@ -944,6 +1044,21 @@ export function buildCandidates(g, who) {
       if (e.intent) add('continue', '現在の移動・作業を続ける', null);
     }
   }
+  if (player) {
+    for (const candidate of out) {
+      const base = (candidate.baseId ?? candidate.id).replace(/^dash_/, '');
+      const recipe =
+        base === 'assemble' || base === 'plate' || base.startsWith('plate_board')
+          ? 'dish'
+          : base.startsWith('plate_soup') || base === 'cook'
+            ? 'soup'
+            : base.startsWith('plate_roast') || base === 'grill'
+              ? 'roast'
+              : null;
+      if (recipe && !g.orders.some((o) => o.recipe === recipe))
+        candidate.label += '【この料理は現在注文なし】';
+    }
+  }
   out.push({ id: 'wait', label: '今は動かず、様子を見る', station: null });
   return out;
 }
@@ -954,7 +1069,12 @@ export function isFeasible(g, cand, who) {
   return (
     !!cand &&
     buildCandidates(g, id).some(
-      (candidate) => candidate.id === cand.id && candidate.station === cand.station,
+      (candidate) =>
+        candidate.id === cand.id &&
+        candidate.station === cand.station &&
+        candidate.partner === cand.partner &&
+        candidate.item === cand.item &&
+        candidate.giving === cand.giving,
     )
   );
 }
@@ -965,9 +1085,9 @@ export function buildQuestions(cands, who = 'ai') {
       type: 'choice',
       instructions:
         (who === 'human'
-          ? 'You control the HUMAN player. The ai actor is your rule-based partner. You can perform every cooking role, move freely, dash, boost, return or discard items. You may change your current intent. '
+          ? 'You control the HUMAN player. The crew actors are your rule-based partners. Cooking actions automatically walk to the station and work; dash_<action> does the same faster. Continue useful travel, but never continue a wait. A chopped board is ready for salad only when a salad order exists: fetch_plate, plate, serve. For soup/roast, collect the chopped tomato, cook/grill, fetch_plate, plate_soup/plate_roast, serve. If holding a finished dish with NO matching order, immediately discard (Q) and resume useful work; waiting for an unordered salad wastes the shift. Nearby interact (E) passes an item between you and an empty-handed partner; use only when this advances an order, never pass back and forth. While heat is cooking, prepare another order. Keep selling after quota to earn investment money. '
           : 'You control the AI sous-chef. The human actor is your partner. ') +
-        'Choose one feasible action that complements your partner and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Clean burnt cookware before reusing it. Respect the collaboration policy, including Japanese. Avoid unnecessary returning or discarding. Work ahead while food cooks.',
+        'Choose one feasible action that complements your partner and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Clean burnt cookware before reusing it. Respect the collaboration policy, including Japanese. Keep useful raw ingredients; discard finished dishes without orders. Work ahead while food cooks.',
       criteria: Object.fromEntries(cands.map((c) => [c.id, c.label])),
     },
   };
@@ -977,6 +1097,8 @@ function actorObservation(e) {
   return e
     ? {
         carrying: e.carrying,
+        x: Math.round(e.x),
+        y: Math.round(e.y),
         at_station: e.station,
         last_action: e.action,
         recent_actions: e.lastActions?.slice(-4).map((a) => a.label) ?? [],
@@ -1043,6 +1165,7 @@ export function observe(g, policy, who) {
     duty: g.duty,
     staff_state: g.staffState,
     equipment: g.equipment,
+    training: g.training,
     layout: { ...g.layout },
     kitchen_bounds: kitchenBounds(g),
     stations: Object.fromEntries(
@@ -1156,9 +1279,9 @@ export function rulePick(g, cands, who) {
   const priority = [...new Set(['serve', ...urgentPriority, ...rolePriority])];
   priority.push('fetch_tomato', 'return_plate', 'return_tomato', 'discard', 'wait');
   const usable = cands.filter((c) => {
-    if (c.station && c.station === h.station) return false;
+    if (c.station === h.station && EXCLUSIVE_STATION_KINDS.has(stationKind(c.station)))
+      return false;
     if (c.station && stationReserved(g, c.station, id)) return false;
-    if (c.id === 'fetch_tomato' && h.carrying === 'tomato') return false;
     return true;
   });
   const rank = (candidate) => {
@@ -1218,7 +1341,7 @@ export function actionHint(g, id) {
     return '切ったトマトを持ってこよう';
   }
   if (RECIPES[item]) {
-    return g.orders.some((order) => order.recipe === item) ? '配膳する' : 'この料理の注文を待つ';
+    return g.orders.some((order) => order.recipe === item) ? '配膳する' : '注文なし：Qで片づけ';
   }
   return '完成した料理を持ってこよう';
 }

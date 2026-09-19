@@ -110,9 +110,19 @@ export default function Bench() {
           </ol>
         </section>
         <section className="bench-summary" aria-label="今回のクリア記録">
-          <strong className="bench-clock" aria-label="経過時間">
-            {timer(bench.running ? bench.elapsedMs : (latest?.activeMs ?? 0))}
-          </strong>
+          <div className="bench-status">
+            <strong className="bench-clock" aria-label="経過時間">
+              {timer(bench.running ? bench.elapsedMs : (latest?.activeMs ?? 0))}
+            </strong>
+            <p className="bench-current" role={error ? 'alert' : 'status'}>
+              {error ||
+                (bench.running
+                  ? paused
+                    ? '一時停止'
+                    : bench.action
+                  : latest?.error || statusNames[latest?.status])}
+            </p>
+          </div>
           <span className="bench-calls">{bench.requests} calls</span>
           <div className="bench-splits">
             <table>
@@ -134,14 +144,6 @@ export default function Bench() {
               </tbody>
             </table>
           </div>
-          <p className="bench-current" role={error ? 'alert' : 'status'}>
-            {error ||
-              (bench.running
-                ? paused
-                  ? '一時停止'
-                  : bench.action
-                : latest?.error || statusNames[latest?.status])}
-          </p>
         </section>
         <aside className="bench-controls-panel" aria-label="実行条件">
           <form className="bench-controls" onSubmit={start} aria-label="実行条件">
@@ -198,7 +200,7 @@ export default function Bench() {
                 step="1"
                 required
                 disabled={bench.running}
-                defaultValue="1000"
+                defaultValue="5000"
               />
             </label>
           </form>

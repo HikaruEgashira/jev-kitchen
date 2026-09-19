@@ -134,10 +134,14 @@
   padding: 10px 12px;
   overflow: hidden;
 }
-.bench-summary .bench-clock,
-.bench-summary .bench-calls,
-.bench-summary .bench-current {
-  align-self: center;
+.bench-status {
+  flex: 0 1 34%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 .bench-controls-panel {
   grid-area: controls;
@@ -155,6 +159,7 @@
   font-variant-numeric: tabular-nums;
 }
 .bench-calls {
+  align-self: center;
   text-align: right;
   font-size: 12px;
 }
@@ -187,13 +192,10 @@
   overflow: auto;
 }
 .bench-current {
-  flex: 0 1 auto;
-  max-width: 32%;
   margin: 0;
-  padding-left: 10px;
-  border-left: 1px solid #c9b895;
   font-size: 13px;
   line-height: 1.4;
+  text-align: center;
   overflow-wrap: anywhere;
 }
 .bench-commentary ol {

@@ -21,7 +21,14 @@ import {
   retryShift,
   CHECKPOINT_KEY,
 } from '../src/game.js';
-import { STATIONS, SHIFT_MS, MAX_LEVEL, quotaForLevel, createGame } from '../src/model.js';
+import {
+  STATIONS,
+  SHIFT_MS,
+  MAX_LEVEL,
+  quotaForLevel,
+  recommendedStock,
+  createGame,
+} from '../src/model.js';
 import { STAFF, nextStaffState } from '../src/staff.js';
 
 const storage = new Map([['sidekick-onboarded-v1', '1']]);
@@ -448,8 +455,8 @@ test('invalid preparation purchases are atomic and carried stock reduces the def
   }
   assert.equal(nextShift(), true);
   const next = useKitchen.getState().game;
-  assert.equal(next.stock, quotaForLevel(3) + 2);
-  assert.equal(next.cash, 300 - (quotaForLevel(3) + 2 - 4) * 8 - STAFF.veteran.wage);
+  assert.equal(next.stock, quotaForLevel(3) + 6);
+  assert.equal(next.cash, 300 - (quotaForLevel(3) + 6 - 4) * 8 - STAFF.veteran.wage);
 });
 
 test('opening checkpoints resume progress without farming and reject corrupt saves', async () => {
@@ -676,7 +683,7 @@ test('ordinary shifts keep a 90-second clock and inactive stations stay locked',
   const g = useKitchen.getState().game;
   assert.equal(g.level, 3);
   assert.equal(g.duration, SHIFT_MS);
-  assert.equal(g.quota, 9);
+  assert.equal(g.quota, 6);
   assert.equal(g.stock, 20);
   g.human.x = 310;
   g.human.y = 300;
@@ -902,7 +909,7 @@ test('the manager teaches Lv2 and Lv3, retires before Lv4, and retries preserve 
   assert.equal(nextShift(null, 11, ['helper']), false);
   assert.equal(nextShift(), true);
   assert.deepEqual(useKitchen.getState().game.duty, ['veteran']);
-  assert.equal(useKitchen.getState().game.cash, 205 - 11 * 8 - STAFF.veteran.wage);
+  assert.equal(useKitchen.getState().game.cash, 205 - 13 * 8 - STAFF.veteran.wage);
   for (let level = 2; level <= 8; level++) {
     let g = useKitchen.getState().game;
     const opening = JSON.parse(storage.get(CHECKPOINT_KEY));
@@ -920,7 +927,7 @@ test('the manager teaches Lv2 and Lv3, retires before Lv4, and retries preserve 
     tick(0);
     if (level === 3) assert.equal(nextShift(null, 12, ['veteran']), false);
     const cash = g.cash;
-    const purchased = Math.max(0, quotaForLevel(level + 1) + 2 - g.stock);
+    const purchased = recommendedStock(g);
     assert.equal(nextShift(), true);
     const next = useKitchen.getState().game;
     assert.equal(
@@ -959,11 +966,11 @@ test('balance migration preserves old paid openings and tops up only valid legac
   startShift();
   assert.equal(useKitchen.getState().game.level, 3);
   assert.equal(useKitchen.getState().game.cash, 417);
-  assert.equal(useKitchen.getState().game.stock, 9);
+  assert.equal(useKitchen.getState().game.stock, 8);
   assert.equal(JSON.parse(storage.get(CHECKPOINT_KEY)).version, 5);
   useKitchen.setState({ phase: 'ready' });
   startShift();
-  assert.equal(useKitchen.getState().game.stock, 9);
+  assert.equal(useKitchen.getState().game.stock, 8);
   assert.equal(useKitchen.getState().game.cash, 417);
 });
 
@@ -996,6 +1003,30 @@ test('retired manager candidates have a one-percent gate and require a paid rehi
   g.time = SHIFT_MS;
   tick(0);
   assert.ok(!useKitchen.getState().applicants.includes('veteran'));
+});
+
+test('mentor retirement offers a cooking hire and preserves trained campaign saves', (t) => {
+  for (const random of [0, 0.2, 0.5, 0.99]) {
+    t.mock.method(Math, 'random', () => random);
+    const g = createGame({
+      level: 3,
+      cash: 600,
+      stock: 15,
+      training: { human: { move: 1, cook: 1 }, veteran: { move: 1, cook: 0 } },
+    });
+    useKitchen.setState({ game: g, phase: 'playing', tutorial: null, cleared: false });
+    g.served = g.quota;
+    g.time = SHIFT_MS;
+    tick(0);
+    assert.ok(useKitchen.getState().applicants.some((id) => id === 'chef' || id === 'sous'));
+    assert.equal(nextShift(null, 0, ['helper']), true);
+    const next = useKitchen.getState().game;
+    assert.deepEqual(next.training, { human: { move: 1, cook: 1 } });
+    useKitchen.setState({ phase: 'ready' });
+    startShift();
+    assert.equal(useKitchen.getState().game.level, 4);
+    assert.deepEqual(useKitchen.getState().game.training, next.training);
+  }
 });
 
 test('previous saves adopt the new mentor lessons without losing cash or rewinds', () => {
@@ -1041,7 +1072,7 @@ test('previous saves adopt the new mentor lessons without losing cash or rewinds
   assert.deepEqual(g.staffState.veteran, { worked: 0, rest: 0 });
 });
 
-test('ten-dish migration preserves paid openings, rehired staff and rewind stock', () => {
+test('easier quotas preserve paid openings, rehired staff and rewind stock', () => {
   for (const version of [3, 4, 5]) {
     for (const level of [5, 6, 7]) {
       for (const stock of [8, 9, 12]) {
@@ -1061,17 +1092,17 @@ test('ten-dish migration preserves paid openings, rehired staff and rewind stock
         useKitchen.setState({ phase: 'ready' });
         startShift();
         const g = useKitchen.getState().game;
-        if (stock < (version < 5 ? 9 : 10)) {
+        if (stock < quotaForLevel(level)) {
           assert.equal(g.level, 1);
           continue;
         }
         assert.equal(g.level, level);
-        assert.equal(g.stock, Math.max(stock, 10));
+        assert.equal(g.stock, Math.max(stock, quotaForLevel(level)));
         assert.equal(g.cash, 431);
         assert.equal(g.hired.includes('veteran'), version >= 4);
         const saved = JSON.parse(storage.get(CHECKPOINT_KEY));
         assert.equal(saved.version, 5);
-        assert.equal(saved.rollback.previous.snapshot.stock, Math.max(stock, 10));
+        assert.equal(saved.rollback.previous.snapshot.stock, Math.max(stock, quotaForLevel(level)));
         useKitchen.setState({ phase: 'ready' });
         startShift();
         assert.equal(useKitchen.getState().game.stock, saved.stock);
@@ -1079,4 +1110,19 @@ test('ten-dish migration preserves paid openings, rehired staff and rewind stock
       }
     }
   }
+});
+
+test('E hands items to nearby partners while tapping a station still works there', () => {
+  startShift();
+  const g = useKitchen.getState().game;
+  Object.assign(g.human, { ...STATIONS.board, carrying: 'tomato' });
+  Object.assign(g.ai, { x: g.human.x + 20, y: g.human.y, carrying: null });
+  humanInteract();
+  assert.equal(g.human.carrying, null);
+  assert.equal(g.ai.carrying, 'tomato');
+  humanInteract();
+  assert.equal(g.human.carrying, 'tomato');
+  goTo('board');
+  assert.equal(g.stations.board.state, 'chopping');
+  assert.equal(g.ai.carrying, null);
 });

@@ -13,7 +13,8 @@ import {
   investmentCost,
 } from '../src/equipment.js';
 import { STAFF } from '../src/staff.js';
-import { RECIPES, STOCK_PRICE, levelConfig } from '../src/model.js';
+import { RECIPES, STOCK_PRICE, levelConfig, createGame, recommendedStock } from '../src/model.js';
+import { preparation, purchase } from '../src/ui.js';
 
 test('capital prices require saving while preserving affordable opening supplies', () => {
   const surplus = 90;
@@ -25,8 +26,7 @@ test('capital prices require saving while preserving affordable opening supplies
       ...Object.values(STAFF)
         .filter((s) => s.cost)
         .map((s) => s.cost),
-    ) >=
-      surplus * 3,
+    ) >= surplus,
   );
   assert.equal(STAFF.veteran.cost, surplus * 16);
   const openingCash = 180 + (levelConfig(1).quota * RECIPES.dish.points) / 4;
@@ -35,6 +35,29 @@ test('capital prices require saving while preserving affordable opening supplies
   assert.ok(openingCash < nextOpening + EQUIPMENT.board.upgradeCosts[0]);
   assert.ok(openingCash < nextOpening + EQUIPMENT.board.addCost);
   assert.ok(openingCash < nextOpening + STAFF.prep.cost);
+});
+
+test('opening stock supports surplus sales and early hiring leaves wages and supplies', () => {
+  const opening = createGame({ cash: 205 });
+  opening.served = 1;
+  const openingBill = purchase(opening, preparation(opening));
+  assert.equal(openingBill.stock, 13);
+  assert.equal(openingBill.error, '');
+  assert.ok(openingBill.cash >= 0);
+  const g = createGame({ level: 3, cash: 320, stock: 3 });
+  g.served = 11;
+  const plan = { ...preparation(g), selected: 'prep', duty: ['prep'] };
+  const bill = purchase(g, plan);
+  assert.equal(bill.stock, 15);
+  assert.equal(bill.error, '');
+  assert.ok(bill.cash >= 45, 'room to invest in one vitamin after hiring and payroll');
+  g.stock = 30;
+  assert.equal(recommendedStock(g), 0, 'leftover stock is reused');
+  g.stock = 0;
+  g.cash = 92;
+  assert.equal(recommendedStock(g), 10, 'stock forecast stays within opening cash');
+  g.cash = 0;
+  assert.ok(purchase(g, preparation(g)).error, 'insufficient funding cannot open a shift');
 });
 
 test('the catalog preserves the automatic station unlocks and investment gates', () => {

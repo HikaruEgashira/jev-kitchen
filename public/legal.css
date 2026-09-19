@@ -1,0 +1,134 @@
+:root {
+  color-scheme: light;
+  --ink: #245e50;
+  --paper: #fff9e8;
+  --edge: #b68050;
+  --focus: #987018;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #dfeadd;
+  color: var(--ink);
+  font-family: 'Hiragino Maru Gothic ProN', 'Yu Gothic', sans-serif;
+  line-height: 1.7;
+}
+.legal-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--ink);
+  color: var(--paper);
+}
+.legal-nav a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+.legal-nav nav {
+  display: flex;
+  gap: 16px;
+  margin-left: auto;
+}
+.legal-nav a:hover {
+  text-decoration: underline;
+}
+.legal-nav :focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.legal {
+  max-width: 76ch;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+h1,
+h2,
+h3 {
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+h1 {
+  font-size: 26px;
+}
+h2 {
+  margin-top: 2em;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--edge);
+  font-size: 20px;
+}
+h3 {
+  margin-top: 1.6em;
+  font-size: 17px;
+}
+a {
+  color: #1c4a86;
+}
+code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #eef3e9;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+pre {
+  padding: 14px 16px;
+  overflow-x: auto;
+  border: 2px solid var(--edge);
+  border-radius: 8px;
+  background: var(--paper);
+}
+pre code {
+  padding: 0;
+  background: none;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--paper);
+  font-size: 14px;
+}
+th,
+td {
+  padding: 8px 10px;
+  border: 1px solid var(--edge);
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  background: #f4cd75;
+}
+.right {
+  text-align: right;
+}
+.center {
+  text-align: center;
+}
+ul {
+  padding-left: 1.4em;
+}
+li {
+  margin: 4px 0;
+}
+@media (max-width: 640px) {
+  .legal {
+    padding: 16px 14px 48px;
+  }
+  h1 {
+    font-size: 22px;
+  }
+  table {
+    font-size: 12.5px;
+  }
+  th,
+  td {
+    padding: 6px 7px;
+  }
+}

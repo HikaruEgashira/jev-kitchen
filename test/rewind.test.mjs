@@ -14,13 +14,17 @@ import {
 } from '../src/game.js';
 import {
   SHIFT_MS,
+  CHOP_MS,
+  SPEED,
   quotaForLevel,
   resolveLayout,
   stationInfo,
   kitchenBounds,
+  interact,
 } from '../src/model.js';
 import { STAFF } from '../src/staff.js';
 import { equipmentState, quoteEquipment } from '../src/equipment.js';
+import { VITAMINS } from '../src/training.js';
 
 const storage = new Map();
 test.beforeEach(() => {
@@ -45,6 +49,7 @@ function economy(g) {
     duty: g.duty,
     staffState: g.staffState,
     equipment: g.equipment,
+    training: g.training,
     layout: g.layout,
   });
 }
@@ -117,6 +122,45 @@ test('equipment investments share the bill and survive retry, reload and prepara
   assert.equal(nextShift(null, 10, ['helper'], []), true);
   assert.deepEqual(useKitchen.getState().game.equipment, preparation.equipment);
   assert.equal(useKitchen.getState().game.cash, preparation.cash - 80 - STAFF.helper.wage);
+});
+
+test('vitamins boost one actor and survive retry, reload and preparation rewinds', async () => {
+  open(9, 1200);
+  const preparation = finish(true);
+  const vitamins = [
+    { item: 'move', target: 'human' },
+    { item: 'cook', target: 'human' },
+  ];
+  assert.equal(nextShift(null, 10, ['helper'], [], undefined, vitamins), true);
+  const opening = economy(useKitchen.getState().game);
+  assert.deepEqual(opening.training, { human: { move: 1, cook: 1 } });
+  assert.equal(
+    opening.cash,
+    preparation.cash - 10 * 8 - STAFF.helper.wage - VITAMINS.move.cost - VITAMINS.cook.cost,
+  );
+
+  const playing = useKitchen.getState().game;
+  playing.human.carrying = 'tomato';
+  interact(playing, 'human', 'board');
+  assert.equal(playing.stations.board.duration, Math.round(CHOP_MS * 0.96));
+
+  playing.human.x = 300;
+  playing.human.y = 190;
+  goTo('crate');
+  const before = playing.human.x;
+  tick(0.1);
+  assert.ok(Math.abs(before - playing.human.x - SPEED * 1.04 * 0.1) < 0.5);
+
+  finish(false);
+  assert.equal(retryShift(), true);
+  assert.deepEqual(economy(useKitchen.getState().game), opening);
+  const reloaded = await import(`../src/game.js?vitamin-reload-${Date.now()}`);
+  reloaded.useKitchen.setState({ ready: true, sound: false, mode: 'rule' });
+  reloaded.startShift();
+  assert.deepEqual(economy(reloaded.useKitchen.getState().game), opening);
+  finish(false);
+  assert.equal(rollbackToPreparation(), true);
+  assert.deepEqual(economy(useKitchen.getState().game), preparation);
 });
 
 test('previous-stage rewind restores the original equipment and rejects invalid investments atomically', () => {
@@ -303,6 +347,22 @@ test('rewinds reject missing history and cannot replace an active shift', () => 
   finish(false);
   assert.equal(rollbackToPreparation(), false);
   assert.equal(rollbackToPreviousStage(), false);
+});
+
+test('previous-stage rewind keeps both recovery choices for the next failure', () => {
+  open(9);
+  finish(true);
+  assert.equal(nextShift(null, undefined, undefined), true);
+  finish(true);
+  assert.equal(nextShift(null, undefined, undefined), true);
+  finish(false);
+  assert.equal(rollbackToPreviousStage(), true);
+  assert.equal(useKitchen.getState().game.level, 10);
+  finish(false);
+  const rollback = useKitchen.getState().rollback;
+  assert.equal(Boolean(rollback?.preparation), true);
+  assert.equal(Boolean(rollback?.previous), true);
+  assert.equal(rollbackToPreparation(), true);
 });
 
 test('previous-stage retry and reload keep the original applicant draw', async () => {

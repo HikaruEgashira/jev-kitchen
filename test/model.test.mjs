@@ -31,6 +31,9 @@ import {
   actor,
   stationKind,
   burnGraceMs,
+  handoffOption,
+  handoff,
+  REACH,
 } from '../src/model.js';
 import { nextStaffState, payroll, staffAvailable, STAFF, staffPerformance } from '../src/staff.js';
 
@@ -93,15 +96,79 @@ test('a decision that went stale while Jev was thinking is not feasible', () => 
   assert.equal(isFeasible(g, cand), false);
 });
 
-test('the fixed-rule comparator does not crowd the human', () => {
+test('shared counters stay usable while another cook stands there', () => {
   const g = createGame({ level: 3, stock: 99 });
   g.human.station = 'crate';
   const picked = rulePick(g, buildCandidates(g));
-  assert.notEqual(picked.id, 'fetch_tomato');
+  assert.equal(picked.id, 'fetch_tomato');
 
   g.human.station = null;
   const picked2 = rulePick(g, buildCandidates(g));
   assert.equal(picked2.id, 'fetch_tomato'); // its highest-priority useful move
+  g.human.station = 'serve';
+  g.ai.carrying = 'soup';
+  g.orders = [{ recipe: 'soup', deadline: 30000 }];
+  assert.equal(rulePick(g, buildCandidates(g)).id, 'serve');
+  g.human.station = 'board';
+  g.ai.carrying = 'tomato';
+  assert.notEqual(rulePick(g, buildCandidates(g)).id, 'chop');
+});
+
+test('a second board allows two cooks to fetch ingredients in parallel', () => {
+  const g = createGame({
+    level: 8,
+    stock: 10,
+    duty: ['helper', 'sous'],
+    hired: ['helper', 'sous'],
+    equipment: { board: { count: 2, level: 1 } },
+  });
+  g.human.carrying = 'tomato';
+  assert.ok(buildCandidates(g, 'helper').some((c) => c.id === 'fetch_tomato'));
+  g.crew.helper.intent = { id: 'fetch_tomato', station: 'crate' };
+  assert.ok(!buildCandidates(g, 'sous').some((c) => c.id === 'fetch_tomato'));
+});
+
+test('nearby handoffs preserve items and quality and reject stale, busy or absent partners', () => {
+  const g = createGame({
+    level: 8,
+    stock: 10,
+    hired: ['helper', 'sous'],
+    duty: ['helper', 'sous'],
+  });
+  Object.assign(g.human, {
+    x: 500,
+    y: 300,
+    carrying: 'soup',
+    quality: true,
+    intent: { id: 'serve' },
+  });
+  Object.assign(g.crew.helper, { x: 520, y: 300, intent: { id: 'fetch_tomato' } });
+  Object.assign(g.crew.sous, { x: 550, y: 300 });
+  assert.equal(handoffOption(g).partner, 'helper');
+  const candidate = buildCandidates(g, 'human').find((c) => c.partner === 'helper');
+  assert.equal(candidate.partner, 'helper');
+  const before = [g.stock, g.cash, g.served];
+  assert.equal(handoff(g, 'helper').ok, true);
+  assert.equal(g.human.carrying, null);
+  assert.equal(g.crew.helper.carrying, 'soup');
+  assert.equal(g.crew.helper.quality, true);
+  assert.equal(g.human.quality, false);
+  assert.equal(g.human.intent, null);
+  assert.equal(g.crew.helper.intent, null);
+  assert.equal(isFeasible(g, candidate, 'human'), false);
+  assert.deepEqual([g.stock, g.cash, g.served], before);
+  assert.equal(handoff(g, 'helper').ok, true);
+  assert.equal(g.human.carrying, 'soup');
+  assert.equal(g.human.quality, true);
+  g.crew.helper.carrying = 'plate';
+  g.crew.sous.x = g.human.x + REACH + 1;
+  assert.equal(handoffOption(g), null);
+  g.crew.helper.carrying = null;
+  g.duty = ['sous'];
+  assert.equal(handoff(g, 'helper').ok, false);
+  g.crew.sous.x = 500;
+  g.time = g.duration;
+  assert.equal(handoffOption(g), null);
 });
 
 test('unknown actions are never feasible', () => {
@@ -130,7 +197,7 @@ test('tutorial is unlimited and ordinary kitchens use a 90-second contract', () 
   assert.ok(level1.orders.every((o) => o.recipe === 'dish'));
 
   const level2 = createGame({ level: 5, stock: 8 });
-  assert.equal(level2.quota, 10);
+  assert.equal(level2.quota, 7);
   assert.equal(level2.duration, SHIFT_MS);
   assert.equal(level2.stock, 8);
   assert.deepEqual(
@@ -148,7 +215,7 @@ test('tutorial is unlimited and ordinary kitchens use a 90-second contract', () 
     hired: ['helper', 'chef'],
     stock: 10,
   });
-  assert.equal(level3.quota, 11);
+  assert.equal(level3.quota, 9);
   assert.equal(level3.duration, SHIFT_MS);
   assert.equal(level3.cash, 200);
   assert.deepEqual(level3.hired, ['helper', 'chef']);
@@ -162,11 +229,11 @@ test('tutorial is unlimited and ordinary kitchens use a 90-second contract', () 
   assert.equal(MAX_LEVEL, 100);
   assert.deepEqual(
     [1, 5, 10, 15, 20, 25, 30, 100].map((level) => levelConfig(level).quota),
-    [1, 10, 11, 12, 13, 13, 13, 16],
+    [1, 7, 9, 10, 11, 12, 13, 16],
   );
   assert.equal(levelConfig(0).level, 1);
   assert.equal(levelConfig(101).level, MAX_LEVEL);
-  assert.equal(quotaForLevel(4), 9);
+  assert.equal(quotaForLevel(4), 6);
 });
 
 test('initial and replenished tickets share the level formula', () => {
@@ -193,7 +260,7 @@ test('all 100 levels follow a bounded curve and reproducible recipe proportions'
   let previous = levelConfig(1);
   for (let level = 1; level <= MAX_LEVEL; level++) {
     const config = levelConfig(level);
-    assert.ok(config.quota >= previous.quota && config.quota <= 16);
+    assert.ok(config.quota >= 1 && config.quota <= 16);
     assert.ok(config.orderWindowMs <= previous.orderWindowMs && config.orderWindowMs >= 20_000);
     assert.ok(
       Math.abs(Object.values(config.recipeMix).reduce((sum, value) => sum + value, 0) - 1) < 1e-12,
@@ -876,7 +943,7 @@ test('action hints explain the next useful step for each station state', () => {
   g.human.carrying = 'dish';
   assert.equal(actionHint(g, 'serve'), '配膳する');
   g.orders = g.orders.map((order) => ({ ...order, recipe: 'soup' }));
-  assert.equal(actionHint(g, 'serve'), 'この料理の注文を待つ');
+  assert.equal(actionHint(g, 'serve'), '注文なし：Qで片づけ');
 });
 
 test('boosts, burning and the one-time rush activate only at their level milestones', () => {

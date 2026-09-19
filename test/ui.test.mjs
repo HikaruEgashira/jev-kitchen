@@ -4,6 +4,7 @@ import { activeStationIds, createGame, layoutSlots, STATIONS } from '../src/mode
 import { useKitchen, TUTORIAL_STEPS } from '../src/game.js';
 import { compactControls, preparation, purchase, screen, screenContext } from '../src/ui.js';
 import { STAFF } from '../src/staff.js';
+import { VITAMINS } from '../src/training.js';
 
 test('title screen contains no playing HUD, orders, stock or staff', () => {
   const base = { ...useKitchen.getState(), phase: 'ready', ready: true };
@@ -229,6 +230,47 @@ test('equipment page keeps pending investments, effects and controls within the 
     assert.ok(ui.items.find((item) => item.id === 'equipment-next'));
     const controls = ui.items.filter((item) => item.action && !item.inert);
     for (const control of controls) {
+      assert.ok(control.w >= 44 && control.h >= 44, `${control.id} touch target`);
+      assert.ok(
+        control.x >= 0 &&
+          control.y >= 0 &&
+          control.x + control.w <= width &&
+          control.y + control.h <= height,
+        `${control.id} outside ${width}x${height}`,
+      );
+    }
+  }
+});
+
+test('training rows buy a vitamin then pick exactly one actor inside the sheet', () => {
+  const game = createGame({ level: 14, cash: 1200, stock: 20, hired: ['helper', 'runner'] });
+  const state = {
+    ...useKitchen.getState(),
+    game,
+    phase: 'finished',
+    cleared: true,
+    ready: true,
+    applicants: [],
+  };
+  const view = { ...preparation(game), page: 3, equipmentIndex: 2 };
+  const list = screen(state, view, 390, 844);
+  assert.ok(list.items.find((item) => item.id === 'equipment-buy-move'));
+
+  const bill = purchase(game, { ...view, vitamins: [{ item: 'move', target: 'human' }] });
+  assert.equal(bill.vitaminCost, VITAMINS.move.cost);
+  assert.ok(bill.cash < game.cash);
+  assert.equal(bill.error, '');
+
+  for (const [width, height] of [
+    [320, 568],
+    [568, 320],
+    [390, 844],
+  ]) {
+    const picker = screen(state, { ...view, vitaminItem: 'move' }, width, height);
+    assert.ok(picker.items.find((item) => item.id === 'vitamin-target-human'));
+    assert.ok(picker.items.find((item) => item.id === 'vitamin-target-helper'));
+    assert.ok(picker.items.find((item) => item.id === 'layout-mode').text === 'やめる');
+    for (const control of picker.items.filter((item) => item.action && !item.inert)) {
       assert.ok(control.w >= 44 && control.h >= 44, `${control.id} touch target`);
       assert.ok(
         control.x >= 0 &&
@@ -484,7 +526,7 @@ test('preparation hint warns only when the stock is below the next quota', () =>
   );
   const short = { ...view, page: 2, quantity: 0 };
   const shortUi = screen(state, short, 1440, 900);
-  assert.equal(shortUi.status, 'あと9個の仕入れが必要');
+  assert.equal(shortUi.status, 'あと7個の仕入れが必要');
   assert.equal(shortUi.items.find((item) => item.id === 'hint').text, shortUi.status);
   assert.equal(screenContext(state, short, 1440, 900).status, shortUi.status);
   assert.equal(screenContext(state, view, 1440, 900).status, null);

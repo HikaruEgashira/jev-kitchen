@@ -18,4 +18,4 @@
 - 数値・条件の唯一の正はコード。仕様書は構造と意図だけを書く。
 - ADRは決定時点のスナップショット。現行仕様と同期しない。変更は新しいADRで行う。
 - リリース台帳は追記のみ。過去の記録を書き換えない。
-- 生成物（`dist/licenses.md`、`public/fonts/kitchen.font.glb`）を手で編集しない。
+- 生成物（`dist/licenses.md`、`public/licenses.html`、`public/third-party-notices.html`、`public/fonts/kitchen.font.glb`）を手で編集しない。
