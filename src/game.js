@@ -290,7 +290,10 @@ function writeCheckpoint(value, completed = false) {
 const initialCheckpoint = readCheckpoint();
 
 const freshState = (checkpoint) => ({
-  game: checkpoint && !checkpoint.completed ? createGame(checkpoint) : createGame(),
+  game:
+    checkpoint && !checkpoint.completed
+      ? createGame(checkpoint)
+      : createGame({ cash: STARTING_CASH }),
   phase: 'ready',
   benchmark: false,
   benchPreparation: null,
