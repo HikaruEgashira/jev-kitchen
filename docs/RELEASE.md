@@ -1,5 +1,13 @@
 # SIDEKICK kitchen 本番リリース台帳
 
+## 2026-09-19 開店準備ヒントのフォント整合
+
+- `66dc3ff`の文言追加に対してフォント生成物が未更新で、`pnpm build`が`missing ぼ`で停止していた。既存の`pnpm fonts`で再生成し、coverageへ「ぼ」（U+307C）を追加した。フォントatlasは3,040,148B。
+- 変更対象はフォント生成物と本台帳のみ。Kitchen、GPU lifecycle、entrance、ゲーム仕様は変更しない。生成後のJSONは`vp fmt`で整形する。
+- `pnpm test`は142 pass／0 fail、typecheck、check（51 files／lint33、警告なし）、build、font coverage、diff-checkがpass。既知のKitchen大容量chunk警告は継続する。
+- アプリ内ブラウザは未接続のため、描画・タップ・人間β・実機の受入は未実施。自動検査や配信ファイル照合で代替したとは扱わない。
+- 配信前の復旧先は100% version `e5e6a73a-6ae7-4fc7-a9b6-311ee4708a4d`（2026-09-19 06:26:36 UTC）。復旧コマンドは`pnpm exec wrangler rollback e5e6a73a-6ae7-4fc7-a9b6-311ee4708a4d`。
+
 ## 2026-09-19 設備投資・厨房拡張・配置変更
 
 - 開店準備へ設備投資と移設を追加。まな板・鍋・グリルは各2台、各Lv3まで改良可能。調理時間は改良ごとに基準の8%短縮する。Lv20の保温台は完成後の焦げ猶予を1.5／1.75／2倍にする。基本の鍋・グリルのレベル解放は追加購入不要。
