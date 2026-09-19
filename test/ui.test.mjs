@@ -139,20 +139,20 @@ test('camera settings expose the three modes as Three UI controls with matching 
   }
 });
 
-test('operation settings expose the away-pause toggle and reflect its state', () => {
-  for (const pauseWhenAway of [false, true]) {
+test('operation settings expose the background mode toggle and reflect its state', () => {
+  for (const backgroundMode of [false, true]) {
     const s = {
       ...useKitchen.getState(),
       menuOpen: true,
       menuPage: 'controls',
       phase: 'paused',
-      pauseWhenAway,
+      backgroundMode,
     };
     const ui = screen(s, preparation(s.game), 320, 568);
-    const toggle = ui.items.find((item) => item.action === 'away-pause');
+    const toggle = ui.items.find((item) => item.action === 'background');
     assert.ok(toggle);
-    assert.equal(toggle.pressed, pauseWhenAway);
-    assert.match(toggle.text, pauseWhenAway ? /オン/ : /オフ/);
+    assert.equal(toggle.pressed, backgroundMode);
+    assert.match(toggle.text, backgroundMode ? /オン/ : /オフ/);
     assert.ok([...toggle.text].length * toggle.size <= toggle.w - 8);
   }
   const settings = screen(
@@ -161,7 +161,7 @@ test('operation settings expose the away-pause toggle and reflect its state', ()
     320,
     568,
   );
-  assert.ok(!settings.items.some((item) => item.action === 'away-pause'));
+  assert.ok(!settings.items.some((item) => item.action === 'background'));
 });
 
 test('preparation screen exposes multi-person duty selection and fatigue status', () => {

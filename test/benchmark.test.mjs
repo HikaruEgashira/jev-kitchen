@@ -264,12 +264,12 @@ test('invalid call limits and frequencies are rejected before a request', async 
   assert.equal(fetch.mock.callCount(), 0);
 });
 
-test('tab-hidden pausing follows the away-pause option', () => {
+test('tab-hidden pausing follows the background mode', () => {
   useBenchmark.setState({ running: true });
-  useKitchen.setState({ phase: 'playing', pauseWhenAway: false });
+  useKitchen.setState({ phase: 'playing', backgroundMode: true });
   pauseBenchmarkWhenAway();
   assert.equal(useKitchen.getState().phase, 'playing');
-  useKitchen.setState({ pauseWhenAway: true });
+  useKitchen.setState({ backgroundMode: false });
   pauseBenchmarkWhenAway();
   assert.equal(useKitchen.getState().phase, 'paused');
 });

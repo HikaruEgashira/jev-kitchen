@@ -394,22 +394,23 @@ export function screen(s, view, width, height) {
           label: `移動：${text}`,
         }),
       );
-      const fw = (inside - 8) / 2;
-      button('back', '設定に戻る', x + 16, footerY - 54, fw, 'menu-page', {
+      const backW = narrow ? 76 : 120;
+      const bgW = inside - backW - 8;
+      button('back', '設定に戻る', x + 16, footerY - 54, backW, 'menu-page', {
         value: 'settings',
         size: 13,
       });
       button(
-        'away-pause',
-        s.pauseWhenAway ? '裏画面で停止：オン' : '裏画面で停止：オフ',
-        x + 24 + fw,
+        'background',
+        s.backgroundMode ? 'バックグラウンドモード：オン' : 'バックグラウンドモード：オフ',
+        x + 24 + backW,
         footerY - 54,
-        fw,
-        'away-pause',
+        bgW,
+        'background',
         {
-          pressed: s.pauseWhenAway,
+          pressed: s.backgroundMode,
           size: 13,
-          label: '他の画面に切り替えたときに一時停止する',
+          label: '裏画面でも動き続ける',
         },
       );
     } else if (page === 'help') {

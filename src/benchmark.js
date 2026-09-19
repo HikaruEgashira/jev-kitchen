@@ -173,9 +173,9 @@ export function pauseBenchmark() {
 }
 
 // The bench screen shares the game menu, so tab-hidden pausing must follow the
-// same 「裏画面で停止」 option instead of always stopping.
+// same 「バックグラウンドモード」 option instead of always stopping.
 export function pauseBenchmarkWhenAway() {
-  if (useKitchen.getState().pauseWhenAway) pauseBenchmark();
+  if (!useKitchen.getState().backgroundMode) pauseBenchmark();
 }
 
 export function resumeBenchmark() {
