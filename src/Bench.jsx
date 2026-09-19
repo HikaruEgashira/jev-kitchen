@@ -137,45 +137,18 @@ export default function Bench() {
         </section>
         <aside className="bench-controls-panel" aria-label="実行条件">
           <form className="bench-controls" onSubmit={start} aria-label="実行条件">
-            <fieldset disabled={bench.running}>
-              <select
-                aria-label="モデル"
-                value={modelId}
-                onChange={(e) => setModelId(e.target.value)}
-              >
-                {models.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name}
-                  </option>
-                ))}
-              </select>
-              <label>
-                frequency（Hz）
-                <input
-                  name="frequency"
-                  type="number"
-                  inputMode="decimal"
-                  min="0.1"
-                  max="10"
-                  step="any"
-                  required
-                  defaultValue="5"
-                />
-              </label>
-              <label>
-                最大 call 数
-                <input
-                  name="maxRequests"
-                  type="number"
-                  inputMode="numeric"
-                  min="1"
-                  max="10000"
-                  step="1"
-                  required
-                  defaultValue="1000"
-                />
-              </label>
-            </fieldset>
+            <select
+              aria-label="モデル"
+              value={modelId}
+              disabled={bench.running}
+              onChange={(e) => setModelId(e.target.value)}
+            >
+              {models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </select>
             <div className="bench-actions">
               <button
                 type={bench.running ? 'button' : 'submit'}
@@ -192,6 +165,34 @@ export default function Bench() {
                 JSON
               </button>
             </div>
+            <label>
+              frequency（Hz）
+              <input
+                name="frequency"
+                type="number"
+                inputMode="decimal"
+                min="0.1"
+                max="10"
+                step="any"
+                required
+                disabled={bench.running}
+                defaultValue="5"
+              />
+            </label>
+            <label>
+              最大 call 数
+              <input
+                name="maxRequests"
+                type="number"
+                inputMode="numeric"
+                min="1"
+                max="10000"
+                step="1"
+                required
+                disabled={bench.running}
+                defaultValue="1000"
+              />
+            </label>
           </form>
         </aside>
       </div>

@@ -383,7 +383,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
         const action = applied ? selected.label : '状況が変わったため再判断';
         useBenchmark.setState((state) => ({
           action,
-          log: [...state.log.slice(-3), { call: result.requests, action }],
+          log: [...state.log.slice(-200), { call: result.requests, action }],
         }));
         await sleep();
       }

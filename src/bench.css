@@ -34,20 +34,9 @@
 }
 .bench-controls {
   display: grid;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.bench-controls fieldset {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  min-width: 0;
-}
-.bench-controls select {
-  grid-column: 1 / -1;
+  flex-shrink: 0;
 }
 .bench-controls label {
   display: grid;
@@ -69,10 +58,11 @@
 }
 .bench-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 .bench-actions button {
   flex: 1;
+  padding: 6px 8px;
 }
 .bench-page button {
   min-height: 44px;
@@ -108,7 +98,7 @@
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(220px, 24vw, 300px);
-  grid-template-rows: minmax(0, 1fr) minmax(190px, 32%);
+  grid-template-rows: minmax(0, 1fr) minmax(136px, 20%);
   grid-template-areas:
     'game log'
     'side controls';
@@ -151,7 +141,7 @@
 }
 .bench-controls-panel {
   grid-area: controls;
-  padding: 12px;
+  padding: 8px;
   overflow: auto;
 }
 .bench-clock {
@@ -233,7 +223,7 @@
   }
   .bench-broadcast {
     grid-template-columns: minmax(0, 1fr) 210px;
-    grid-template-rows: minmax(0, 1fr) minmax(170px, 30%);
+    grid-template-rows: minmax(0, 1fr) minmax(130px, 22%);
   }
   .bench-summary,
   .bench-controls-panel {
