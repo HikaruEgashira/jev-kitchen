@@ -483,6 +483,35 @@ test('every campaign level keeps a 90-second clock and inactive stations stay lo
   assert.equal(useKitchen.getState().cleared, true);
 });
 
+test('pot and grill use their full cooking time and pause freezes heating', () => {
+  setMode('rule');
+  for (const [id, seconds] of [
+    ['pot', 12],
+    ['grill', 7],
+  ]) {
+    startShift();
+    const g = useKitchen.getState().game;
+    g.level = 3;
+    Object.assign(g.human, { x: STATIONS[id].x, y: STATIONS[id].y, carrying: 'chopped' });
+    humanInteract();
+    const st = g.stations[id];
+    assert.equal(st.state, 'cooking');
+    assert.equal(st.duration, seconds * 1000);
+    tick(1);
+    togglePause();
+    tick(30);
+    assert.equal(g.time, 1000);
+    assert.equal(st.state, 'cooking');
+    togglePause();
+    for (let second = 1; second < seconds - 1; second++) tick(1);
+    assert.equal(st.state, 'cooking');
+    tick(1);
+    assert.equal(g.time, seconds * 1000);
+    assert.equal(st.state, 'ready');
+    togglePause();
+  }
+});
+
 test('automatic arrival does not boost cooking, while a direct tap does', () => {
   setMode('rule');
   startShift();

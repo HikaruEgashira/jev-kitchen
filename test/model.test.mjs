@@ -255,6 +255,15 @@ test('staff profile changes AI preparation without changing the candidate contra
   assert.equal(observe(g).staff.id, 'chef');
   assert.deepEqual(observe(g).staff.capabilities, ['prep', 'cook']);
   assert.equal(observe(g).staff.decision_interval_ms, 900);
+  g.level = 3;
+  for (const [id, duration] of [
+    ['pot', 9000],
+    ['grill', 5250],
+  ]) {
+    g.ai.carrying = 'chopped';
+    assert.equal(interact(g, 'ai', id).ok, true);
+    assert.equal(g.stations[id].duration, duration);
+  }
 });
 
 test('finite stock is consumed by pickup and restored only by returning the tomato', () => {
@@ -339,26 +348,48 @@ test('completeOnboarding keeps tutorial progress and starts a clean campaign shi
 });
 
 test('heated stations burn after their grace period and can be cleaned', () => {
-  const potGame = createGame({ level: 2, stock: 2 });
-  potGame.human.carrying = 'chopped';
-  assert.equal(interact(potGame, 'human', 'pot').ok, true);
-  advance(potGame, COOK_MS);
-  assert.equal(potGame.stations.pot.state, 'ready');
-  advance(potGame, POT_BURN_MS);
-  assert.equal(potGame.stations.pot.state, 'burnt');
-  assert.equal(potGame.burned, 1);
-  assert.equal(interact(potGame, 'human', 'pot').action, '焦げを片づけた');
-  assert.equal(potGame.stations.pot.state, 'idle');
-
-  const grillGame = createGame({ level: 3, stock: 2 });
-  grillGame.human.carrying = 'chopped';
-  assert.equal(interact(grillGame, 'human', 'grill').ok, true);
-  advance(grillGame, GRILL_MS);
-  assert.equal(grillGame.stations.grill.state, 'ready');
-  advance(grillGame, GRILL_BURN_MS);
-  assert.equal(grillGame.stations.grill.state, 'burnt');
-  assert.equal(grillGame.burned, 1);
-  assert.equal(interact(grillGame, 'human', 'grill').ok, true);
+  assert.equal(COOK_MS, 12_000);
+  assert.equal(GRILL_MS, 7000);
+  for (const [id, duration, grace] of [
+    ['pot', 12_000, POT_BURN_MS],
+    ['grill', 7000, GRILL_BURN_MS],
+  ]) {
+    const g = createGame({ level: 3, stock: 2 });
+    advance(g, 1000);
+    g.human.carrying = 'chopped';
+    assert.equal(interact(g, 'human', id).ok, true);
+    const st = g.stations[id];
+    assert.equal(st.duration, duration);
+    assert.equal(st.startedAt, 1000);
+    assert.equal(st.busyUntil, 1000 + duration);
+    advance(g, duration - 1);
+    assert.equal(st.state, 'cooking');
+    advance(g, 1);
+    assert.equal(st.state, 'ready');
+    assert.equal(st.burnAt, st.busyUntil + grace);
+    advance(g, grace - 1);
+    assert.equal(st.state, 'ready');
+    advance(g, 1);
+    assert.equal(st.state, 'burnt');
+    assert.equal(g.burned, 1);
+    assert.equal(interact(g, 'human', id).action, '焦げを片づけた');
+    assert.equal(st.state, 'idle');
+    assert.equal(st.duration, 0);
+    assert.equal(st.burnAt, 0);
+    assert.equal(st.boosted, false);
+    g.human.carrying = 'chopped';
+    assert.equal(interact(g, 'human', id).ok, true);
+    advance(g, duration / 4 - 1);
+    assert.equal(interact(g, 'human', id).ok, false);
+    advance(g, 1);
+    const unboostedEnd = st.busyUntil;
+    assert.equal(interact(g, 'human', id).quality, true);
+    assert.ok(st.busyUntil < unboostedEnd);
+    assert.equal(interact(g, 'human', id).ok, false);
+    advance(g, st.busyUntil - g.time);
+    assert.equal(st.state, 'ready');
+    assert.equal(st.burnAt, st.busyUntil + grace);
+  }
 });
 
 test('burnt cookware never strands a plate carrier', () => {
