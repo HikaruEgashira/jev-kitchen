@@ -159,6 +159,7 @@ test('nearby handoffs preserve items and quality and reject stale, busy or absen
   assert.equal(g.human.quality, false);
   assert.equal(g.human.intent, null);
   assert.equal(g.crew.helper.intent, null);
+  assert.ok(!buildCandidates(g, 'helper').some((c) => c.id.startsWith('handoff_')));
   assert.equal(isFeasible(g, candidate, 'human'), false);
   assert.deepEqual([g.stock, g.cash, g.served], before);
   assert.equal(handoff(g, 'helper').ok, false);

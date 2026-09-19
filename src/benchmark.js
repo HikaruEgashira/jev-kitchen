@@ -20,7 +20,7 @@ import {
 } from './model.js';
 import { STAFF, nextStaffState, payroll } from './staff.js';
 import { EQUIPMENT, quoteEquipment } from './equipment.js';
-import { VITAMINS, quoteVitamins } from './training.js';
+import { MAX_TRAINING, VITAMINS, quoteVitamins } from './training.js';
 import { preparation, purchase, screenContext } from './ui.js';
 
 export const BENCH_PROTOCOL = 'jev-bench-v2';
@@ -300,6 +300,7 @@ export function benchRequest(state, { preparing, plan, candidates }) {
   const g = state.game;
   const sous = partner(g);
   const actions = new Set(candidates.map((c) => c.id));
+  const bill = preparing ? purchase(g, plan) : null;
   return {
     state: {
       ...(preparing
@@ -360,7 +361,7 @@ export function benchRequest(state, { preparing, plan, candidates }) {
               vitamin_catalog: VITAMINS,
               equipmentPurchases: plan.equipmentPurchases ?? [],
               layout: plan.layout ?? g.layout,
-              bill: purchase(g, plan),
+              bill,
               stock_price: STOCK_PRICE,
               applicants: state.applicants.map((id) => ({ id, ...STAFF[id] })),
               roster: Object.entries(nextStaffState(g)).map(([id, schedule]) => ({
@@ -399,7 +400,10 @@ export function benchRequest(state, { preparing, plan, candidates }) {
                 stock:
                   'Choose the purchase quantity closest to recommended_purchase, or confirm_stock if it already matches. One tomato makes one dish. Sell beyond quota for profit; leftovers carry over. Stock should cover the whole shift, not only quota.',
                 investment:
-                  'Invest remaining coins before opening. Choose vitamin_move_human when available, then vitamin_cook_human. With multiple cooks, prioritize a second board. Otherwise upgrade useful equipment or regular crew. Choose open_shift when saving for necessary equipment or no useful upgrade is affordable.',
+                  bill.training.human?.move === MAX_TRAINING &&
+                  bill.training.human?.cook === MAX_TRAINING
+                    ? 'Human training is complete. Invest spare coins in kitchen equipment for the next shift recipe mix. For a soup-heavy shift prioritize more or faster pots; for grilled food prioritize grills; for salads prioritize boards. Then train working crew. Open only if useful investments are unaffordable or saving for a needed expansion.'
+                    : 'Invest remaining coins before opening. Choose vitamin_move_human when available, then vitamin_cook_human. With multiple cooks, prioritize a second board. Otherwise upgrade useful equipment or regular crew. Choose open_shift when saving for necessary equipment or no useful upgrade is affordable.',
               }[plan.stage] ??
               'Prepare the next shift within cash: hire, assign rested staff, buy surplus stock and invest, then open_shift. Each choice edits a pending plan.',
             criteria: Object.fromEntries(candidates.map((c) => [c.id, c.label])),
