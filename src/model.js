@@ -1074,6 +1074,24 @@ export function isFeasible(g, cand, who) {
 
 export function buildQuestions(cands, who = 'ai', g) {
   const held = g?.human.carrying;
+  const ordered = (recipe) => g?.orders.some((o) => o.recipe === recipe);
+  const plating =
+    g &&
+    activeStationIds(g).filter((id) => {
+      const kind = stationKind(id);
+      const recipe =
+        kind === 'board' ? 'dish' : kind === 'pot' ? 'soup' : kind === 'grill' ? 'roast' : null;
+      return (
+        recipe && ordered(recipe) && ['chopped', 'ready', 'cooking'].includes(g.stations[id].state)
+      );
+    });
+  const emptyHands = plating?.length
+    ? `Ordered food at ${plating.join(', ')} needs a plate. Fetch a plate to serve it before preparing more ingredients.`
+    : cands.some((c) => c.id === 'collect')
+      ? 'Chopped ingredients are available. Collect them and prepare an ordered soup or roast.'
+      : cands.some((c) => c.id === 'clean_pot' || c.id === 'clean_grill')
+        ? 'Burnt cookware is blocking production. Clean it with your empty hands.'
+        : 'No food is ready to plate. Fetch a tomato and chop it to start an order.';
   const objective = RECIPES[held]
     ? g.orders.some((o) => o.recipe === held)
       ? 'Serve your finished dish now.'
@@ -1084,8 +1102,7 @@ export function buildQuestions(cands, who = 'ai', g) {
           'Cook or grill your chopped tomato for a visible order. Assemble salad only if a salad is ordered.',
         plate:
           'Plate food for a visible order. If the matching food is cooking, wait nearby; if no matching food is being prepared, return the plate and start cooking.',
-      }[held] ??
-      'Start or continue a visible order: collect chopped ingredients for soup/grill, fetch a plate for ready food, otherwise fetch and chop a tomato. Work while heat cooks.');
+      }[held] ?? emptyHands);
   return {
     next_action: {
       type: 'choice',

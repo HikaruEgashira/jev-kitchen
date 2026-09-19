@@ -79,6 +79,19 @@ test('work and navigation pages expose every legal human control', () => {
   }
 });
 
+test('player instructions distinguish starting prep, serving hot food and discarding an unordered dish', () => {
+  const g = createGame({ level: 7, stock: 12 });
+  g.orders = [{ recipe: 'soup', deadline: 30000 }];
+  const instruction = () =>
+    buildQuestions(buildCandidates(g, 'human'), 'human', g).next_action.instructions;
+  assert.match(instruction(), /No food is ready to plate/);
+  g.stations.pot.state = 'ready';
+  assert.match(instruction(), /Fetch a plate/);
+  g.human.carrying = 'dish';
+  assert.match(instruction(), /Discard it now/);
+  assert.ok(buildCandidates(g, 'human').some((c) => c.id === 'discard'));
+});
+
 test('the model context carries the on-screen text, including station hints', () => {
   startBenchmark();
   const g = useKitchen.getState().game;
