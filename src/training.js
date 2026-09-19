@@ -11,14 +11,14 @@ export const VITAMINS = Object.freeze({
     name: 'タウリン',
     icon: '💨',
     ability: '足の速さ',
-    effect: `移動 +${Math.round(TRAINING_STEP * 100)}%`,
+    effect: `移動速度 +${Math.round(TRAINING_STEP * 100)}%`,
     cost: investmentCost(0.5),
   }),
   cook: Object.freeze({
     name: 'インドメタシン',
     icon: '🔪',
     ability: '料理の速さ',
-    effect: `調理 -${Math.round(TRAINING_STEP * 100)}%`,
+    effect: `調理時間 -${Math.round(TRAINING_STEP * 100)}%`,
     cost: investmentCost(0.5),
   }),
 });
