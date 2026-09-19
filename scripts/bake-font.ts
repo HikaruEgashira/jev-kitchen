@@ -1,0 +1,63 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { TTFLoader } from 'three-stdlib';
+
+// Only Three-rendered text needs the atlas; the benchmark page uses native fonts.
+const source = [
+  'Kitchen.tsx',
+  'Surface.tsx',
+  'SceneUI.tsx',
+  'Food.tsx',
+  'ui.ts',
+  'game.ts',
+  'model.ts',
+  'staff.ts',
+  'equipment.ts',
+  'training.ts',
+  'progression.ts',
+  'benchmark.ts',
+]
+  .map((name) => readFileSync(`src/${name}`, 'utf8'))
+  .join('');
+const codepoints = [...new Set([...source].map((char) => char.codePointAt(0) ?? 0))]
+  .filter((code) => code >= 32 && code < 0xfe00)
+  .sort((a, b) => a - b);
+if (process.argv.includes('--check')) {
+  const covered = new Set(JSON.parse(readFileSync('public/fonts/coverage.json', 'utf8')));
+  const missing = codepoints.filter((code) => !covered.has(code));
+  if (missing.length)
+    throw new Error(`Run pnpm fonts: missing ${String.fromCodePoint(...missing)}`);
+  process.exit(0);
+}
+execFileSync(
+  process.execPath,
+  [
+    'node_modules/@pmndrs/glyph/bin/glyph.js',
+    'bake',
+    '--input',
+    'assets/fonts/MPLUSRounded1c-Bold.ttf',
+    '--output',
+    'public/fonts/kitchen.font.glb',
+    '--unicodes',
+    codepoints.map((code) => `U+${code.toString(16)}`).join(','),
+    '--msdf',
+    'em-size=32',
+    '--yes',
+  ],
+  { stdio: 'inherit' },
+);
+writeFileSync('public/fonts/coverage.json', `${JSON.stringify(codepoints)}\n`);
+// `TTFLoader.parse` is typed as `object`; the baked typeface JSON always carries
+// a `glyphs` map, so name that shape at this library boundary.
+interface TypefaceJson {
+  glyphs: Record<string, unknown>;
+  [key: string]: unknown;
+}
+const ttf = readFileSync('assets/fonts/MPLUSRounded1c-Bold.ttf');
+const titleFont = new TTFLoader().parse(
+  ttf.buffer.slice(ttf.byteOffset, ttf.byteOffset + ttf.byteLength),
+) as TypefaceJson;
+titleFont.glyphs = Object.fromEntries(
+  [...new Set('SIDEKICK')].map((letter) => [letter, titleFont.glyphs[letter]]),
+);
+writeFileSync('public/fonts/title.typeface.json', `${JSON.stringify(titleFont)}\n`);

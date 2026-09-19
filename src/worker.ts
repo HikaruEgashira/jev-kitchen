@@ -14,13 +14,13 @@ import {
   type RateLimiter,
   type Ticket,
 } from './session.ts';
-import { runReplayCampaign, RANKED_PROTOCOL } from './replay.js';
+import { runReplayCampaign, RANKED_PROTOCOL } from './replay.ts';
 import { durableRunStore, type BoardEntry, type RunStore } from './run-store.ts';
 
 export { GameStore } from './game-store.ts';
 
 interface AiBinding {
-  run(model: string, input: unknown, options?: unknown): Promise<any>;
+  run(model: string, input: unknown, options?: unknown): Promise<unknown>;
 }
 
 export interface Env {
@@ -36,7 +36,7 @@ export interface Env {
   SESSION_LIMITER?: RateLimiter;
   DECIDE_LIMITER?: RateLimiter;
   /** Durable Object namespace for verified runs and the leaderboard. */
-  RUNS?: any;
+  RUNS?: Parameters<typeof durableRunStore>[0];
   /** Test/local override for the run store. */
   RUN_STORE?: RunStore;
 }
@@ -119,7 +119,7 @@ async function readBoundedText(
   }
 }
 
-async function readJson(request: Request): Promise<{ body?: any; error?: string }> {
+async function readJson(request: Request): Promise<{ body?: unknown; error?: string }> {
   const declaredLength = Number(request.headers.get('content-length'));
   if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
     return { error: 'request body too large' };
@@ -179,7 +179,7 @@ function publicFailure(error: unknown): string {
 async function runJev(
   env: Env,
   input: { state: unknown; questions: unknown },
-): Promise<{ result: any; model: string | null; via: 'typesafe-api' | 'workers-ai' }> {
+): Promise<{ result: unknown; model: string | null; via: 'typesafe-api' | 'workers-ai' }> {
   if (env.TYPESAFE_API_KEY) {
     const model = env.TYPESAFE_MODEL ?? DEFAULT_TYPESAFE_MODEL;
     return {
@@ -211,15 +211,16 @@ interface BenchEndpoint {
 }
 
 function benchEndpoints(env: Env): Record<string, BenchEndpoint> {
-  const entries = JSON.parse(env.BENCH_ENDPOINTS || '{}');
+  const parsed: unknown = JSON.parse(env.BENCH_ENDPOINTS || '{}');
   if (
-    !entries ||
-    typeof entries !== 'object' ||
-    Array.isArray(entries) ||
-    Object.keys(entries).length > 20
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    Object.keys(parsed).length > 20
   )
     throw new Error('Invalid benchmark configuration');
-  for (const [id, entry] of Object.entries(entries) as [string, BenchEndpoint][]) {
+  const entries = parsed as Record<string, BenchEndpoint>;
+  for (const [id, entry] of Object.entries(entries)) {
     if (
       !ACTION_ID.test(id) ||
       id === 'jev' ||
@@ -240,7 +241,7 @@ function benchEndpoints(env: Env): Record<string, BenchEndpoint> {
 async function callEndpoint(
   endpoint: BenchEndpoint,
   input: { state: unknown; questions: unknown },
-): Promise<any> {
+): Promise<unknown> {
   const res = await fetch(endpoint.url, {
     method: 'POST',
     headers: {
@@ -254,7 +255,7 @@ async function callEndpoint(
   const text = await readBoundedText(res.body, MAX_UPSTREAM_BYTES, UPSTREAM_TIMEOUT_MS);
   if (!res.ok) throw new UpstreamFailureError();
   try {
-    const raw = JSON.parse(text);
+    const raw: unknown = JSON.parse(text);
     assertUpstreamResult(raw);
     return raw;
   } catch {
@@ -299,7 +300,7 @@ async function session(request: Request, env: Env): Promise<Response> {
     return json({ ok: false, error: 'rate limited' }, 429);
   const parsed = await readJson(request);
   if (parsed.error) return json({ ok: false, error: parsed.error }, 400);
-  const mode = parsed.body?.mode;
+  const mode = (parsed.body as { mode?: unknown } | undefined)?.mode;
   if (mode !== 'play' && mode !== 'bench')
     return json({ ok: false, error: 'mode must be play or bench' }, 400);
   const now = Date.now();
@@ -347,7 +348,13 @@ async function benchmark(request: Request, env: Env, list: boolean): Promise<Res
     });
   const parsed = await readJson(request);
   if (parsed.error) return json({ ok: false, error: parsed.error }, 400);
-  const body = parsed.body;
+  const body = parsed.body as {
+    modelId?: unknown;
+    state: unknown;
+    questions: {
+      next_action?: { type?: unknown; criteria?: Record<string, unknown> };
+    };
+  };
   const invalid = validate(body);
   if (invalid) return json({ ok: false, error: invalid }, 400);
   if (
@@ -355,7 +362,8 @@ async function benchmark(request: Request, env: Env, list: boolean): Promise<Res
     (body.modelId !== 'jev' && !Object.hasOwn(endpoints, body.modelId))
   )
     return json({ ok: false, error: 'unknown model' }, 400);
-  if (Object.keys(body.questions).length !== 1 || body.questions.next_action?.type !== 'choice')
+  const nextAction = body.questions.next_action;
+  if (Object.keys(body.questions).length !== 1 || !nextAction || nextAction.type !== 'choice')
     return json({ ok: false, error: 'next_action choice required' }, 400);
   const t0 = Date.now();
   try {
@@ -365,12 +373,7 @@ async function benchmark(request: Request, env: Env, list: boolean): Promise<Res
         ? await runJev(env, input)
         : { result: await callEndpoint(endpoints[body.modelId], input), via: 'decision-endpoint' };
     const projected = projectDecision(result);
-    if (
-      !Object.hasOwn(
-        body.questions.next_action.criteria,
-        projected.answers.next_action.choice as string,
-      )
-    )
+    if (!Object.hasOwn(nextAction.criteria ?? {}, projected.answers.next_action.choice as string))
       throw new UpstreamFailureError();
     // Record the server-issued choice so finish() replays the real chain.
     const store = runStore(env);
@@ -485,7 +488,7 @@ async function decide(request: Request, env: Env): Promise<Response> {
 
   const parsed = await readJson(request);
   if (parsed.error) return json({ ok: false, error: parsed.error }, 400);
-  const body = parsed.body;
+  const body = parsed.body as { state: unknown; questions: unknown };
 
   const invalid = validate(body);
   if (invalid) return json({ ok: false, error: invalid }, 400);
@@ -528,7 +531,7 @@ async function decideLlm(request: Request, env: Env): Promise<Response> {
 
   const parsed = await readJson(request);
   if (parsed.error) return json({ ok: false, error: parsed.error }, 400);
-  const body = parsed.body;
+  const body = parsed.body as { state?: unknown; candidates?: unknown; model?: unknown };
 
   if (body?.state == null) return json({ ok: false, error: 'state required' }, 400);
   const stateError = validateState(body.state);
@@ -542,21 +545,23 @@ async function decideLlm(request: Request, env: Env): Promise<Response> {
     return json({ ok: false, error: 'unsupported model' }, 400);
   }
   for (const candidate of cands) {
+    const c = candidate as { id?: unknown; label?: unknown } | null;
     if (
-      !candidate ||
-      typeof candidate !== 'object' ||
-      Array.isArray(candidate) ||
-      typeof candidate.id !== 'string' ||
-      !ACTION_ID.test(candidate.id) ||
-      typeof candidate.label !== 'string' ||
-      candidate.label.length > 500
+      !c ||
+      typeof c !== 'object' ||
+      Array.isArray(c) ||
+      typeof c.id !== 'string' ||
+      !ACTION_ID.test(c.id) ||
+      typeof c.label !== 'string' ||
+      c.label.length > 500
     ) {
       return json({ ok: false, error: 'candidate id and label are invalid' }, 400);
     }
   }
 
-  const ids: string[] = cands.map((c: any) => c.id);
-  const list = cands.map((c: any) => `- ${c.id}: ${c.label}`).join('\n');
+  const typed = cands as { id: string; label: string }[];
+  const ids: string[] = typed.map((c) => c.id);
+  const list = typed.map((c) => `- ${c.id}: ${c.label}`).join('\n');
   const prompt = [
     'You are the sous-chef AI sharing one small kitchen with a human cook.',
     'Choose the single next action id for yourself that best follows the collaboration policy',
@@ -570,16 +575,17 @@ async function decideLlm(request: Request, env: Env): Promise<Response> {
 
   const t0 = Date.now();
   try {
-    const out: any = await withTimeout(
+    const model = typeof body.model === 'string' ? body.model : LLM_MODEL;
+    const out: unknown = await withTimeout(
       Promise.resolve().then(() =>
-        env.AI.run(body.model ?? LLM_MODEL, {
+        env.AI.run(model, {
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 24,
         }),
       ),
       UPSTREAM_TIMEOUT_MS,
     );
-    const text = String(out?.response ?? '');
+    const text = String((out as { response?: unknown } | null)?.response ?? '');
     const choice =
       ids.find((id) =>
         new RegExp(`\\b${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(text),
@@ -599,39 +605,48 @@ async function decideLlm(request: Request, env: Env): Promise<Response> {
 }
 
 /** Trust boundary: the browser is untrusted, so cap everything before billing the model. */
-function validate(body: any): string | null {
-  if (!body || typeof body !== 'object') return 'body must be an object';
+function validate(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return 'body must be an object';
+  const body = value as { state?: unknown; questions?: unknown };
 
-  const { state, questions } = body;
-  const stateError = validateState(state);
+  const stateError = validateState(body.state);
   if (stateError) return stateError;
 
+  const questions = body.questions;
   if (!questions || typeof questions !== 'object' || Array.isArray(questions)) {
     return 'questions must be an object';
   }
-  const keys = Object.keys(questions);
+  const typedQuestions = questions as Record<string, unknown>;
+  const keys = Object.keys(typedQuestions);
   if (keys.length < 1 || keys.length > 8) return 'questions must have 1..8 entries';
 
   for (const key of keys) {
-    const q = questions[key];
-    if (!q || typeof q !== 'object') return `question ${key} must be an object`;
-    if (!['noul', 'choice', 'score'].includes(q.type)) {
+    const rawQuestion = typedQuestions[key];
+    if (!rawQuestion || typeof rawQuestion !== 'object') return `question ${key} must be an object`;
+    const question = rawQuestion as { type?: unknown; criteria?: unknown };
+    if (typeof question.type !== 'string' || !['noul', 'choice', 'score'].includes(question.type)) {
       return `question ${key} has invalid type`;
     }
-    if (q.type === 'choice') {
-      if (!q.criteria || typeof q.criteria !== 'object' || Array.isArray(q.criteria)) {
+    if (question.type === 'choice') {
+      const criteria = question.criteria;
+      if (!criteria || typeof criteria !== 'object' || Array.isArray(criteria)) {
         return `question ${key} choice criteria must be an object`;
       }
-      const n = Object.keys(q.criteria).length;
-      if (n < 2 || n > 255) return `question ${key} choice criteria must have 2..255 options`;
-      for (const [choice, label] of Object.entries(q.criteria)) {
+      const entries = Object.entries(criteria);
+      if (entries.length < 2 || entries.length > 255)
+        return `question ${key} choice criteria must have 2..255 options`;
+      for (const [choice, label] of entries) {
         if (!ACTION_ID.test(choice) || typeof label !== 'string' || label.length > 500) {
           return `question ${key} choice criteria is invalid`;
         }
       }
     }
-    if (q.type === 'score') {
-      if (!Array.isArray(q.criteria) || q.criteria.length < 2 || q.criteria.length > 10) {
+    if (question.type === 'score') {
+      if (
+        !Array.isArray(question.criteria) ||
+        question.criteria.length < 2 ||
+        question.criteria.length > 10
+      ) {
         return `question ${key} score criteria must be an array of 2..10`;
       }
     }
@@ -639,7 +654,7 @@ function validate(body: any): string | null {
   return null;
 }
 
-function validateState(state: any): string | null {
+function validateState(state: unknown): string | null {
   if (state === null || (typeof state !== 'string' && typeof state !== 'object')) {
     return 'state must be a string, object or array';
   }
@@ -647,8 +662,11 @@ function validateState(state: any): string | null {
   return null;
 }
 
-function projectDecision(raw: any): { answers: { next_action: Record<string, unknown> } } {
-  const answer = raw?.answers?.next_action;
+function projectDecision(raw: unknown): { answers: { next_action: Record<string, unknown> } } {
+  const parsed = raw as {
+    answers?: { next_action?: { choice?: unknown; confidence?: unknown } };
+  } | null;
+  const answer = parsed?.answers?.next_action;
   if (!answer || typeof answer.choice !== 'string' || !ACTION_ID.test(answer.choice)) {
     throw new UpstreamFailureError();
   }
@@ -660,7 +678,7 @@ function projectDecision(raw: any): { answers: { next_action: Record<string, unk
   return { answers: { next_action: nextAction } };
 }
 
-function assertUpstreamResult(raw: any): void {
+function assertUpstreamResult(raw: unknown): void {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || 'error' in raw) {
     throw new UpstreamFailureError();
   }

@@ -5,10 +5,10 @@
  * instance holds the top scores. Everything the ranking trusts is written here
  * by the Worker, never by the client.
  */
-import { MAX_BOARD } from './run-store.ts';
+import { MAX_BOARD, type BoardEntry, type RunRecord } from './run-store.ts';
 
 interface Storage {
-  get(key: string): Promise<any>;
+  get(key: string): Promise<unknown>;
   put(key: string, value: unknown): Promise<void>;
 }
 
@@ -32,7 +32,11 @@ export class GameStore {
     const storage = this.state.storage;
     try {
       if (request.method === 'POST' && pathname === '/init') {
-        const body: any = await request.json();
+        const body = (await request.json()) as {
+          sid: string;
+          seed: number;
+          protocol: string;
+        };
         const key = `run:${body.sid}`;
         if (!(await storage.get(key)))
           await storage.put(key, {
@@ -46,9 +50,9 @@ export class GameStore {
         return json({ ok: true });
       }
       if (request.method === 'POST' && pathname === '/append') {
-        const body: any = await request.json();
+        const body = (await request.json()) as { sid: string; choice: string };
         const key = `run:${body.sid}`;
-        const run = await storage.get(key);
+        const run = (await storage.get(key)) as RunRecord | null;
         if (!run) return json({ ok: false, error: 'unknown run' }, 404);
         if (run.status !== 'open') return json({ ok: false, error: 'run closed' }, 409);
         run.decisions.push(body.choice);
@@ -62,9 +66,9 @@ export class GameStore {
         });
       }
       if (request.method === 'POST' && pathname === '/finish') {
-        const body: any = await request.json();
+        const body = (await request.json()) as { sid: string };
         const key = `run:${body.sid}`;
-        const run = await storage.get(key);
+        const run = (await storage.get(key)) as RunRecord | null;
         if (!run) return json({ ok: false, error: 'unknown run' }, 404);
         if (run.status === 'open') {
           run.status = 'finished';
@@ -74,11 +78,11 @@ export class GameStore {
         return json({ ok: true, run });
       }
       if (request.method === 'POST' && pathname === '/board') {
-        const entry = await request.json();
-        const board = (await storage.get('board')) ?? [];
+        const entry = (await request.json()) as BoardEntry;
+        const board = ((await storage.get('board')) as BoardEntry[] | null) ?? [];
         board.push(entry);
         board.sort(
-          (a: any, b: any) =>
+          (a, b) =>
             b.clearedLevels - a.clearedLevels ||
             b.score - a.score ||
             b.served - a.served ||
@@ -88,7 +92,10 @@ export class GameStore {
         return json({ ok: true });
       }
       if (request.method === 'GET' && pathname === '/board') {
-        return json({ ok: true, board: (await storage.get('board')) ?? [] });
+        return json({
+          ok: true,
+          board: ((await storage.get('board')) as BoardEntry[] | null) ?? [],
+        });
       }
       return json({ ok: false, error: 'not found' }, 404);
     } catch {
