@@ -5,6 +5,8 @@ import {
   interact,
   advance,
   buildCandidates,
+  buildQuestions,
+  observe,
   isFeasible,
   rulePick,
   CHOP_MS,
@@ -12,6 +14,8 @@ import {
   SHIFT_MS,
   discard,
   dash,
+  actionHint,
+  ITEM_EMOJI,
 } from '../src/model.js';
 
 test('the four-step pipeline produces one served dish', () => {
@@ -88,6 +92,13 @@ test('unknown actions are never feasible', () => {
   const g = createGame();
   assert.equal(isFeasible(g, { id: 'fly_to_moon' }), false);
   assert.equal(isFeasible(g, null), false);
+});
+
+test('candidate instructions include the serving end of both recipes', () => {
+  const instructions = buildQuestions(buildCandidates(createGame())).next_action.instructions;
+  assert.match(instructions, /Salad: tomato → chop → plate → serve/);
+  assert.match(instructions, /Soup: tomato → chop → collect → cook → plate → serve/);
+  assert.equal(ITEM_EMOJI.chopped, '🍅');
 });
 
 // A single wait candidate is handled locally, without an invalid Jev request.
@@ -187,4 +198,56 @@ test('the rule companion can finish soup and stale station targets are rejected'
   assert.equal(dash(g), false);
   advance(g, 1800);
   assert.equal(dash(g), true);
+});
+
+test('action hints explain the next useful step for each station state', () => {
+  const g = createGame();
+
+  assert.equal(actionHint(g, 'board'), 'トマトを取ってこよう');
+  g.human.carrying = 'tomato';
+  assert.equal(actionHint(g, 'board'), 'トマトを切る');
+  g.stations.board.state = 'chopping';
+  assert.equal(actionHint(g, 'board'), '切り終わるまで待つ');
+  g.stations.board.state = 'chopped';
+  g.human.carrying = 'plate';
+  assert.equal(actionHint(g, 'board'), 'サラダを盛る');
+
+  g.human.carrying = 'chopped';
+  assert.equal(actionHint(g, 'pot'), 'スープを煮る');
+  g.stations.pot.state = 'cooking';
+  assert.equal(actionHint(g, 'pot'), '煮込み中、別の仕事へ');
+  g.stations.pot.state = 'ready';
+  assert.equal(actionHint(g, 'pot'), 'お皿を持ってくる');
+  g.human.carrying = 'plate';
+  assert.equal(actionHint(g, 'pot'), 'スープを盛る');
+
+  g.human.carrying = 'dish';
+  assert.equal(actionHint(g, 'serve'), '配膳する');
+  g.orders = g.orders.map((order) => ({ ...order, recipe: 'soup' }));
+  assert.equal(actionHint(g, 'serve'), 'この料理の注文を待つ');
+});
+
+test('practice mode teaches one salad without timers or pressure', () => {
+  const g = createGame({ practice: true });
+  assert.equal(g.practice, true);
+  assert.equal(g.orders.length, 1);
+  assert.equal(g.orders[0].recipe, 'dish');
+  assert.equal(g.orders[0].deadline, Infinity);
+
+  assert.equal(interact(g, 'human', 'crate').ok, true);
+  assert.equal(interact(g, 'human', 'board').ok, true);
+  advance(g, CHOP_MS);
+  assert.equal(g.stations.board.state, 'chopped');
+  assert.equal(interact(g, 'human', 'plates').ok, true);
+  assert.equal(interact(g, 'human', 'board').ok, true);
+  assert.equal(interact(g, 'human', 'serve').points, 100);
+  assert.equal(g.orders.length, 0);
+  assert.equal(g.combo, 0);
+
+  advance(g, SHIFT_MS + 1000);
+  assert.equal(g.time, SHIFT_MS + CHOP_MS + 1000);
+  assert.equal(g.missed, 0);
+  assert.equal(interact(g, 'human', 'crate').ok, true);
+  assert.equal(discard(g, 'human'), true);
+  assert.equal(observe(g).seconds_left, null);
 });

@@ -37,7 +37,7 @@ button:focus-visible,
 a:focus-visible,
 textarea:focus-visible,
 summary:focus-visible {
-  outline: 3px solid #d88d45;
+  outline: 3px solid #9a5b21;
   outline-offset: 4px;
 }
 button {
@@ -119,8 +119,8 @@ p {
 .icon-button {
   display: grid;
   place-items: center;
-  width: 37px;
-  height: 37px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 50%;
@@ -154,7 +154,7 @@ h1 {
 }
 .best-score {
   font-size: 11px;
-  color: #7a8978;
+  color: #637569;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -187,6 +187,10 @@ h1 {
   gap: 20px;
   border-bottom: 1px solid #e9ecdf;
 }
+.practice-toolbar .time strong {
+  font-size: 20px;
+  letter-spacing: 0;
+}
 .time {
   display: flex;
   align-items: center;
@@ -200,7 +204,7 @@ h1 {
 }
 .time > span {
   font-size: 10px;
-  color: #819078;
+  color: #637569;
 }
 .time.urgent {
   color: #c35040;
@@ -212,7 +216,7 @@ h1 {
   gap: 13px;
 }
 .score > span:first-child {
-  color: #829078;
+  color: #637569;
   font-size: 10px;
 }
 .score strong {
@@ -233,8 +237,8 @@ h1 {
   text-shadow: 0 2px 0 #c99b3325;
 }
 .pause-button {
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   border-radius: 9px;
 }
 .orders {
@@ -256,8 +260,8 @@ h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 9px;
-  color: #8b947e;
+  font-size: 10px;
+  color: #66756a;
   line-height: 18px;
 }
 .order-top > span:last-child {
@@ -266,15 +270,15 @@ h1 {
   font-variant-numeric: tabular-nums;
 }
 .order-top small {
-  font-size: 8px;
+  font-size: 9px;
   margin-left: 3px;
 }
 .order-next {
   font-style: normal;
-  font-size: 8px;
+  font-size: 9px;
   padding: 3px 5px;
   background: #edf2d7;
-  color: #788847;
+  color: #5d7036;
   border-radius: 4px;
   margin-right: 6px;
 }
@@ -297,13 +301,13 @@ h1 {
   background: #f9ead9;
 }
 .order-dish h2 {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
 .order-dish p {
-  font-size: 8px;
-  color: #8a9581;
+  font-size: 9px;
+  color: #637569;
   margin-top: 4px;
   white-space: nowrap;
 }
@@ -326,6 +330,35 @@ h1 {
 .hurry {
   border-color: #e5baa5;
 }
+.practice-orders {
+  grid-template-columns: minmax(0, 1fr);
+}
+.practice-orders .order-ticket {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 13px;
+}
+.practice-orders .order-top {
+  grid-column: 1 / -1;
+}
+.practice-orders .order-dish {
+  margin: 5px 0;
+}
+.practice-orders .dish-icon {
+  width: 48px;
+  height: 48px;
+}
+.practice-patience {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: #edf4df;
+  color: #5f745e;
+  font-size: 10px;
+  font-weight: 600;
+}
 .stage {
   height: 530px;
   background: #dfeadd;
@@ -340,8 +373,8 @@ h1 {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 10px;
-  color: #5f7f63;
+  font-size: 11px;
+  color: #476b53;
   background: #f6fbecbc;
   padding: 7px 10px;
   border-radius: 6px;
@@ -364,7 +397,7 @@ h1 {
   border-radius: 6px;
   padding: 5px 8px;
   color: #42604b;
-  font-size: 10px;
+  font-size: 11px;
   box-shadow: 0 3px 5px #34503917;
   min-height: 29px;
 }
@@ -406,7 +439,7 @@ h1 {
   color: #72a466;
 }
 .chef-label {
-  font-size: 9px;
+  font-size: 10px;
   display: block;
   white-space: nowrap;
   padding: 3px 8px;
@@ -443,9 +476,40 @@ h1 {
   font-weight: 700;
 }
 .welcome-card p {
-  font-size: 11px;
-  color: #829078;
+  font-size: 12px;
+  color: #657669;
   margin-top: 6px;
+}
+.welcome-card .welcome-kicker {
+  color: #7a8e57;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin: 0 0 5px;
+}
+.welcome-card .welcome-hint {
+  color: #4d6e58;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 9px;
+}
+.welcome-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.secondary {
+  min-height: 44px;
+  padding: 11px 15px;
+  border: 1px solid #cbd9c7;
+  border-radius: 8px;
+  background: #f7fbf1;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 .primary {
   border: 0;
@@ -493,6 +557,10 @@ h1 {
   padding: 14px 20px;
   border-top: 1px solid #d5e0cc;
 }
+.practice-player-bar .dash-button,
+.practice-player-bar .clear-button {
+  display: none;
+}
 .held-item {
   display: flex;
   align-items: center;
@@ -514,12 +582,12 @@ h1 {
   display: block;
 }
 .held-item small {
-  font-size: 8px;
-  color: #97a086;
+  font-size: 9px;
+  color: #718176;
   margin-bottom: 2px;
 }
 .held-item strong {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
 }
 .interact-button {
@@ -531,16 +599,16 @@ h1 {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-size: 10px;
+  font-size: 11px;
   margin-left: auto;
-  min-height: 38px;
+  min-height: 44px;
 }
 .dash-button,
 .clear-button {
   border: 0;
   background: transparent;
   white-space: nowrap;
-  font-size: 9px;
+  font-size: 10px;
   display: flex;
   gap: 5px;
   align-items: center;
@@ -606,15 +674,15 @@ kbd {
   font-weight: 700;
 }
 .partner-heading p {
-  font-size: 9px;
-  color: #85917b;
+  font-size: 10px;
+  color: #637569;
   margin-top: 4px;
 }
 .partner-speech {
   position: relative;
   background: #eef3e5;
   border-radius: 0 9px 9px 9px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.8;
   min-height: 56px;
   margin: 19px 0 15px;
@@ -641,9 +709,10 @@ kbd {
   border: 0;
   border-radius: 5px;
   background: transparent;
-  font-size: 10px;
+  font-size: 11px;
   padding: 7px 2px;
-  color: #819172;
+  color: #637569;
+  min-height: 40px;
 }
 .mode-picker button.selected {
   background: #fffef7;
@@ -654,14 +723,14 @@ kbd {
 .policy-label {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   margin-bottom: 8px;
 }
 .policy-label > span {
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 400;
-  color: #9aa48e;
+  color: #6d7e70;
 }
 textarea {
   width: 100%;
@@ -672,11 +741,11 @@ textarea {
   min-height: 70px;
   padding: 10px;
   color: #456342;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.65;
 }
 textarea::placeholder {
-  color: #a2ab97;
+  color: #718176;
 }
 .policy-presets {
   display: flex;
@@ -684,17 +753,23 @@ textarea::placeholder {
   margin-top: 8px;
   flex-wrap: wrap;
 }
+.policy-privacy {
+  color: #637569;
+  font-size: 10px;
+  line-height: 1.6;
+  margin-top: 7px;
+}
 .policy-presets button {
   background: transparent;
   border: 1px solid #dce3d4;
   border-radius: 5px;
   padding: 5px 7px;
-  font-size: 8px;
-  color: #809174;
+  font-size: 10px;
+  color: #5b715f;
 }
 .policy-note {
-  font-size: 9px;
-  color: #ad7950;
+  font-size: 10px;
+  color: #8b5e33;
   line-height: 1.6;
   margin-top: 10px;
 }
@@ -708,12 +783,12 @@ textarea::placeholder {
   margin-bottom: 7px;
 }
 .section-heading h2 {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 .section-heading > span {
-  font-size: 8px;
-  color: #8b9881;
+  font-size: 10px;
+  color: #657569;
 }
 .recipe {
   display: flex;
@@ -726,23 +801,23 @@ textarea::placeholder {
   font-size: 29px;
 }
 .recipe h3 {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 .recipe p {
-  font-size: 8px;
-  color: #8a967f;
+  font-size: 10px;
+  color: #657569;
   margin-top: 5px;
 }
 .recipe-flow {
-  font-size: 7px;
-  color: #7b8b70;
+  font-size: 9px;
+  color: #58705d;
   display: block;
   margin-top: 5px;
 }
 .recipe b {
   margin-left: auto;
-  color: #8d9875;
+  color: #66754b;
   font-size: 15px;
   align-self: flex-start;
   font-weight: 500;
@@ -761,7 +836,7 @@ textarea::placeholder {
   color: #a28642;
 }
 .recipe-tip p {
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.8;
 }
 .recipe-tip strong {
@@ -778,8 +853,8 @@ textarea::placeholder {
   font-size: 20px;
 }
 .goal-card p {
-  font-size: 10px;
-  color: #7c8b69;
+  font-size: 11px;
+  color: #5f745e;
   margin: 5px 0 11px;
 }
 progress {
@@ -805,13 +880,13 @@ progress::-moz-progress-bar {
 .goal-card > div {
   display: flex;
   justify-content: space-between;
-  color: #91a07c;
-  font-size: 8px;
+  color: #637569;
+  font-size: 10px;
   margin-top: 10px;
 }
 .diagnostics {
-  color: #8b987e;
-  font-size: 9px;
+  color: #637569;
+  font-size: 10px;
   padding: 0 4px;
 }
 .diagnostics summary {
@@ -835,7 +910,7 @@ progress::-moz-progress-bar {
 }
 .diagnostics li {
   padding: 4px 0;
-  font-size: 8px;
+  font-size: 9px;
 }
 .diagnostics li b {
   display: inline-block;
@@ -847,8 +922,8 @@ progress::-moz-progress-bar {
   align-items: center;
   gap: 21px;
   padding: 22px 2px 32px;
-  font-size: 9px;
-  color: #8c9980;
+  font-size: 10px;
+  color: #637569;
 }
 .controls-guide > span {
   display: flex;
@@ -866,6 +941,20 @@ progress::-moz-progress-bar {
 .controls-guide .click-hint {
   margin-left: auto;
 }
+.practice-controls-guide {
+  display: none;
+}
+.license-link {
+  color: #637569;
+  font-size: 10px;
+  white-space: nowrap;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.license-link:hover,
+.license-link:focus-visible {
+  border-bottom-color: currentColor;
+}
 .stage-overlay {
   position: absolute;
   inset: 0;
@@ -875,6 +964,7 @@ progress::-moz-progress-bar {
   background: #d6e3d25e;
   backdrop-filter: blur(4px);
   padding: 20px;
+  overflow-y: auto;
 }
 .result-card {
   max-width: 370px;
@@ -885,6 +975,8 @@ progress::-moz-progress-bar {
   border: 1px solid white;
   border-radius: 18px;
   box-shadow: 0 14px 45px #405a4426;
+  max-height: 100%;
+  overflow-y: auto;
 }
 .result-card h2 {
   font-size: 21px;
@@ -892,8 +984,8 @@ progress::-moz-progress-bar {
   margin: 7px 0 12px;
 }
 .result-card p {
-  font-size: 11px;
-  color: #8a967a;
+  font-size: 12px;
+  color: #637569;
   line-height: 1.8;
 }
 .result-card .primary {
@@ -922,7 +1014,7 @@ progress::-moz-progress-bar {
   color: #97a183;
 }
 .result-card .result-tip {
-  font-size: 10px;
+  font-size: 11px;
   margin-top: 10px;
   color: #a18f53;
 }
@@ -943,9 +1035,150 @@ progress::-moz-progress-bar {
   max-width: 95%;
   text-align: center;
 }
+.tutorial-action {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  z-index: 32;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transform: translateX(-50%);
+  padding: 9px 13px;
+  border: 1px solid #df927c;
+  border-radius: 10px;
+  background: #fffdf4f2;
+  color: var(--green);
+  box-shadow: 0 5px 16px #3a5a4324;
+  white-space: nowrap;
+}
+.tutorial-action > span {
+  font-size: 22px;
+}
+.tutorial-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.tutorial-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d5dfce;
+}
+.tutorial-dots i.done {
+  background: #79a678;
+}
+.tutorial-dots i.current {
+  width: 8px;
+  height: 8px;
+  background: #df826b;
+  box-shadow: 0 0 0 2px #e9a38d55;
+}
+.tutorial-action strong {
+  font-size: 13px;
+}
+.tutorial-action small {
+  padding-left: 8px;
+  border-left: 1px solid #d8e1d2;
+  color: #6f826e;
+  font-size: 10px;
+}
+.tutorial-skip {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  z-index: 33;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #bdcfbd;
+  border-radius: 7px;
+  background: #f9fcf3df;
+  color: #5d745f;
+  font-size: 10px;
+}
+.tutorial-guide {
+  border: 1px solid #dce4d5;
+  border-radius: 16px;
+  background: #f9fbf5;
+  padding: 22px 20px;
+}
+.tutorial-guide-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.tutorial-kicker {
+  color: #708757;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.tutorial-guide-heading strong {
+  color: var(--green);
+  font-size: 15px;
+}
+.tutorial-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 18px 0 14px;
+  padding: 0;
+  list-style: none;
+}
+.tutorial-steps li {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  height: 42px;
+  border: 1px solid #dfe7d8;
+  border-radius: 10px;
+  background: #eff4e9;
+  color: #8ba087;
+  font-size: 22px;
+}
+.tutorial-steps li.done {
+  border-color: #9dbb91;
+  background: #e0eed8;
+  color: #477254;
+}
+.tutorial-steps li.current {
+  border-color: #df927c;
+  background: #fff0e7;
+  box-shadow: 0 0 0 2px #e9a38d55;
+}
+.tutorial-guide-note {
+  margin: 0;
+  color: #617660;
+  font-size: 11px;
+  line-height: 1.7;
+  text-align: center;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.tutorial-complete-overlay .result-card {
+  max-width: 310px;
+}
+.tutorial-complete-overlay .result-card h2 {
+  margin-bottom: 4px;
+}
+.tutorial-complete-overlay .result-card .primary {
+  margin-top: 15px;
+}
 .graphics-error {
   position: absolute;
   inset: 0;
+  z-index: 40;
+  background: #dfeadd;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -953,7 +1186,7 @@ progress::-moz-progress-bar {
   gap: 20px;
   padding: 40px;
   text-align: center;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 2;
 }
 .graphics-error button {
@@ -961,7 +1194,9 @@ progress::-moz-progress-bar {
   border-radius: 6px;
   background: var(--green);
   color: white;
+  min-height: 42px;
   padding: 8px 20px;
+  font-size: 12px;
 }
 .help-dialog {
   border: 1px solid #d7dfcc;
@@ -972,6 +1207,8 @@ progress::-moz-progress-bar {
   background: #fbfcf4;
   color: var(--green);
   box-shadow: 0 24px 100px #203e4330;
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
 }
 .help-dialog::backdrop {
   background: #284a4266;
@@ -981,10 +1218,14 @@ progress::-moz-progress-bar {
   font-size: 23px;
   margin: 12px 0;
 }
+.help-dialog h3 {
+  font-size: 14px;
+  margin: 20px 0 8px;
+}
 .help-dialog p,
 .help-dialog li {
-  font-size: 12px;
-  color: #7a8970;
+  font-size: 13px;
+  color: #52634f;
   line-height: 1.9;
 }
 .help-dialog ol {
@@ -1001,8 +1242,12 @@ progress::-moz-progress-bar {
 }
 .close-dialog {
   position: absolute;
-  right: 17px;
-  top: 13px;
+  right: 8px;
+  top: 8px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
   font-size: 26px;
   border: 0;
   background: transparent;
@@ -1046,10 +1291,10 @@ progress::-moz-progress-bar {
     gap: 6px;
   }
   .order-dish h2 {
-    font-size: 10px;
+    font-size: 11px;
   }
   .order-dish p {
-    font-size: 7px;
+    font-size: 8px;
   }
   .dish-icon {
     font-size: 25px;
@@ -1067,7 +1312,7 @@ progress::-moz-progress-bar {
     min-width: 105px;
   }
   .dash-button {
-    font-size: 8px;
+    font-size: 9px;
   }
   .welcome-card {
     gap: 10px;
@@ -1079,19 +1324,19 @@ progress::-moz-progress-bar {
     font-size: 18px;
   }
   .welcome-card p {
-    font-size: 9px;
+    font-size: 10px;
   }
   .controls-guide {
     gap: 13px;
   }
   .controls-guide .click-hint {
-    font-size: 8px;
+    font-size: 9px;
   }
   .recipe-icon {
     font-size: 25px;
   }
   .recipe-flow {
-    font-size: 6px;
+    font-size: 8px;
   }
 }
 @media (max-width: 900px) {
@@ -1193,8 +1438,8 @@ progress::-moz-progress-bar {
     gap: 8px;
   }
   .icon-button {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
   }
   .heading-row {
     padding: 23px 3px 20px;
@@ -1248,8 +1493,8 @@ progress::-moz-progress-bar {
     font-size: 8px;
   }
   .pause-button {
-    width: 28px;
-    height: 28px;
+    width: 40px;
+    height: 40px;
   }
   .orders {
     padding: 10px 8px 12px;
@@ -1260,7 +1505,7 @@ progress::-moz-progress-bar {
     border-radius: 6px;
   }
   .order-top {
-    font-size: 7px;
+    font-size: 9px;
     line-height: 14px;
   }
   .order-top > span:last-child {
@@ -1277,11 +1522,14 @@ progress::-moz-progress-bar {
     margin-bottom: 6px;
   }
   .order-dish h2 {
-    font-size: 9px;
+    font-size: 10px;
   }
   .order-dish p {
-    font-size: 6px;
+    font-size: 8px;
     margin-top: 4px;
+    white-space: normal;
+    line-height: 1.4;
+    min-height: 2.8em;
   }
   .patience {
     height: 3px;
@@ -1293,10 +1541,10 @@ progress::-moz-progress-bar {
     left: 12px;
     top: 12px;
     padding: 6px 8px;
-    font-size: 8px;
+    font-size: 9px;
   }
   .station-label {
-    font-size: 8px;
+    font-size: 9px;
     padding: 4px 6px;
     gap: 3px;
     min-height: 26px;
@@ -1306,7 +1554,7 @@ progress::-moz-progress-bar {
     height: 4px;
   }
   .chef-label {
-    font-size: 7px;
+    font-size: 8px;
     padding: 2px 6px;
   }
   .station-meter {
@@ -1324,7 +1572,19 @@ progress::-moz-progress-bar {
     font-size: 16px;
   }
   .welcome-card p {
-    font-size: 8px;
+    font-size: 9px;
+  }
+  .welcome-card .welcome-hint {
+    font-size: 10px;
+  }
+  .welcome-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .welcome-actions .primary,
+  .welcome-actions .secondary {
+    width: 100%;
   }
   .welcome-card .primary {
     font-size: 10px;
@@ -1348,22 +1608,22 @@ progress::-moz-progress-bar {
     font-size: 20px;
   }
   .held-item small {
-    font-size: 7px;
+    font-size: 8px;
   }
   .held-item strong {
-    font-size: 10px;
+    font-size: 11px;
   }
   .interact-button {
-    font-size: 9px;
+    font-size: 10px;
     gap: 6px;
     padding: 7px 9px;
-    min-height: 35px;
+    min-height: 44px;
   }
   .dash-button,
   .clear-button {
     display: flex;
     justify-content: center;
-    min-height: 40px;
+    min-height: 44px;
     font-size: 11px;
   }
   .player-bar {
@@ -1385,8 +1645,31 @@ progress::-moz-progress-bar {
     border: 1px solid #e0e7d6;
     border-radius: 5px;
     flex: 1;
+    min-height: 44px;
+    font-size: 10px;
+  }
+  .practice-orders .order-ticket {
+    grid-template-columns: auto 1fr;
+  }
+  .tutorial-action {
+    top: 54px;
+    max-width: calc(100% - 24px);
+    padding: 8px 10px;
+  }
+  .tutorial-action strong {
+    font-size: 12px;
+  }
+  .tutorial-action small {
+    font-size: 9px;
+  }
+  .tutorial-skip {
+    top: 10px;
+    right: 10px;
     min-height: 34px;
     font-size: 9px;
+  }
+  .tutorial-guide {
+    padding: 18px 14px;
   }
   .side-panel {
     gap: 16px;
@@ -1455,10 +1738,13 @@ progress::-moz-progress-bar {
     gap: 10px;
     flex-wrap: wrap;
     padding: 20px 4px 28px;
-    font-size: 8px;
+    font-size: 9px;
   }
   .controls-guide > span:last-of-type {
     display: none;
+  }
+  .license-link {
+    margin-left: auto;
   }
   .combo {
     font-size: 13px;
@@ -1498,6 +1784,20 @@ progress::-moz-progress-bar {
   }
   .help-dialog h2 {
     font-size: 20px;
+  }
+}
+@media (pointer: coarse) and (max-width: 900px) {
+  .station-shortcuts {
+    display: flex;
+    justify-content: space-around;
+    gap: 5px;
+    padding: 0 10px 12px;
+  }
+  .station-shortcuts button {
+    min-height: 44px;
+  }
+  .controls-guide .click-hint {
+    display: inline-flex;
   }
 }
 @media (prefers-reduced-motion: reduce) {

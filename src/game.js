@@ -16,11 +16,13 @@ import {
   SPEED,
   SHIFT_MS,
 } from './model.js';
+import { createAudio } from './audio.js';
 
 function savedBest() {
   if (typeof window === 'undefined') return 0;
   try {
-    return Number(localStorage.getItem('sidekick-best')) || 0;
+    const value = Number(localStorage.getItem('sidekick-best'));
+    return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
   } catch {
     return 0;
   }
@@ -36,6 +38,7 @@ export const useKitchen = create(() => ({
   ready: false,
   sound: true,
   best: savedBest(),
+  tutorial: null,
   toast: '',
   toastUntil: 0,
   celebration: 0,
@@ -60,35 +63,23 @@ let target = null,
   retryAt = 0,
   lastPublish = 0;
 let audio;
+const MODES = new Set(['jev', 'rule', 'llm']);
+// Keep 1 FPS timing honest; visibility and blur pause longer stalls.
+const MAX_FRAME_DELTA = 1;
+export const TUTORIAL_STEPS = Object.freeze([
+  Object.freeze({ station: 'crate', label: 'トマトをとる', icon: '🍅' }),
+  Object.freeze({ station: 'board', label: '切る', icon: '🔪' }),
+  Object.freeze({ station: 'plates', label: 'お皿をとる', icon: '🍽️' }),
+  Object.freeze({ station: 'board', label: '盛る', icon: '🥗' }),
+  Object.freeze({ station: 'serve', label: 'とどける', icon: '✨' }),
+]);
 const state = useKitchen.getState;
 const update = useKitchen.setState;
 
-function tone(notes, duration = 0.1) {
-  if (!state().sound || typeof window === 'undefined') return;
-  try {
-    audio ??= new AudioContext();
-    void audio.resume();
-    notes.forEach((note, i) => {
-      const oscillator = audio.createOscillator(),
-        gain = audio.createGain();
-      const at = audio.currentTime + i * duration;
-      oscillator.type = 'sine';
-      oscillator.frequency.value = note;
-      gain.gain.setValueAtTime(0, at);
-      gain.gain.linearRampToValueAtTime(0.045, at + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.001, at + duration);
-      oscillator.connect(gain);
-      gain.connect(audio.destination);
-      oscillator.start(at);
-      oscillator.stop(at + duration);
-      oscillator.onended = () => {
-        oscillator.disconnect();
-        gain.disconnect();
-      };
-    });
-  } catch {
-    /* Audio is optional; cooking remains available. */
-  }
+function playSound(kind) {
+  if (!state().sound) return;
+  audio ??= createAudio();
+  audio.play(kind);
 }
 
 function invalidate() {
@@ -117,27 +108,29 @@ function record(who, result) {
   if (result.points) {
     update({ celebration: state().celebration + 1, lastPoints: result.points });
     notify(`お待たせしました！ +${result.points}`);
-    tone([523, 659, 784, 1047], 0.09);
-  } else if (who === 'human') tone([440, 554], 0.05);
+    playSound('success');
+  } else if (who === 'human') playSound('action');
   publish();
 }
 
-export function startShift() {
+function beginShift(practice) {
   invalidate();
   keys.clear();
   target = null;
   retryAt = 0;
   lastPublish = 0;
   update({
-    game: createGame(),
+    game: createGame({ practice }),
     phase: 'playing',
+    tutorial: practice ? 0 : null,
     log: [],
     toast: '',
     toastUntil: 0,
+    celebration: 0,
     fallback: false,
     lastPoints: 0,
     hud: {
-      action: 'さあ、最初の注文を作ろう！',
+      action: practice ? TUTORIAL_STEPS[0].label : 'さあ、最初の注文を作ろう！',
       latency: null,
       via: '—',
       confidence: null,
@@ -145,20 +138,40 @@ export function startShift() {
       decisions: 0,
     },
   });
-  tone([392, 523, 659]);
+  playSound('start');
   publish();
+}
+
+export function startShift() {
+  if (state().ready) beginShift(false);
+}
+
+export function startTutorial() {
+  if (state().ready) beginShift(true);
 }
 
 export function togglePause() {
   const phase = state().phase;
-  if (phase !== 'playing' && phase !== 'paused') return;
+  if ((phase !== 'playing' && phase !== 'paused') || !state().ready) return;
   invalidate();
   keys.clear();
   target = null;
-  update({ phase: phase === 'playing' ? 'paused' : 'playing' });
+  const nextPhase = phase === 'playing' ? 'paused' : 'playing';
+  update({ phase: nextPhase });
+  if (nextPhase === 'paused') audio?.stop();
+}
+
+export function graphicsLost() {
+  const phase = state().phase;
+  invalidate();
+  keys.clear();
+  target = null;
+  audio?.stop();
+  update({ ready: false, phase: phase === 'playing' ? 'paused' : phase });
 }
 
 export function setMode(mode) {
+  if (!MODES.has(mode)) return;
   invalidate();
   retryAt = 0;
   update({ mode, fallback: false, hud: { ...state().hud, action: '次の仕事を探しているよ。' } });
@@ -166,34 +179,69 @@ export function setMode(mode) {
 
 export function setPolicy(policy) {
   invalidate();
-  update({ policy });
+  lastDecision = state().game.time;
+  update({ policy: typeof policy === 'string' ? policy.slice(0, 300) : '' });
 }
 export function toggleSound() {
-  update({ sound: !state().sound });
-}
-export function goTo(id) {
-  if (state().phase === 'playing' && STATIONS[id]) target = id;
+  const sound = !state().sound;
+  update({ sound });
+  audio?.setEnabled(sound);
 }
 
-export function humanInteract() {
+function tutorialStep() {
+  const step = state().tutorial;
+  return Number.isInteger(step) && step >= 0 && step < TUTORIAL_STEPS.length ? step : null;
+}
+
+export function goTo(id) {
+  if (state().phase !== 'playing' || !STATIONS[id]) return;
+  const step = tutorialStep();
+  if (state().tutorial === TUTORIAL_STEPS.length) return;
+  if (step !== null && TUTORIAL_STEPS[step].station !== id) {
+    notify(`次は「${TUTORIAL_STEPS[step].label}」`);
+    return;
+  }
+  target = id;
+}
+
+export function humanInteract(automatic = false) {
   if (state().phase !== 'playing') return;
   const g = state().game,
     near = stationAt(g, 'human');
+  const step = tutorialStep();
+  if (state().tutorial === TUTORIAL_STEPS.length) return;
+  if (step !== null && near.id !== TUTORIAL_STEPS[step].station) {
+    if (!automatic) notify(`次は「${TUTORIAL_STEPS[step].label}」`);
+    return;
+  }
+  if (step === 3 && g.stations.board.state === 'chopping') return;
   if (!near.inReach) {
     notify('作業台をクリックすると、そこまで移動できるよ');
     return;
   }
   target = null;
   const result = interact(g, 'human', near.id);
-  if (result.ok) record('human', result);
-  else {
+  if (result.ok) {
+    record('human', result);
+    if (step !== null && state().tutorial === step) {
+      const next = step + 1;
+      update({
+        tutorial: next,
+        hud: {
+          ...state().hud,
+          action: next < TUTORIAL_STEPS.length ? TUTORIAL_STEPS[next].label : '練習完了！',
+        },
+      });
+      publish();
+    }
+  } else {
     notify(result.reason);
-    tone([220], 0.09);
+    playSound('failure');
   }
 }
 
 export function clearHands() {
-  if (state().phase !== 'playing') return;
+  if (state().phase !== 'playing' || state().tutorial !== null) return;
   if (discard(state().game, 'human')) {
     notify('手を空けたよ。コンボはリセット');
     publish();
@@ -201,15 +249,16 @@ export function clearHands() {
 }
 
 export function humanDash() {
-  if (state().phase === 'playing' && dash(state().game)) tone([220, 330], 0.04);
+  if (state().phase === 'playing' && dash(state().game)) playSound('dash');
 }
 
 export function installControls() {
-  const typing = (e) => e.target?.closest('input, textarea, select, [contenteditable="true"]');
+  const typing = (e) => e.target?.closest?.('input, textarea, select, [contenteditable="true"]');
   const down = (e) => {
     if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
     const key = e.key.toLowerCase();
     if (key === 'escape') {
+      if (e.repeat || document.querySelector?.('dialog[open]')) return;
       togglePause();
       return;
     }
@@ -234,7 +283,10 @@ export function installControls() {
     }
   };
   const up = (e) => keys.delete(e.key.toLowerCase());
-  const blur = () => keys.clear();
+  const blur = () => {
+    keys.clear();
+    if (state().phase === 'playing') togglePause();
+  };
   const visibility = () => {
     if (document.hidden && state().phase === 'playing') togglePause();
   };
@@ -249,6 +301,7 @@ export function installControls() {
     document.removeEventListener('visibilitychange', visibility);
     invalidate();
     keys.clear();
+    audio?.stop();
   };
 }
 
@@ -302,9 +355,11 @@ async function decide() {
     if (!data.ok) throw new Error('No decision');
     if (requestEpoch !== epoch || state().phase !== 'playing') return;
     const answer = data.result?.answers?.next_action;
+    const candidate = candidates.find((c) => c.id === answer?.choice);
+    if (!candidate) throw new Error('Invalid decision');
     update({ fallback: false });
     applyDecision(
-      candidates.find((c) => c.id === answer?.choice),
+      candidate,
       Math.round(performance.now() - started),
       data.via ?? 'Workers AI',
       answer?.confidence,
@@ -322,14 +377,15 @@ async function decide() {
 export function tick(delta) {
   if (state().phase !== 'playing') return;
   const g = state().game,
-    dt = Math.min(0.05, delta);
+    dt = Math.min(MAX_FRAME_DELTA, Math.max(0, Number.isFinite(delta) ? delta : 0));
+  const practice = state().tutorial !== null;
   const missed = g.missed;
   advance(g, dt * 1000);
-  if (g.missed > missed) {
+  if (!practice && g.missed > missed) {
     notify('注文がタイムアウト。次のひと皿で取り返そう！');
-    tone([260, 196]);
+    playSound('failure');
   }
-  if (g.time >= SHIFT_MS) {
+  if (!practice && g.time >= SHIFT_MS) {
     invalidate();
     keys.clear();
     target = null;
@@ -340,8 +396,17 @@ export function tick(delta) {
       /* Private browsing can disable storage. */
     }
     update({ phase: 'finished', best });
-    tone([659, 784, 1047], 0.16);
+    playSound('finish');
     publish();
+    return;
+  }
+  if (practice && state().tutorial === TUTORIAL_STEPS.length) {
+    keys.clear();
+    target = null;
+    if (g.time - lastPublish >= 100) {
+      lastPublish = g.time;
+      publish();
+    }
     return;
   }
   const ax =
@@ -363,7 +428,16 @@ export function tick(delta) {
     );
   } else if (target) {
     const station = STATIONS[target];
-    if (moveToward(g.human, station.x, station.y, step)) humanInteract();
+    if (moveToward(g.human, station.x, station.y, step)) humanInteract(true);
+  }
+  if (practice && state().tutorial === TUTORIAL_STEPS.length) {
+    keys.clear();
+    target = null;
+    if (g.time - lastPublish >= 100) {
+      lastPublish = g.time;
+      publish();
+    }
+    return;
   }
   for (const who of ['human', 'ai']) {
     const near = stationAt(g, who);
@@ -389,7 +463,7 @@ export function tick(delta) {
       }
     }
   }
-  void decide();
+  if (!practice) void decide();
   if (g.time - lastPublish >= 100) {
     lastPublish = g.time;
     publish();

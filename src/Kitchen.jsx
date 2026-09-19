@@ -1,9 +1,9 @@
-import { Component, memo, useEffect, useRef, useState } from 'react';
+import { Component, memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei/web/Html';
 import { RoundedBox } from '@react-three/drei/core/RoundedBox';
 import * as THREE from 'three/webgpu';
-import { useKitchen, goTo, tick } from './game.js';
+import { graphicsLost, TUTORIAL_STEPS, useKitchen, goTo, tick } from './game.js';
 import { STATIONS, STATION_IDS, CHOP_MS, COOK_MS } from './model.js';
 
 const world = (x, y, height = 0) => [(x - 450) / 65, height, (y - 270) / 65];
@@ -118,20 +118,39 @@ function Plant({ position, scale = 1 }) {
   );
 }
 
+function Floor() {
+  const tiles = useRef();
+  useLayoutEffect(() => {
+    const mesh = tiles.current;
+    if (!mesh) return;
+    const tile = new THREE.Object3D();
+    const color = new THREE.Color();
+    for (let i = 0; i < 112; i++) {
+      const x = i % 14;
+      const z = Math.floor(i / 14);
+      tile.position.set(x - 6.5, -0.035, z - 3.5);
+      tile.updateMatrix();
+      mesh.setMatrixAt(i, tile.matrix);
+      color.set((x + z) % 2 ? '#dae4cf' : '#f0f0db');
+      mesh.setColorAt(i, color);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, []);
+  return (
+    <instancedMesh ref={tiles} args={[null, null, 112]} receiveShadow>
+      <boxGeometry args={[0.986, 0.06, 0.986]} />
+      <meshStandardMaterial vertexColors roughness={1} />
+    </instancedMesh>
+  );
+}
+
 const Room = memo(function Room() {
   return (
     <group>
       <Block size={[14.2, 0.4, 8.8]} position={[0, -0.26, 0]} radius={0.16} color="#94b7a0" />
-      {Array.from({ length: 112 }, (_, i) => {
-        const x = i % 14,
-          z = Math.floor(i / 14);
-        return (
-          <mesh key={i} position={[x - 6.5, -0.035, z - 3.5]} receiveShadow>
-            <boxGeometry args={[0.986, 0.06, 0.986]} />
-            <meshStandardMaterial color={(x + z) % 2 ? '#dae4cf' : '#f0f0db'} roughness={1} />
-          </mesh>
-        );
-      })}
+      <Floor />
       <Block size={[14, 2.45, 0.2]} position={[0, 1.2, -4.17]} color="#c4ddc4" />
       <Block size={[0.2, 1.35, 8.3]} position={[-7, 0.65, 0]} color="#c4ddc4" />
       <Block size={[14.15, 0.15, 0.3]} position={[0, 2.45, -4.17]} color={palette.green} />
@@ -204,8 +223,9 @@ const Room = memo(function Room() {
 function Steam({ active }) {
   const group = useRef();
   const reducedMotion = useKitchen((s) => s.reducedMotion);
+  const phase = useKitchen((s) => s.phase);
   useFrame(({ clock }) => {
-    if (!group.current || !active || reducedMotion) return;
+    if (!group.current || !active || reducedMotion || phase !== 'playing') return;
     group.current.children.forEach((puff, i) => {
       const t = (clock.elapsedTime * 0.55 + i / 3) % 1;
       puff.position.set(Math.sin(t * 4 + i) * 0.15, 1.58 + t * 0.7, 0);
@@ -231,16 +251,30 @@ function Station({ id }) {
     station = STATIONS[id],
     st = g.stations[id];
   const phase = useKitchen((s) => s.phase);
+  const tutorial = useKitchen((s) => s.tutorial);
+  const reducedMotion = useKitchen((s) => s.reducedMotion);
   const active = g.human.station === id;
+  const tutorialActive =
+    phase === 'playing' &&
+    Number.isInteger(tutorial) &&
+    tutorial >= 0 &&
+    tutorial < TUTORIAL_STEPS.length;
+  const tutorialStep = tutorialActive ? TUTORIAL_STEPS[tutorial] : null;
+  const tutorialTarget = tutorialStep?.station === id;
+  const tutorialMuted = tutorialActive && !tutorialTarget;
+  const tutorialComplete = tutorial === TUTORIAL_STEPS.length;
+  const ready = st.state === 'chopped' || st.state === 'ready';
   const working = st.state === 'chopping' || st.state === 'cooking';
   const progress = working ? 1 - (st.busyUntil - g.time) / (id === 'board' ? CHOP_MS : COOK_MS) : 1;
   const knife = useRef();
   useFrame(() => {
     if (knife.current)
-      knife.current.rotation.z = st.state === 'chopping' ? Math.sin(g.time / 75) * 0.45 : -0.15;
+      knife.current.rotation.z =
+        st.state === 'chopping' && !reducedMotion ? Math.sin(g.time / 75) * 0.45 : -0.15;
   });
   const pick = (e) => {
     e.stopPropagation();
+    if (tutorialMuted || tutorialComplete) return;
     goTo(id);
   };
   return (
@@ -346,13 +380,21 @@ function Station({ id }) {
       )}
       <Html center position={[0, id === 'pot' ? 2.3 : 1.95, 0]} zIndexRange={[20, 0]}>
         <button
-          className={`station-label ${active ? 'near' : ''}`}
-          disabled={phase !== 'playing'}
-          onClick={() => goTo(id)}
-          aria-label={`${station.name}へ移動して作業`}
+          className={`station-label ${active ? 'near' : ''} ${tutorialTarget ? 'tutorial-target' : ''} ${tutorialMuted ? 'tutorial-muted' : ''} ${tutorialTarget && reducedMotion ? 'tutorial-static' : ''}`}
+          disabled={phase !== 'playing' || tutorialMuted || tutorialComplete}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!tutorialMuted && !tutorialComplete) goTo(id);
+          }}
+          aria-label={`${station.name}へ移動して作業${tutorialTarget ? `：${tutorialStep.label}` : ''}`}
         >
           <span className={`station-dot ${id}`} />
-          {station.name}
+          {tutorialTarget ? `${tutorialStep.icon} ${tutorialStep.label}` : station.name}
+          {tutorialTarget && (
+            <span className="tutorial-pointer" aria-hidden="true">
+              ↗
+            </span>
+          )}
           {working && (
             <span className="station-meter">
               <i style={{ width: `${progress * 100}%` }} />
@@ -362,11 +404,23 @@ function Station({ id }) {
         </button>
       </Html>
       <mesh position={[-station.dx / 65, 0.012, -station.dy / 65]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.39, 0.45, 40]} />
+        <ringGeometry args={[tutorialTarget ? 0.42 : 0.39, tutorialTarget ? 0.5 : 0.45, 40]} />
         <meshBasicMaterial
-          color={active ? '#ed826e' : '#7ca18b'}
+          color={
+            tutorialTarget
+              ? '#e07c58'
+              : tutorialActive
+                ? '#95a89b'
+                : active
+                  ? '#ed826e'
+                  : ready
+                    ? '#e2ae45'
+                    : '#7ca18b'
+          }
           transparent
-          opacity={active ? 0.95 : 0.35}
+          opacity={
+            tutorialTarget ? 0.98 : tutorialActive ? 0.12 : active ? 0.95 : ready ? 0.72 : 0.35
+          }
         />
       </mesh>
     </group>
@@ -387,6 +441,9 @@ function Chef({ who }) {
   useFrame(() => {
     const { game: g, phase } = useKitchen.getState(),
       a = g[who];
+    const station = a.station ? g.stations[a.station] : null;
+    const carrying = Boolean(a.carrying);
+    const working = !carrying && station?.state === 'chopping' && station.by === who;
     const pos = world(a.x, a.y);
     root.current.position.set(...pos);
     const prev = previous.current;
@@ -395,9 +452,20 @@ function Chef({ who }) {
     const moving = Math.hypot(dx, dy) > 0.03 && phase === 'playing';
     if (moving) body.current.rotation.y = Math.atan2(dx, dy);
     body.current.position.y =
-      moving && !reducedMotion ? Math.abs(Math.sin(g.time / 85)) * 0.075 : 0;
-    leftArm.current.rotation.x = moving && !reducedMotion ? Math.sin(g.time / 85) * 0.3 : -0.2;
-    rightArm.current.rotation.x = -leftArm.current.rotation.x;
+      moving && !reducedMotion ? Math.abs(Math.sin(g.time / 85)) * (carrying ? 0.035 : 0.075) : 0;
+    const walkSwing = moving && !reducedMotion ? Math.sin(g.time / 85) * 0.3 : -0.2;
+    const workSwing = working && !reducedMotion ? Math.sin(g.time / 80) * 0.5 : 0;
+    const carrySway = carrying && !reducedMotion ? Math.sin(g.time / 160) * 0.06 : 0;
+    leftArm.current.rotation.x = carrying
+      ? 0.65 + carrySway
+      : working
+        ? 0.35 + workSwing
+        : walkSwing;
+    rightArm.current.rotation.x = carrying
+      ? 0.65 - carrySway
+      : working
+        ? 0.35 - workSwing
+        : -walkSwing;
     previous.current = [a.x, a.y];
   });
   return (
@@ -465,14 +533,27 @@ function Chef({ who }) {
 function Confetti() {
   const group = useRef();
   const celebration = useKitchen((s) => s.celebration);
+  const phase = useKitchen((s) => s.phase);
   const reducedMotion = useKitchen((s) => s.reducedMotion);
-  const born = useRef(-10000);
+  const previousCelebration = useRef(celebration);
+  const previousTime = useRef(useKitchen.getState().game.time);
+  const born = useRef(-Infinity);
   useEffect(() => {
-    if (celebration) born.current = useKitchen.getState().game.time;
+    if (celebration === 0) born.current = -Infinity;
+    else if (celebration > previousCelebration.current)
+      born.current = useKitchen.getState().game.time;
+    previousCelebration.current = celebration;
   }, [celebration]);
   useFrame(() => {
-    const elapsed = (useKitchen.getState().game.time - born.current) / 1000;
-    group.current.visible = !reducedMotion && elapsed >= 0 && elapsed < 1.2;
+    if (!group.current) return;
+    const time = useKitchen.getState().game.time;
+    if (time < previousTime.current) {
+      born.current = -Infinity;
+      previousCelebration.current = celebration;
+    }
+    previousTime.current = time;
+    const elapsed = (time - born.current) / 1000;
+    group.current.visible = phase === 'playing' && !reducedMotion && elapsed >= 0 && elapsed < 1.2;
     if (!group.current.visible) return;
     group.current.children.forEach((piece, i) => {
       const angle = i * 2.399;
@@ -498,6 +579,7 @@ function Confetti() {
 
 function Scene() {
   const { camera, size } = useThree();
+  const tutorial = useKitchen((s) => s.tutorial);
   useEffect(() => {
     camera.position.set(10, 15, 18);
     camera.lookAt(0, 0.25, 0);
@@ -513,7 +595,7 @@ function Scene() {
         position={[-5, 11, 7]}
         intensity={2.5}
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-12}
         shadow-camera-right={12}
         shadow-camera-top={10}
@@ -525,7 +607,7 @@ function Scene() {
         <Station key={id} id={id} />
       ))}
       <Chef who="human" />
-      <Chef who="ai" />
+      {tutorial === null && <Chef who="ai" />}
       <Confetti />
     </>
   );
@@ -536,13 +618,18 @@ class GraphicsBoundary extends Component {
   static getDerivedStateFromError() {
     return { failed: true };
   }
+  componentDidCatch() {
+    const { ready, phase } = useKitchen.getState();
+    if (ready || phase === 'playing') graphicsLost();
+  }
   render() {
     if (this.state.failed)
       return (
         <div className="graphics-error">
           3Dの描画を開始できませんでした。
           <br />
-          ブラウザのグラフィックアクセラレーションを有効にして、再読み込みしてください。
+          ブラウザのグラフィックアクセラレーションを有効にして、再接続してください。
+          <button onClick={this.props.onRetry}>3Dを再接続</button>
           <button onClick={() => location.reload()}>再読み込み</button>
         </div>
       );
@@ -552,39 +639,127 @@ class GraphicsBoundary extends Component {
 
 export default function Kitchen() {
   const [error, setError] = useState(false);
+  const [graphicsKey, setGraphicsKey] = useState(0);
   const initialization = useRef(null);
+  const rendererRef = useRef(null);
+  const rendererDisposeRef = useRef(null);
+  const graphicsGeneration = useRef(0);
+  const lifecycleGeneration = useRef(0);
+  useEffect(() => {
+    const lifecycle = ++lifecycleGeneration.current;
+    return () => {
+      queueMicrotask(() => {
+        if (lifecycle !== lifecycleGeneration.current) return;
+        graphicsGeneration.current += 1;
+        initialization.current = null;
+        const disposeRenderer = rendererDisposeRef.current;
+        rendererDisposeRef.current = null;
+        rendererRef.current = null;
+        void disposeRenderer?.();
+      });
+    };
+  }, []);
+  const retryGraphics = async () => {
+    graphicsGeneration.current += 1;
+    const disposeRenderer = rendererDisposeRef.current;
+    rendererDisposeRef.current = null;
+    await disposeRenderer?.();
+    rendererRef.current = null;
+    initialization.current = null;
+    setError(false);
+    setGraphicsKey((key) => key + 1);
+  };
+  const generation = graphicsGeneration.current;
   return (
-    <GraphicsBoundary>
+    <GraphicsBoundary key={graphicsKey} onRetry={retryGraphics}>
       {error ? (
         <div className="graphics-error">
-          3Dを表示できません。グラフィックアクセラレーションを有効にして再読み込みしてください。
+          3Dを表示できません。グラフィックアクセラレーションを有効にして再接続してください。
+          <button onClick={retryGraphics}>3Dを再接続</button>
           <button onClick={() => location.reload()}>再読み込み</button>
         </div>
       ) : (
         <Canvas
           orthographic
           camera={{ position: [10, 15, 18], zoom: 45, near: 0.1, far: 100 }}
-          dpr={[1, 1.75]}
+          dpr={[1, 1.5]}
           shadows={{ type: THREE.PCFShadowMap }}
           gl={(props) => {
             // R3F can configure again while init awaits the GPU; share one renderer.
             initialization.current ??= (async () => {
+              let renderer;
+              let disposal;
+              const disposeRenderer = () => {
+                if (!renderer) return Promise.resolve();
+                disposal ??= Promise.resolve()
+                  .then(() =>
+                    renderer.hasInitialized() ? renderer.dispose() : renderer.backend.dispose(),
+                  )
+                  .catch(() => {
+                    /* A failed GPU is already unrecoverable; continue to fallback UI. */
+                  });
+                return disposal;
+              };
+              rendererDisposeRef.current = disposeRenderer;
               try {
-                const renderer = new THREE.WebGPURenderer({ ...props, antialias: true });
-                await renderer.init();
-                renderer.onDeviceLost = () => {
-                  useKitchen.setState({ ready: false, phase: 'paused' });
+                renderer = new THREE.WebGPURenderer({
+                  ...props,
+                  antialias: true,
+                  forceWebGL: typeof navigator !== 'undefined' && !navigator.gpu,
+                });
+                rendererRef.current = renderer;
+                let deviceLost = false;
+                const defaultOnDeviceLost = renderer.onDeviceLost.bind(renderer);
+                renderer.onDeviceLost = (info) => {
+                  deviceLost = true;
+                  defaultOnDeviceLost(info);
+                  if (generation !== graphicsGeneration.current) return;
+                  graphicsLost();
                   setError(true);
+                  void disposeRenderer();
                 };
+                await renderer.init();
+                const device = renderer.backend?.device;
+                if (device?.lost) {
+                  void device.lost
+                    .then((info) => {
+                      if (
+                        info?.reason !== 'destroyed' ||
+                        deviceLost ||
+                        generation !== graphicsGeneration.current
+                      )
+                        return;
+                      renderer.onDeviceLost({
+                        api: 'WebGPU',
+                        message: info.message || 'Unknown reason',
+                        reason: info.reason,
+                        originalEvent: info,
+                      });
+                    })
+                    .catch(() => {});
+                }
+                if (deviceLost || generation !== graphicsGeneration.current) {
+                  await disposeRenderer();
+                  throw new Error('stale graphics initialization');
+                }
                 return renderer;
-              } catch (cause) {
-                setError(true);
-                throw cause;
+              } catch {
+                const current = generation === graphicsGeneration.current;
+                if (current) setError(true);
+                await disposeRenderer();
+                if (rendererRef.current === renderer) rendererRef.current = null;
+                if (rendererDisposeRef.current === disposeRenderer)
+                  rendererDisposeRef.current = null;
+                // R3F's Canvas configure has no rejection boundary. Keep the
+                // retired configure suspended after surfacing the retry UI so it
+                // cannot construct a second renderer on a lost or stale canvas.
+                await new Promise(() => {});
               }
             })();
             return initialization.current;
           }}
           onCreated={({ gl }) =>
+            generation === graphicsGeneration.current &&
             useKitchen.setState({
               backend: gl.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL 2',
               ready: true,

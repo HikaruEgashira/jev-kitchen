@@ -13,7 +13,7 @@ export const STATIONS = {
   serve: { name: '配膳', x: 455, y: 390, dx: 0, dy: 82 },
 };
 export const STATION_IDS = Object.keys(STATIONS);
-export const ITEM_EMOJI = { tomato: '🍅', chopped: '🥬', plate: '🍽️', dish: '🥗', soup: '🍲' };
+export const ITEM_EMOJI = { tomato: '🍅', chopped: '🍅', plate: '🍽️', dish: '🥗', soup: '🍲' };
 export const ITEM_NAMES = {
   tomato: 'トマト',
   chopped: '切ったトマト',
@@ -32,8 +32,9 @@ function order(g, deadline) {
   return { id, recipe: MENU[id % MENU.length], deadline, duration: deadline - g.time };
 }
 
-export function createGame() {
+export function createGame({ practice = false } = {}) {
   const g = {
+    practice,
     time: 0,
     served: 0,
     score: 0,
@@ -62,7 +63,7 @@ export function createGame() {
     },
     ai: { x: 550, y: 300, carrying: null, station: null, action: null, intent: null },
   };
-  g.orders = [0, 1, 2].map((i) => order(g, 36_000 + i * 9000));
+  g.orders = practice ? [order(g, Infinity)] : [0, 1, 2].map((i) => order(g, 36_000 + i * 9000));
   return g;
 }
 
@@ -96,7 +97,7 @@ export function moveToward(e, x, y, step) {
 }
 
 export function dash(g) {
-  if (g.time >= SHIFT_MS || g.time < g.human.dashReadyAt) return false;
+  if ((!g.practice && g.time >= SHIFT_MS) || g.time < g.human.dashReadyAt) return false;
   g.human.dashUntil = g.time + 220;
   g.human.dashReadyAt = g.time + 1800;
   return true;
@@ -105,7 +106,7 @@ export function dash(g) {
 export function interact(g, who, stationId) {
   const e = g[who],
     st = g.stations[stationId];
-  if (!st || g.time >= SHIFT_MS) return { ok: false, reason: '営業時間外です' };
+  if (!st || (!g.practice && g.time >= SHIFT_MS)) return { ok: false, reason: '営業時間外です' };
   const success = (action) => ({ ok: true, action });
   switch (stationId) {
     case 'crate':
@@ -180,15 +181,17 @@ export function interact(g, who, stationId) {
       const index = g.orders.findIndex((o) => o.recipe === e.carrying);
       if (index < 0) return { ok: false, reason: 'この料理の注文はまだないよ' };
       const ticket = g.orders[index];
-      g.combo = g.time - g.lastServeAt <= 12_000 ? Math.min(3, g.combo + 1) : 1;
-      const points =
-        (RECIPES[ticket.recipe].points + Math.ceil((ticket.deadline - g.time) / 1000)) * g.combo;
+      let points = RECIPES[ticket.recipe].points;
+      if (!g.practice) {
+        g.combo = g.time - g.lastServeAt <= 12_000 ? Math.min(3, g.combo + 1) : 1;
+        points = (points + Math.ceil((ticket.deadline - g.time) / 1000)) * g.combo;
+      }
       g.score += points;
       g.served++;
       g.bestCombo = Math.max(g.bestCombo, g.combo);
       g.lastServeAt = g.time;
       g.orders.splice(index, 1);
-      g.orders.push(order(g, g.time + Math.max(26_000, 40_000 - g.served * 1000)));
+      if (!g.practice) g.orders.push(order(g, g.time + Math.max(26_000, 40_000 - g.served * 1000)));
       e.carrying = null;
       return { ok: true, action: `${RECIPES[ticket.recipe].name}を配膳した`, points };
     }
@@ -197,14 +200,16 @@ export function interact(g, who, stationId) {
 }
 
 export function discard(g, who) {
-  if (!g[who].carrying || g.time >= SHIFT_MS) return false;
+  if (!g[who].carrying || (!g.practice && g.time >= SHIFT_MS)) return false;
   g[who].carrying = null;
   g.combo = 0;
   return true;
 }
 
 export function advance(g, elapsed = 0) {
-  g.time = Math.min(SHIFT_MS, g.time + Math.max(0, elapsed));
+  g.time = g.practice
+    ? g.time + Math.max(0, elapsed)
+    : Math.min(SHIFT_MS, g.time + Math.max(0, elapsed));
   for (const [id, active, done] of [
     ['board', 'chopping', 'chopped'],
     ['pot', 'cooking', 'ready'],
@@ -212,6 +217,7 @@ export function advance(g, elapsed = 0) {
     const st = g.stations[id];
     if (st.state === active && g.time >= st.busyUntil) st.state = done;
   }
+  if (g.practice) return;
   if (g.time - g.lastServeAt > 12_000) g.combo = 0;
   if (g.time >= SHIFT_MS) return;
   g.orders = g.orders
@@ -230,7 +236,7 @@ export function buildCandidates(g, who = 'ai') {
     p = g.stations.pot;
   const out = [];
   const add = (id, label, station) => out.push({ id, label, station });
-  if (g.time < SHIFT_MS) {
+  if (g.practice || g.time < SHIFT_MS) {
     if (RECIPES[e.carrying]) {
       if (g.orders.some((o) => o.recipe === e.carrying))
         add('serve', '完成した料理を配膳する', 'serve');
@@ -270,7 +276,7 @@ export function buildQuestions(cands) {
     next_action: {
       type: 'choice',
       instructions:
-        "You are the sous-chef sharing a kitchen with a human. Choose one feasible action that complements their work and serves the earliest orders. Salad: tomato → chop → plate. Soup: tomato → chop → collect → cook → plate. Never duplicate the human's current task. Respect their collaboration policy, including Japanese. Avoid unnecessary returning or discarding. Work ahead while food cooks.",
+        "You are the sous-chef sharing a kitchen with a human. Choose one feasible action that complements their work and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → cook → plate → serve. Both recipes end by carrying the finished dish to the serve station. Never duplicate the human's current task. Respect their collaboration policy, including Japanese. Avoid unnecessary returning or discarding. Work ahead while food cooks.",
       criteria: Object.fromEntries(cands.map((c) => [c.id, c.label])),
     },
   };
@@ -278,6 +284,7 @@ export function buildQuestions(cands) {
 
 export function observe(g, policy) {
   return {
+    practice: g.practice,
     policy: policy?.trim() || null,
     human: {
       carrying: g.human.carrying,
@@ -291,9 +298,9 @@ export function observe(g, policy) {
     board_operator: g.stations.board.state === 'chopping' ? g.stations.board.by : null,
     orders: g.orders.map((o) => ({
       recipe: o.recipe,
-      seconds_left: Math.ceil((o.deadline - g.time) / 1000),
+      seconds_left: g.practice ? null : Math.ceil((o.deadline - g.time) / 1000),
     })),
-    seconds_left: Math.ceil((SHIFT_MS - g.time) / 1000),
+    seconds_left: g.practice ? null : Math.ceil((SHIFT_MS - g.time) / 1000),
     orders_served: g.served,
   };
 }
@@ -331,15 +338,39 @@ export function rulePick(g, cands) {
 
 export function actionHint(g, id) {
   const item = g.human.carrying;
-  if (id === 'crate') return item === 'tomato' ? 'トマトを戻す' : 'トマトを取る';
-  if (id === 'plates')
-    return item === 'chopped' ? 'サラダを盛る' : item === 'plate' ? 'お皿を戻す' : 'お皿を取る';
-  if (id === 'board')
-    return item === 'tomato'
-      ? 'トマトを切る'
-      : item === 'plate'
-        ? 'サラダを盛る'
-        : '切ったトマトを取る';
-  if (id === 'pot') return item === 'plate' ? 'スープを盛る' : 'スープを煮る';
-  return '料理を配膳する';
+  if (id === 'crate') {
+    if (item === 'tomato') return 'トマトを戻す';
+    return item ? '手元を空ける' : 'トマトを取る';
+  }
+  if (id === 'plates') {
+    if (item === 'chopped') return 'サラダを盛る';
+    if (item === 'plate') return 'お皿を戻す';
+    if (item === 'tomato') return 'まな板へ運ぶ';
+    if (RECIPES[item]) return '配膳口へ運ぶ';
+    return 'お皿を取る';
+  }
+  if (id === 'board') {
+    const board = g.stations.board;
+    if (board.state === 'chopping') return '切り終わるまで待つ';
+    if (board.state === 'chopped') {
+      if (item === 'plate') return 'サラダを盛る';
+      if (!item) return '切ったトマトを取る';
+      return '手元を空ける';
+    }
+    if (item === 'tomato') return 'トマトを切る';
+    if (item === 'chopped') return 'お皿の台へ運ぶ';
+    return 'トマトを取ってこよう';
+  }
+  if (id === 'pot') {
+    const pot = g.stations.pot;
+    if (pot.state === 'cooking') return '煮込み中、別の仕事へ';
+    if (pot.state === 'ready') return item === 'plate' ? 'スープを盛る' : 'お皿を持ってくる';
+    if (item === 'chopped') return 'スープを煮る';
+    if (RECIPES[item]) return '配膳口へ運ぶ';
+    return '切ったトマトを持ってこよう';
+  }
+  if (RECIPES[item]) {
+    return g.orders.some((order) => order.recipe === item) ? '配膳する' : 'この料理の注文を待つ';
+  }
+  return '完成した料理を持ってこよう';
 }
