@@ -3,6 +3,8 @@ import test from 'node:test';
 import {
   useKitchen,
   CHECKPOINT_KEY,
+  STAGES_KEY,
+  restoreStage,
   startShift,
   nextShift,
   retryShift,
@@ -37,7 +39,14 @@ test.beforeEach(() => {
       setItem: (key, value) => storage.set(key, String(value)),
     },
   });
-  useKitchen.setState({ ready: true, phase: 'ready', menuOpen: false, mode: 'rule', sound: false });
+  useKitchen.setState({
+    ready: true,
+    phase: 'ready',
+    menuOpen: false,
+    mode: 'rule',
+    sound: false,
+    stages: {},
+  });
 });
 
 function economy(g) {
@@ -84,6 +93,56 @@ function finish(cleared) {
   assert.equal(useKitchen.getState().cleared, cleared);
   return economy(g);
 }
+
+test('stage selection imports legacy history and preserves future openings across replay and reload', async () => {
+  const stage9 = open(9, 9000);
+  finish(true);
+  assert.equal(nextShift(null, 10, ['helper'], ['upgrade_board']), true);
+  const stage10 = economy(useKitchen.getState().game);
+  finish(true);
+  assert.equal(nextShift(null, 10, ['helper']), true);
+  const stage11 = economy(useKitchen.getState().game);
+  // Simulate a pre-archive save containing only the existing rewind chain.
+  storage.delete(STAGES_KEY);
+  useKitchen.setState({ stages: {} });
+  const reloaded = await import(`../src/game.js?stage-migration-${Date.now()}`);
+  reloaded.useKitchen.setState({ ready: true, sound: false, mode: 'rule' });
+  assert.deepEqual(Object.keys(reloaded.useKitchen.getState().stages), ['9', '10', '11']);
+  assert.equal(reloaded.restoreStage(9), true);
+  assert.deepEqual(economy(reloaded.useKitchen.getState().game), stage9);
+  const future = JSON.parse(storage.get(STAGES_KEY))['11'];
+  assert.equal(reloaded.restoreStage(10), false, 'cannot replace an active shift');
+  const replay = reloaded.useKitchen.getState().game;
+  replay.served = replay.quota;
+  replay.cash += replay.served * 25;
+  replay.stock -= replay.served;
+  replay.time = SHIFT_MS;
+  reloaded.tick(0);
+  assert.equal(reloaded.nextShift(null, 10, ['helper']), true);
+  assert.notDeepEqual(economy(reloaded.useKitchen.getState().game), stage10);
+  reloaded.useKitchen.setState({ phase: 'paused', menuOpen: true });
+  assert.equal(reloaded.restoreStage(10), true);
+  assert.deepEqual(economy(reloaded.useKitchen.getState().game), stage10);
+  assert.equal(reloaded.useKitchen.getState().menuOpen, false);
+  assert.deepEqual(JSON.parse(storage.get(STAGES_KEY))['11'], future);
+  const again = await import(`../src/game.js?stage-reload-${Date.now()}`);
+  again.useKitchen.setState({ ready: true, sound: false, mode: 'rule' });
+  assert.equal(again.restoreStage(11), true);
+  assert.deepEqual(economy(again.useKitchen.getState().game), stage11);
+  assert.equal(again.useKitchen.getState().game.time, 0);
+  assert.deepEqual(JSON.parse(storage.get(STAGES_KEY))['11'], future);
+});
+
+test('stage selection rejects unknown saves and benchmark use without any persistent writes', () => {
+  open();
+  useKitchen.setState({ phase: 'paused' });
+  const before = [...storage];
+  for (const level of [0, 10, '9', NaN, Infinity]) assert.equal(restoreStage(level), false);
+  useKitchen.setState({ benchmark: true });
+  assert.equal(restoreStage(9), false);
+  assert.deepEqual([...storage], before);
+  useKitchen.setState({ benchmark: false });
+});
 
 test('same-condition retry restores paid opening and keeps the preparation rewind available', () => {
   open();

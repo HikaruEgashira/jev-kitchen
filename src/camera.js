@@ -1,10 +1,11 @@
 import { MathUtils } from 'three/webgpu';
 import { kitchenBounds } from './model.js';
 
-export function cameraFraming(game, phase, mode, width, height) {
+export function cameraFraming(game, phase, mode, width, height, entranceComplete = true) {
   const bounds = kitchenBounds(game);
   const follow =
-    (phase === 'playing' || phase === 'paused') &&
+    entranceComplete &&
+    ['ready', 'playing', 'paused'].includes(phase) &&
     (mode === 'follow' || (mode === 'auto' && width < height));
   const x = follow ? game.human.x : (bounds.minX + bounds.maxX) / 2;
   const y = follow ? game.human.y : (bounds.minY + bounds.maxY) / 2;

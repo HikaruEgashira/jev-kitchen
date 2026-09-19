@@ -7,7 +7,7 @@ import { Text3D } from '@react-three/drei/core/Text3D';
 import { Center } from '@react-three/drei/core/Center';
 import { Lettering, Plaque, Meter, INK, PAPER, WOOD } from './Surface.jsx';
 import { screen, preparation, purchase, compactControls } from './ui.js';
-import { ChefAvatar, ProductPreview } from './Food.jsx';
+import { ChefAvatar, ProductPreview, StationPreview } from './Food.jsx';
 import {
   useKitchen,
   startShift,
@@ -21,6 +21,7 @@ import {
   setPreparationPreview,
   rollbackToPreparation,
   rollbackToPreviousStage,
+  restoreStage,
   toggleSound,
   toggleBackgroundMode,
   humanInteract,
@@ -173,6 +174,11 @@ const Tile = memo(function Tile({ item, active, activate, hover }) {
             if (control && !item.inert && !item.disabled) activate(item.id);
           }}
         >
+          {control && item.icon && (
+            <group position={[0, 10, 12]}>
+              <StationPreview station={item.icon} size={34} order={item.order + 2} />
+            </group>
+          )}
           {control && item.avatar && (
             <group position={[-item.w / 2 + Math.min(item.h, 36) / 2 + 2, 0, 4]}>
               <ChefAvatar
@@ -183,11 +189,11 @@ const Tile = memo(function Tile({ item, active, activate, hover }) {
             </group>
           )}
           {control && (
-            <group position={[item.avatar ? Math.min(item.h, 36) / 2 : 0, 0, 0]}>
+            <group position={[item.avatar ? Math.min(item.h, 36) / 2 : 0, item.icon ? -18 : 0, 0]}>
               <Lettering
                 text={item.text}
                 width={Math.max(24, item.w - 8 - (item.avatar ? Math.min(item.h, 36) : 0))}
-                height={item.h - 4}
+                height={item.icon ? 22 : item.h - 4}
                 size={item.size ?? 16}
                 color={item.disabled ? '#63705c' : active || item.pressed ? INK : (item.ink ?? INK)}
                 order={item.order + 2}
@@ -228,6 +234,16 @@ function Screen() {
     switch (item.action) {
       case 'start':
         startShift();
+        break;
+      case 'open-stages':
+        setMenuOpen(true);
+        setMenuPage('stages');
+        break;
+      case 'stage-page':
+        patch({ stagePage: value });
+        break;
+      case 'restore-stage':
+        restoreStage(value);
         break;
       case 'retry':
         retryShift();

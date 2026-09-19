@@ -1,8 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DROP_DURATION, ENTRANCE_DURATION, entranceHeight } from '../src/entrance.js';
+import {
+  DROP_DURATION,
+  ENTRANCE_DURATION,
+  entranceDuration,
+  entranceHeight,
+} from '../src/entrance.js';
 
 test('stage pieces fall in sequence, rebound above the floor, and remain landed', () => {
+  for (const count of [4, 6, 9]) {
+    for (const crew of [0, 1, 4]) {
+      const end = entranceDuration(count, crew);
+      for (let i = 0; i < count; i++) assert.equal(entranceHeight(end, 0.7 + i * 0.1), 0);
+      for (let i = 0; i < crew; i++) assert.equal(entranceHeight(end, 1.4 + i * 0.1), 0);
+    }
+  }
   assert.equal(entranceHeight(0, 0.4), 8);
   assert.equal(entranceHeight(0.4, 0.4), 8);
   assert.ok(entranceHeight(0.5, 0.4) < entranceHeight(0.5, 0.5));

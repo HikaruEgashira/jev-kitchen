@@ -1,5 +1,52 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
+test('stage picker pages all saved stages and mobile buttons have matching 3D icons', () => {
+  const base = useKitchen.getState();
+  const stages = Object.fromEntries(Array.from({ length: 100 }, (_, i) => [i + 1, {}]));
+  for (const [width, height] of [
+    [320, 568],
+    [568, 320],
+    [390, 844],
+  ]) {
+    const seen = [];
+    for (let stagePage = 0; stagePage < 17; stagePage++) {
+      const ui = screen(
+        { ...base, ready: true, stages, menuOpen: true, menuPage: 'stages' },
+        { ...preparation(base.game), stagePage },
+        width,
+        height,
+      );
+      const buttons = ui.items.filter((i) => i.action && !i.inert);
+      seen.push(...buttons.filter((i) => i.action === 'restore-stage').map((i) => i.value));
+      for (const b of buttons) {
+        assert.ok(b.w >= 44 && b.h >= 44);
+        assert.ok(b.x >= 0 && b.y >= 0 && b.x + b.w <= width && b.y + b.h <= height);
+        for (const other of buttons.filter((i) => i !== b))
+          assert.ok(
+            b.x + b.w <= other.x ||
+              other.x + other.w <= b.x ||
+              b.y + b.h <= other.y ||
+              other.y + other.h <= b.y,
+          );
+      }
+    }
+    assert.deepEqual(
+      seen,
+      Array.from({ length: 100 }, (_, i) => i + 1),
+    );
+  }
+  const ui = screen(
+    { ...base, ready: true, phase: 'playing', tutorial: null },
+    preparation(base.game),
+    390,
+    844,
+  );
+  for (const b of ui.items.filter((i) => i.action === 'station')) {
+    assert.equal(b.icon, b.value);
+    assert.equal(b.h, 64);
+  }
+});
 import { activeStationIds, createGame, layoutSlots, STATIONS } from '../src/model.js';
 import { useKitchen, TUTORIAL_STEPS } from '../src/game.js';
 import { compactControls, preparation, purchase, screen, screenContext } from '../src/ui.js';
@@ -54,7 +101,7 @@ test('every sheet keeps distinct, reachable 44px controls in portrait and landsc
   ]) {
     for (const phase of ['ready', 'playing', 'paused', 'finished']) {
       for (const cleared of [false, true]) {
-        for (const menuPage of [null, 'settings', 'controls', 'help', 'diagnostics']) {
+        for (const menuPage of [null, 'settings', 'controls', 'help', 'diagnostics', 'stages']) {
           for (const page of [0, 1, 2, 3]) {
             const ui = screen(
               { ...base, phase, cleared, menuOpen: menuPage !== null, menuPage },
@@ -397,7 +444,7 @@ test('phone station buttons stay below the kitchen and respect onboarding restri
       const ui = screen(state, preparation(game), width, height);
       assert.equal(
         ui.items.find((i) => i.id === 'lesson-copy').text,
-        `${STATIONS[step.station].name}をタップ`,
+        `${tutorial + 1}/5  ${STATIONS[step.station].name}をタップ`,
       );
       const action = ui.items.find((i) => i.id === 'interact');
       assert.equal(action.text, '作業する');
