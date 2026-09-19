@@ -7,7 +7,12 @@
 - 通常の人間と同じ調理・移動・ダッシュ・仕上げ・返却・廃棄・採用・配置・仕入れを選べる。移動中の変更、応募者抽選、支払いと在庫の検証も通常処理を使う。
 - 通常プレイの保存を抑止し、古い応答を捨てる。エラー・call上限・中断をノルマ未達と区別し、代替判断は行わない。
 - 接続先はWorkerの`BENCH_ENDPOINTS`に登録したHTTPS endpointのみ。URL・トークンをブラウザへ返さず、サイズ制限・timeout・Access保護を維持する。
-- 配信前の復旧候補: `a267e2a0-5b70-4332-973a-159417bdec2c`。最終検査と配信後検証は追記する。
+- 83 tests、typecheck、format/lint、build、Wrangler dry-runがpass。frequency間隔・call上限・遅延応答・中断・移動変更・ダッシュ・仕上げ・採用と配置・仕入れの支払い・通常保存の保全を検証。
+- ローカルChrome/WebGPUでRTA配置、最大call初期値1,000、全選択→削除→再入力、小数0.5の入力、実Jevの3 callsでの停止と結果表示を確認。幅390指定ではページ横溢れなし。JSON保存ボタンの操作は実施したが、ブラウザのdownloadイベントは取得できず、保存完了は未確認。
+- 通常のゲーム処理を50ms刻みで動かしたローカル実Jev試行は、frequency 1・上限110で89 calls、Lv1の2/6皿、377点、ノルマ未達として終了。平均305ms／p95 464ms、APIエラー0。これは描画を伴う本番測定ではない。
+- `730dfd2`をmainへpush。GitHub CI [35422631702](https://github.com/HikaruEgashira/jev-kitchen/actions/runs/35422631702)とWorkers Buildsがsuccess。2026-09-19 04:57:38 UTC、本番100% version `7c28a849-b4df-4424-bc49-3c70d8f730d0`を確認。
+- 本番`/bench`の未認証HTTP 302を確認。認証済みの画面確認はChromeの`ERR_BLOCKED_BY_CLIENT`により未完了。ローカルAPI healthはHTTP 200・`typesafe-api`・`jev-latest`。
+- 配信前の復旧先: `a267e2a0-5b70-4332-973a-159417bdec2c`。`pnpm exec wrangler rollback a267e2a0-5b70-4332-973a-159417bdec2c`。
 
 ## 2026-09-19 加熱時間の確定
 
