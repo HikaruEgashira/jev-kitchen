@@ -26,6 +26,15 @@ MVPを短い協力料理ゲームとして本番公開するための判定台�
 - Access、秘密、課金、外部送信、他repoの権限は本台帳の対象外であり、変更しない。
 - 部門間で競合する変更は、directorがMVPの遊びやすさ・安全性・復旧性を優先して採否を決める。
 
+## 2026-09-20 ベンチ提出時の自動検証とキャンペーン順位（未配信）
+
+- ユーザーに検証操作を求めない。Bench画面の`runBenchmark`が終わると自動で`POST /api/runs/finish`を呼び、サーバが全キャンペーンを再実行して検証済みスコアを登録する。専用の「検証ラン」ボタンは削除した。
+- 本編とリプレイの共有を広げ、`tickWorld`（`src/engine.js`）に加えて応募者抽選`drawApplicants`（`src/applicants.js`、seed注入可）とシフト遷移`nextShiftParams`（`src/nextShift.js`）を抽出した。`src/replay.js`の`runReplayCampaign`が`seed`と決定列から複数シフトと準備（採用・勤務・仕入れ・投資）を再実行する。protocolは`jev-ranked-v2`。
+- 順位は到達レベル・クリア数・合計スコアで並べる。決定列の枯渇・protocol不一致・準備循環は`truncated`として登録する。Durable Object`GameStore`はrunに`seed`を保存する。
+- 表示スコアと検証スコアは一致しない。リプレイは固定60Hz、実プレイは可変フレームのため。順位は検証スコアを使う。実プレイ側も同じ`seed`で応募者を抽選し、`hire_*`系の決定が再実行で整合するようにした。
+- 出荷ゲート: 197テスト、typecheck、check、build、`wrangler deploy --dry-run`がpass。決定論、seed付き抽選、提出時検証、protocol不一致の拒否、DOのchainとboard順を回帰検証する。
+- **未配信。** 配信前に`TICKET_SECRET`、`ratelimits`、`durable_objects`（`RUNS`/`GameStore`）の反映と、AI Gateway／TypeSafeのspend limit設定が必要。
+
 ## 2026-09-19 決定論エンジンと検証済みランキング（B: リプレイ検証。未配信）
 
 - `src/engine.js`へ`tick`のシミュレーション中核を抽出し、本編とリプレイが同じ`tickWorld`を通るようにした。抽出は既存の挙動を変えない（既存テストが回帰検証する）。

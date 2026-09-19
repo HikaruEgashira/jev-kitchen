@@ -1445,3 +1445,16 @@ export function actionHint(g, id) {
   }
   return '完成した料理が必要です';
 }
+
+/** True while any stock, carried item or active station can still be worked. */
+export function kitchenHasWork(g) {
+  return (
+    g.stock !== 0 ||
+    [g.human, ...Object.values(g.crew)].some(
+      (actor) => actor.carrying && actor.carrying !== 'plate',
+    ) ||
+    activeStationIds(g).some((id) =>
+      ['chopping', 'chopped', 'cooking', 'ready'].includes(g.stations[id].state),
+    )
+  );
+}

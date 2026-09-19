@@ -37,7 +37,7 @@ export class GameStore {
         if (!(await storage.get(key)))
           await storage.put(key, {
             sid: body.sid,
-            level: body.level,
+            seed: body.seed,
             protocol: body.protocol,
             decisions: [],
             status: 'open',
@@ -77,7 +77,13 @@ export class GameStore {
         const entry = await request.json();
         const board = (await storage.get('board')) ?? [];
         board.push(entry);
-        board.sort((a: any, b: any) => b.score - a.score || a.timeMs - b.timeMs || a.at - b.at);
+        board.sort(
+          (a: any, b: any) =>
+            b.clearedLevels - a.clearedLevels ||
+            b.score - a.score ||
+            b.served - a.served ||
+            a.at - b.at,
+        );
         await storage.put('board', board.slice(0, MAX_BOARD));
         return json({ ok: true });
       }

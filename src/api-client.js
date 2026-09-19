@@ -22,7 +22,7 @@ async function requestSession(mode, signal) {
   const data = await response.json();
   if (!data.ok || typeof data.ticket !== 'string' || !Number.isFinite(data.expiresAt))
     throw new Error('session failed');
-  return { ticket: data.ticket, expiresAt: data.expiresAt };
+  return { ticket: data.ticket, expiresAt: data.expiresAt, seed: data.seed };
 }
 
 function readyTicket(mode) {
@@ -48,6 +48,12 @@ export async function runTicket(mode, signal) {
   );
   sessions.set(mode, { ...cached, inflight });
   return inflight;
+}
+
+/** Seed of the cached session ticket, or undefined when none is available. */
+export async function sessionSeed(mode) {
+  if (!readyTicket(mode)) await runTicket(mode);
+  return sessions.get(mode)?.seed;
 }
 
 /** POST a billed request with a fresh run ticket for `mode`. */

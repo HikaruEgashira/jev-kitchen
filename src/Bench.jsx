@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { useKitchen } from './game.js';
 import {
   runBenchmark,
-  runRankedShift,
+  submitRun,
   pauseBenchmark,
   pauseBenchmarkWhenAway,
   resumeBenchmark,
@@ -90,13 +90,9 @@ export default function Bench() {
       model: models.find((model) => model.id === modelId),
       frequency: Number(form.get('frequency')),
       maxRequests: Number(form.get('maxRequests')),
-    }).catch((e) => setError(e.message));
-  };
-  const startRanked = () => {
-    setError('');
-    void runRankedShift({ model: models.find((model) => model.id === modelId) }).catch((e) =>
-      setError(e.message),
-    );
+    })
+      .then(() => submitRun())
+      .catch((e) => setError(e.message));
   };
   const latest = bench.results.at(-1);
   const paused = bench.paused || kitchen.phase === 'paused' || kitchen.menuOpen;
@@ -164,8 +160,8 @@ export default function Bench() {
           </div>
           {bench.verified && (
             <p className="bench-current" role="status">
-              検証済みスコア {bench.verified.score}（Lv{bench.verified.level}・
-              {bench.verified.served}/{bench.verified.quota}皿）
+              検証済み {bench.verified.clearedLevels}クリア・{bench.verified.score}点（到達Lv
+              {bench.verified.reachedLevel}）
             </p>
           )}
           <div className="bench-splits" aria-label="検証済みランキング">
@@ -173,20 +169,18 @@ export default function Bench() {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Lv</th>
+                  <th>クリア</th>
+                  <th>到達Lv</th>
                   <th>スコア</th>
-                  <th>皿</th>
                 </tr>
               </thead>
               <tbody>
                 {board.map((entry, index) => (
                   <tr key={entry.sid}>
                     <th scope="row">{index + 1}</th>
-                    <td>{entry.level}</td>
+                    <td>{entry.clearedLevels}</td>
+                    <td>{entry.reachedLevel}</td>
                     <td>{entry.score}</td>
-                    <td>
-                      {entry.served}/{entry.quota}
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -221,13 +215,6 @@ export default function Bench() {
                 onClick={() => download(latest)}
               >
                 JSON
-              </button>
-              <button
-                type="button"
-                disabled={bench.running || !kitchen.ready}
-                onClick={startRanked}
-              >
-                検証ラン（1営業）
               </button>
             </div>
             <label>

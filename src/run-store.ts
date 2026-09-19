@@ -9,7 +9,7 @@
 
 export interface RunRecord {
   sid: string;
-  level: number;
+  seed: number;
   protocol: string;
   decisions: string[];
   status: 'open' | 'finished';
@@ -19,22 +19,20 @@ export interface RunRecord {
 
 export interface BoardEntry {
   sid: string;
-  level: number;
   protocol: string;
   score: number;
   served: number;
-  quota: number;
+  clearedLevels: number;
+  reachedLevel: number;
   completed: boolean;
-  timeMs: number;
-  missed: number;
-  burned: number;
+  truncated: boolean;
   at: number;
 }
 
 export const MAX_BOARD = 20;
 
 export interface RunStore {
-  init(sid: string, level: number, protocol: string): Promise<void>;
+  init(sid: string, seed: number, protocol: string): Promise<void>;
   /** Append the server-issued choice to the run. Returns the ordinal, or null. */
   append(sid: string, choice: string): Promise<number | null>;
   finish(sid: string): Promise<RunRecord | null>;
@@ -60,8 +58,8 @@ export function durableRunStore(namespace: {
   const runStub = (sid: string) => namespace.get(namespace.idFromName(sid));
   const boardStub = () => namespace.get(namespace.idFromName('board'));
   return {
-    async init(sid, level, protocol) {
-      await call(runStub(sid), '/init', post({ sid, level, protocol }));
+    async init(sid, seed, protocol) {
+      await call(runStub(sid), '/init', post({ sid, seed, protocol }));
     },
     async append(sid, choice) {
       const data = await call(runStub(sid), '/append', post({ sid, choice }));
@@ -86,11 +84,11 @@ export function memoryRunStore(): RunStore {
   const runs = new Map<string, RunRecord>();
   let board: BoardEntry[] = [];
   return {
-    async init(sid, level, protocol) {
+    async init(sid, seed, protocol) {
       if (!runs.has(sid))
         runs.set(sid, {
           sid,
-          level,
+          seed,
           protocol,
           decisions: [],
           status: 'open',
@@ -114,7 +112,13 @@ export function memoryRunStore(): RunStore {
     },
     async submit(entry) {
       board = [...board, entry]
-        .sort((a, b) => b.score - a.score || a.timeMs - b.timeMs)
+        .sort(
+          (a, b) =>
+            b.clearedLevels - a.clearedLevels ||
+            b.score - a.score ||
+            b.served - a.served ||
+            a.at - b.at,
+        )
         .slice(0, MAX_BOARD);
     },
     async board() {

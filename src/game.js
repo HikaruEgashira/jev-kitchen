@@ -15,19 +15,19 @@ import {
   quotaForLevel,
   levelConfig,
   MAX_LEVEL,
-  STOCK_PRICE,
   actor,
   resolveLayout,
-  recommendedStock,
   handoffOption,
   handoff,
 } from './model.js';
 import { createAudio } from './audio.js';
 import { apiFetch } from './api-client.js';
+import { drawApplicants } from './applicants.js';
 import { tickWorld } from './engine.js';
-import { STAFF, nextStaffState, payroll, staffAvailable, nextDuty } from './staff.js';
-import { equipmentState, validateEquipment, quoteEquipment } from './equipment.js';
-import { quoteVitamins, trainingState, validateTraining } from './training.js';
+import { nextShiftParams } from './nextShift.js';
+import { STAFF, nextStaffState, staffAvailable } from './staff.js';
+import { equipmentState, validateEquipment } from './equipment.js';
+import { trainingState, validateTraining } from './training.js';
 
 const BEST_KEY = 'sidekick-best-v2';
 export const CHECKPOINT_KEY = 'sidekick-campaign-v1';
@@ -356,6 +356,12 @@ const state = useKitchen.getState;
 const update = useKitchen.setState;
 let shiftSnapshot = null;
 let frozenApplicants = null;
+let applicantsRandom = null;
+
+/** Ranked runs seed the applicant draw so the server replays the same hires. */
+export function setApplicantsRandom(random) {
+  applicantsRandom = typeof random === 'function' ? random : null;
+}
 
 function playSound(kind) {
   if (!state().sound) return;
@@ -401,22 +407,6 @@ function snapshot(g) {
     training: trainingState(g.training),
     layout: { ...g.layout },
   };
-}
-
-function drawApplicants(hired) {
-  const pool = Object.keys(STAFF).filter(
-    (id) => id !== 'helper' && id !== 'veteran' && !hired.includes(id),
-  );
-  for (let index = pool.length - 1; index > 0; index--) {
-    const swap = Math.floor(Math.random() * (index + 1));
-    [pool[index], pool[swap]] = [pool[swap], pool[index]];
-  }
-  if (!hired.includes('veteran') && Math.random() < 0.01) pool.unshift('veteran');
-  const applicants = pool.slice(0, 3);
-  // Offer the affordable first cook, then the reserve, without a lucky draw.
-  const cook = ['chef', 'sous'].find((id) => pool.includes(id));
-  if (cook && !applicants.includes(cook)) applicants[applicants.length - 1] = cook;
-  return applicants;
 }
 
 function record(who, result) {
@@ -636,81 +626,23 @@ export function nextShift(
   )
     return false;
   const g = current.game;
-  const currentLevel = Math.floor(Number(g.level) || 1);
-  if (currentLevel >= MAX_LEVEL) return false;
-  const nextLevel = currentLevel + 1;
   const applicants = Array.isArray(current.applicants) ? current.applicants : [];
   const previous = shiftSnapshot ? normalizeRollbackEntry(shiftSnapshot) : null;
   const rollback = {
     preparation: { snapshot: snapshot(g), applicants },
     previous: previous ? { snapshot: previous.snapshot, applicants } : null,
   };
-  const selected =
-    applicantId === null
-      ? null
-      : typeof applicantId === 'string' &&
-          Object.hasOwn(STAFF, applicantId) &&
-          applicants.includes(applicantId)
-        ? STAFF[applicantId]
-        : null;
-  if (applicantId !== null && !selected) return false;
-  const stock = Number.isFinite(g.stock) ? Math.max(0, Math.floor(g.stock)) : 0;
-  const requiredStock = quotaForLevel(nextLevel);
-  const purchased = buyStock === undefined ? recommendedStock(g) : buyStock;
-  if (!Number.isInteger(purchased) || purchased < 0 || purchased > 99) return false;
-  if (stock + purchased < requiredStock) return false;
-  const hiringCost = selected ? Math.max(0, Number(selected.cost) || 0) : 0;
-  const cash = Number.isFinite(g.cash) ? g.cash : 0;
-  const staffState = nextStaffState(g);
-  const hired = Object.keys(staffState);
-  if (selected && hired.includes(applicantId)) return false;
-  if (selected && !hired.includes(applicantId)) hired.push(applicantId);
-  if (selected) staffState[applicantId] = { worked: 0, rest: 0 };
-  const staffSlots = levelConfig(nextLevel).staffSlots;
-  const availableDuty = nextDuty(g);
-  const duty =
-    assignedDuty ??
-    (selected && (!Number.isSafeInteger(staffSlots) || availableDuty.length < staffSlots)
-      ? [...availableDuty, applicantId]
-      : availableDuty);
-  if (
-    !Array.isArray(duty) ||
-    (levelConfig(nextLevel).partner &&
-      (duty.length !== 1 || duty[0] !== levelConfig(nextLevel).partner)) ||
-    new Set(duty).size !== duty.length ||
-    (Number.isSafeInteger(staffSlots) && duty.length > staffSlots) ||
-    !duty.every(
-      (id) => typeof id === 'string' && hired.includes(id) && staffAvailable(staffState, id),
-    )
-  )
-    return false;
-  const investment = quoteEquipment(g.equipment, equipmentPurchases, nextLevel);
-  if (investment.error) return false;
-  const nextLayout = resolveLayout(
-    { level: nextLevel, equipment: investment.equipment },
-    layout === undefined ? g.layout : layout,
-  );
-  if (!nextLayout) return false;
-  const retainedTraining = Object.fromEntries(
-    Object.entries(g.training).filter(([id]) => id === 'human' || hired.includes(id)),
-  );
-  const vitaminQuote = quoteVitamins(retainedTraining, vitamins, ['human', ...hired]);
-  if (vitaminQuote.error) return false;
-  const total =
-    hiringCost + purchased * STOCK_PRICE + payroll(duty) + investment.cost + vitaminQuote.cost;
-  if (total > cash) return false;
-  beginShift({
-    level: nextLevel,
-    cash: cash - total,
-    stock: stock + purchased,
-    duty,
-    staffState,
-    hired,
-    equipment: investment.equipment,
-    training: vitaminQuote.training,
-    layout: nextLayout,
-    rollback,
+  const params = nextShiftParams(g, {
+    applicants,
+    applicantId,
+    buyStock,
+    assignedDuty,
+    equipmentPurchases,
+    layout,
+    vitamins,
   });
+  if (!params) return false;
+  beginShift({ ...params, rollback });
   return true;
 }
 
@@ -1050,7 +982,7 @@ function finishShift() {
     cleared && !campaignComplete && g.level >= 3
       ? frozenApplicants
         ? [...frozenApplicants]
-        : drawApplicants(Object.keys(nextStaffState(g)))
+        : drawApplicants(Object.keys(nextStaffState(g)), applicantsRandom ?? undefined)
       : [];
   const checkpoint = campaignComplete
     ? writeCheckpoint(shiftSnapshot ?? snapshot(g), true)

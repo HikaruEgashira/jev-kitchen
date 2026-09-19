@@ -68,18 +68,20 @@ Cloudflare Access を外して一般公開する前提の、Worker API の境界
 | 503    | `TICKET_SECRET` 未設定（課金ルートを閉じている） |
 | 502    | 上流の失敗・timeout（本文は秘匿）                |
 
-## ランキング基盤（B: リプレイ検証。実装済み）
+## ランキング基盤（リプレイ検証。実装済み）
 
 ### 検証モデル
 
-順位の単位は **1営業（ranked shift）**。固定シナリオ（`src/replay.js` の `rankedScenario`。乱数なし）で、
-サーバが発行した意思決定IDの列をサーバが再実行し、スコアを再計算する。クライアントはスコアも決定列も提出しない。
+ランキング対象は**ベンチのフルキャンペーン**。サーバが発行した意思決定IDの列を、セッションの `seed` とともに
+サーバが `runReplayCampaign`（`src/replay.js`）で再実行し、到達レベル・クリア数・合計スコアを再計算する。
+クライアントはスコアも決定列も提出しない。検証は**提出時（`/api/runs/finish`）に自動**で行い、ユーザー操作を要求しない。
 
-- リプレイは本編と同じ `tickWorld`（`src/engine.js`）を通る。抽出により本編とリプレイの乖離を防ぐ。
-  `test/replay.test.mjs` が実プレイ（store駆動）と `runReplayShift` の結果一致を検証する。
+- リプレイは本編と同じ `tickWorld`（`src/engine.js`）と、シフト遷移の `nextShiftParams`（`src/nextShift.js`）を通る。
+  応募者の抽選は `seed` から決定論的に生成する（`src/applicants.js`）。クライアントも同じ seed で抽選する。
 - パートナーは固定ルール（`rulePick`）で、モデル入力はプレイヤーの意思決定だけ。
-- 決定列はサーバが保持する（`GameStore`）。クライアントは分岐・取捨できない。手元のローカルスコアは順位に使わない。
-- `frequency` は端末側の呼び出し間隔であり順位に影響しない（リプレイは決定列だけを再実行する）。
+- 決定列はサーバが保持する（`GameStore`）。クライアントは分岐・取捨できない。
+- `frequency` は端末側の呼び出し間隔であり順位に影響しない。
+- リプレイは固定60Hzで再実行する。実プレイは可変フレームのため、表示スコアと検証スコアは一致しない。順位は検証スコアを使う。
 
 ### エンドポイント
 
@@ -88,10 +90,11 @@ Cloudflare Access を外して一般公開する前提の、Worker API の境界
 | POST   | `/api/runs/finish` | bench  | 保存済み決定列を再実行し、検証済みスコアを確定する |
 | GET    | `/api/leaderboard` | 不要   | 検証済み上位20件を返す                             |
 
-`POST /api/session`（mode `bench`）が run を作成し、`ranked: { protocol, level }` を返す。
+`POST /api/session`（mode `bench`）が run を作成し、`ranked: { protocol }` を返す。
 `/api/bench/decide` はモデルの選択を返すたびに、その run へ順序つきで記録する。
-`/api/runs/finish` は run を閉じ、決定列を `runReplayShift` で再実行して `GET /api/leaderboard` へ載せる。
+`/api/runs/finish` は run を閉じ、決定列を `runReplayCampaign` で再実行して `GET /api/leaderboard` へ載せる。
 `protocol` 不一致の run は409で拒否する（配信をまたいだ run を混ぜない）。
+Bench画面は run 終了時に `submitRun` を自動で呼ぶ。ユーザーに検証操作は求めない。
 
 ### 保存
 
@@ -100,9 +103,9 @@ Cloudflare Durable Object `GameStore`（`wrangler.jsonc` の `RUNS`）。run ご
 
 ### 意図的な範囲
 
-- 1営業のみ。順位は専用の「検証ラン（1営業）」（`runRankedShift`）だけを対象とし、フルキャンペーンの`runBenchmark`は含めない。
-  シフト間の準備（採用・勤務・仕入れ・投資）を足す場合は、決定列に準備行動（`hire_*`/`crew_*`/`stock_*`/`equipment_*`/`vitamin_*`/`open_shift`）を記録して `nextShift` を再実行する。
-- リプレイは `MAX_REPLAY_STEPS`（60Hz×5分）で有界。長時間runでもサーバCPUは線形で抑えられる。
+- キャンペーン全体（複数シフトと準備）を対象とする。準備行動（`hire_*`/`crew_*`/`stock_*`/`equipment_*`/`vitamin_*`/`open_shift`）も決定列に含めて再実行する。
+- リプレイは `MAX_REPLAY_STEPS`（60Hz×5分/シフト）で有界。長時間runでもサーバCPUは線形で抑えられる。
+- 決定列が尽きたrun、protocol不一致、準備の循環は `truncated` として登録し、クリア数とスコアで下位に扱う。
 
 ### 追加で必要な防御（ランキング本格運用まで）
 

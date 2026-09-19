@@ -3,7 +3,7 @@ import test from 'node:test';
 import worker, { GameStore } from '../src/worker.ts';
 import { signTicket } from '../src/session.ts';
 import { memoryRunStore } from '../src/run-store.ts';
-import { runReplayShift, RANKED_PROTOCOL } from '../src/replay.js';
+import { runReplayCampaign, RANKED_PROTOCOL } from '../src/replay.js';
 
 // Node strips the TypeScript in src/worker.ts, so the real handler runs here.
 // env.AI is a stub: this checks our validation and forwarding, not Jev itself.
@@ -570,21 +570,18 @@ test('rate limits fail closed and never reach the model', async () => {
 test('verified runs replay the server-issued chain and rank it', async () => {
   const store = memoryRunStore();
   const envWithStore = { ...env(), RUN_STORE: store };
-  await store.init(benchSid, 1, RANKED_PROTOCOL);
-  for (const id of ['fetch_tomato', 'chop', 'fetch_plate', 'plate', 'serve']) {
-    await store.append(benchSid, id);
-  }
+  const decisions = ['fetch_tomato', 'chop', 'fetch_plate', 'plate', 'serve'];
+  await store.init(benchSid, 42, RANKED_PROTOCOL);
+  for (const id of decisions) await store.append(benchSid, id);
   const response = await worker.fetch(post('/api/runs/finish', {}), envWithStore);
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.equal(body.ok, true);
-  assert.equal(body.decisions, 5);
-  const expected = runReplayShift({
-    level: 1,
-    decisions: ['fetch_tomato', 'chop', 'fetch_plate', 'plate', 'serve'],
-  });
+  assert.equal(body.decisions, decisions.length);
+  const expected = runReplayCampaign({ seed: 42, decisions });
   assert.equal(body.result.score, expected.score);
-  assert.equal(body.result.served, expected.served);
+  assert.equal(body.result.clearedLevels, expected.clearedLevels);
+  assert.equal(body.result.reachedLevel, expected.reachedLevel);
   assert.equal(body.result.protocol, RANKED_PROTOCOL);
 
   const board = await worker.fetch(
@@ -641,8 +638,8 @@ test('the run Durable Object stores per-run chains and one sorted board', async 
           : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
       }),
     );
-  await call('/init', { sid: 'a', level: 1, protocol: RANKED_PROTOCOL });
-  await call('/init', { sid: 'a', level: 1, protocol: RANKED_PROTOCOL });
+  await call('/init', { sid: 'a', seed: 1, protocol: RANKED_PROTOCOL });
+  await call('/init', { sid: 'a', seed: 1, protocol: RANKED_PROTOCOL });
   assert.equal((await (await call('/append', { sid: 'a', choice: 'chop' })).json()).ordinal, 0);
   assert.equal((await (await call('/append', { sid: 'a', choice: 'serve' })).json()).ordinal, 1);
   const finished = await (await call('/finish', { sid: 'a' })).json();
@@ -652,9 +649,9 @@ test('the run Durable Object stores per-run chains and one sorted board', async 
   assert.equal((await call('/append', { sid: 'a', choice: 'serve' })).status, 409);
   const missing = await (await call('/run?sid=missing', undefined, 'GET')).json();
   assert.equal(missing.run, null);
-  await call('/board', { sid: 'a', score: 100, timeMs: 9000, at: 1 });
-  await call('/board', { sid: 'b', score: 250, timeMs: 8000, at: 2 });
-  await call('/board', { sid: 'c', score: 100, timeMs: 7000, at: 3 });
+  await call('/board', { sid: 'a', clearedLevels: 5, score: 100, served: 20, at: 1 });
+  await call('/board', { sid: 'b', clearedLevels: 7, score: 10, served: 30, at: 2 });
+  await call('/board', { sid: 'c', clearedLevels: 5, score: 200, served: 25, at: 3 });
   const board = await (await call('/board', undefined, 'GET')).json();
   assert.deepEqual(
     board.board.map((entry) => entry.sid),

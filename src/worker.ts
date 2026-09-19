@@ -14,7 +14,7 @@ import {
   type RateLimiter,
   type Ticket,
 } from './session.ts';
-import { runReplayShift, RANKED_LEVEL, RANKED_PROTOCOL } from './replay.js';
+import { runReplayCampaign, RANKED_PROTOCOL } from './replay.js';
 import { durableRunStore, type BoardEntry, type RunStore } from './run-store.ts';
 
 export { GameStore } from './game-store.ts';
@@ -311,7 +311,7 @@ async function session(request: Request, env: Env): Promise<Response> {
   };
   if (mode === 'bench') {
     const store = runStore(env);
-    if (store) await store.init(ticket.sid, RANKED_LEVEL, RANKED_PROTOCOL);
+    if (store) await store.init(ticket.sid, ticket.seed, RANKED_PROTOCOL);
   }
   return json({
     ok: true,
@@ -319,7 +319,7 @@ async function session(request: Request, env: Env): Promise<Response> {
     seed: ticket.seed,
     expiresAt: ticket.exp,
     ticket: await signTicket(env.TICKET_SECRET, ticket),
-    ...(mode === 'bench' ? { ranked: { protocol: RANKED_PROTOCOL, level: RANKED_LEVEL } } : {}),
+    ...(mode === 'bench' ? { ranked: { protocol: RANKED_PROTOCOL } } : {}),
   });
 }
 
@@ -406,18 +406,16 @@ async function finishRun(request: Request, env: Env): Promise<Response> {
     run.decisions.some((id) => typeof id !== 'string' || !ACTION_ID.test(id))
   )
     return json({ ok: false, error: 'invalid run log' }, 409);
-  const replayed = runReplayShift({ level: run.level, decisions: run.decisions });
+  const replayed = runReplayCampaign({ seed: run.seed, decisions: run.decisions });
   const entry: BoardEntry = {
     sid: auth.ticket.sid,
-    level: replayed.level,
     protocol: replayed.protocol,
     score: replayed.score,
     served: replayed.served,
-    quota: replayed.quota,
+    clearedLevels: replayed.clearedLevels,
+    reachedLevel: replayed.reachedLevel,
     completed: replayed.completed,
-    timeMs: replayed.timeMs,
-    missed: replayed.missed,
-    burned: replayed.burned,
+    truncated: replayed.truncated || replayed.diverged,
     at: Date.now(),
   };
   await store.submit(entry);
@@ -431,7 +429,6 @@ async function leaderboard(request: Request, env: Env): Promise<Response> {
   return json({
     ok: true,
     protocol: RANKED_PROTOCOL,
-    level: RANKED_LEVEL,
     board: await store.board(),
   });
 }

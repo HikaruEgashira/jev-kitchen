@@ -4,6 +4,7 @@ import {
   startBenchmark,
   benchmarkAction,
   nextShift,
+  setApplicantsRandom,
   togglePause,
   setMenuOpen,
 } from './game.js';
@@ -12,6 +13,7 @@ import {
   buildCandidates,
   buildQuestions,
   cookingAdvice,
+  kitchenHasWork,
   observe,
   MAX_LEVEL,
   STOCK_PRICE,
@@ -20,8 +22,10 @@ import {
   recommendedStock,
   repeatsActions,
 } from './model.js';
+export { kitchenHasWork };
 import { STAFF, nextStaffState, payroll } from './staff.js';
-import { apiFetch } from './api-client.js';
+import { apiFetch, sessionSeed } from './api-client.js';
+import { seededRandom } from './applicants.js';
 import { EQUIPMENT, equipmentCapacity, quoteEquipment } from './equipment.js';
 import { VITAMINS, quoteVitamins } from './training.js';
 import {
@@ -31,7 +35,6 @@ import {
   preparationKey,
   equipmentEffect,
 } from './ui.js';
-import { hasWork, rankedScenario, MAX_REPLAY_STEPS, REPLAY_STEP, RANKED_LEVEL } from './replay.js';
 
 export const BENCH_PROTOCOL = 'jev-bench-v4';
 
@@ -76,18 +79,6 @@ export const useBenchmark = create(() => ({
 }));
 let controller;
 const sleep = () => new Promise((resolve) => setTimeout(resolve, 50));
-
-export function kitchenHasWork(g) {
-  return (
-    g.stock !== 0 ||
-    [g.human, ...Object.values(g.crew)].some(
-      (actor) => actor.carrying && actor.carrying !== 'plate',
-    ) ||
-    activeStationIds(g).some((id) =>
-      ['chopping', 'chopped', 'cooking', 'ready'].includes(g.stations[id].state),
-    )
-  );
-}
 
 // Movement aliases compete with the cooking action they duplicate. Keep every
 // control reachable, but ask for free navigation separately from useful work.
@@ -607,6 +598,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
     const latencies = [];
     let nextCallAt = 0;
     let plan;
+    let applicantSeedSet = false;
     let planningGame;
     let navigating = false;
     const preparationVisits = new Map();
@@ -735,6 +727,14 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
           latencies.push(performance.now() - requestStart);
         }
         session.signal.throwIfAborted();
+        if (!applicantSeedSet) {
+          // Rank verification replays from the server seed, so seed the client
+          // applicant draw once the session exists (never before the first
+          // decision, which would change the synchronous request timing).
+          applicantSeedSet = true;
+          const seed = await sessionSeed('bench').catch(() => undefined);
+          setApplicantsRandom(Number.isFinite(seed) ? seededRandom(seed) : null);
+        }
         const selected = candidates.find(
           ({ id }) => id === data.result?.answers?.next_action?.choice,
         );
@@ -811,6 +811,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
     clearInterval(clock);
     unsubscribe();
     if (controller === session) controller = null;
+    setApplicantsRandom(null);
     useBenchmark.setState({ running: false });
   }
 }
@@ -829,65 +830,4 @@ export function submitRun() {
     .catch(() => {
       /* Ranking is best-effort; the local result still stands. */
     });
-}
-
-/**
- * One fixed ranked shift. The client asks the server for each decision and the
- * server records it; the server later replays that chain at the same cadence
- * (one decision per ready frame), so the verified score matches this render.
- */
-export async function runRankedShift({ model, level = RANKED_LEVEL } = {}) {
-  useKitchen.setState({ ready: true, benchmark: true, mode: 'rule', policy: '', sound: false });
-  startBenchmark();
-  useKitchen.setState({ game: createGame(rankedScenario(level)) });
-  useBenchmark.setState({
-    running: true,
-    verified: null,
-    action: '',
-    log: [],
-    requests: 0,
-    results: [],
-  });
-  const decisions = [];
-  let navigating = false;
-  try {
-    for (let step = 0; step < MAX_REPLAY_STEPS; step++) {
-      const state = useKitchen.getState();
-      if (state.phase !== 'playing') break;
-      const g = state.game;
-      if (!g.human.intent && hasWork(g)) {
-        const candidates = playingCandidates(g, navigating);
-        const payload = {
-          modelId: model.id,
-          ...benchRequest(state, { preparing: false, plan: undefined, candidates, decisions }),
-        };
-        const response = await apiFetch('/api/bench/decide', payload, 'bench', {
-          signal: AbortSignal.timeout(10000),
-        });
-        if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
-        const data = await response.json();
-        const selected = candidates.find(
-          (candidate) => candidate.id === data.result?.answers?.next_action?.choice,
-        );
-        if (!selected) throw new Error('モデルが候補外の行動を返しました');
-        decisions.push(selected.id);
-        useBenchmark.setState((current) => ({
-          requests: current.requests + 1,
-          action: selected.label,
-          log: [...current.log.slice(-200), { call: current.requests + 1, action: selected.label }],
-        }));
-        const applied =
-          selected.id === 'navigate' || selected.id === 'back_to_work'
-            ? selected.id === 'navigate'
-            : benchmarkAction(selected);
-        if (selected.id !== 'back_to_work') navigating = selected.id === 'navigate';
-        if (!applied) continue;
-      }
-      tick(REPLAY_STEP);
-    }
-  } finally {
-    if (useKitchen.getState().phase === 'playing') togglePause();
-    useBenchmark.setState({ running: false });
-  }
-  await submitRun();
 }
