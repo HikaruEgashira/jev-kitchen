@@ -87,7 +87,10 @@ pnpm deploy                                        # wrangler deploy
 ## セキュリティ
 
 - `workers_dev` を無効化しているため、公開されるのは `jev-kitchen.egahika.dev` のみ。
-  そこは Cloudflare Access で `access_owner_email` だけが許可される（egahika.dev repo 側で定義）。
+  そこは Cloudflare Access で Cloudflare アカウントのメンバーだけが許可される
+  （`type = "cloudflare"` の IdP + `login_method`、egahika.dev repo 側で定義）。
+- **アクセス制限は既存 IdP の "Restrict to account members" に依存する。** これを OFF にすると
+  Cloudflare アカウントを持つ誰でもログインできる。Zero Trust → Identity providers で確認すること。
 - **`/api/decide` は呼ばれた分だけ TypeSafe の利用枠を消費する。** Access を有効にする前に
   `TYPESAFE_API_KEY` を本番へ入れると、URL を知っている第三者が枠を燃やせる。
 - アプリ層: `state` の型/長さ、`questions` の形（型・1..8問・choice 2..255・score 2..10）を検証して
@@ -112,9 +115,11 @@ HUD には「相棒の行動」「判断に使った状態の時刻」「鮮度�
 
 - `pnpm test` 12件 / `pnpm typecheck` / `wrangler deploy --dry-run`
 - TypeSafe 直API の実呼び出し（日本から 温 0.43s / 初回 1.2s。`model` フィールド必須）
-- egahika.dev の Terraform apply で custom domain と Access を作成（`Plan: 3 to add`）
+- egahika.dev の Terraform apply で custom domain と Access を作成（Cloudflare provider v5）
 - Access が実際に効いていること: `https://jev-kitchen.egahika.dev/` と `/api/decide` が未ログインで
-  302 → `0xhikae.cloudflareaccess.com` に飛ぶ。`https://jev-kitchen.hikae.workers.dev/` は 404（workers_dev 無効）
+  302 → `0xhikae.cloudflareaccess.com` に飛び、ログイン画面は
+  `Sign in with: Cloudflare ・ Cloudflare account members`（メール OTP は出ない）。
+  `https://jev-kitchen.hikae.workers.dev/` は 404（workers_dev 無効）
 
 未検証:
 
@@ -125,10 +130,9 @@ HUD には「相棒の行動」「判断に使った状態の時刻」「鮮度�
 
 ## 技術負債メモ
 
-- `.env` / `.env.keys` は dotenvx で暗号化されているが、`.env` は git 管理外なので暗号化の意味がなく、
-  wrangler は復号しないため `encrypted:...` をそのまま渡して壊れていた。`.dev.vars` に一本化済み。
-  `.env` / `.env.keys` は削除してよい（dotenvx を使う予定が無ければ）。
-- `.gitignore` はこの repo に terraform を持たない前提。Cloudflare リソースは egahika.dev 側。
+- `.env` / `.env.keys`（旧 TypeSafe 直API 案の dotenvx 暗号化ファイル）は削除した。秘密は `.dev.vars` と
+  `wrangler secret` に一本化。
 - `.github/workflows/test.yml` の actions はタグ参照。egahika.dev は SHA 固定なので、安定後に揃える。
 - デプロイが手元実行なので、main と本番が一致しない時間帯がある。デプロイ忘れは CI では検知できない。
 - 比較用LLMは `state` を JSON で詰める素朴なプロンプト。Jev と同じ情報を渡す最小構成で、プロンプト最適化はしていない。
+- Worker 側で Access JWT を検証していない（エッジで弾かれるため必須ではない）。レート制限も未設定。
