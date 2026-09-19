@@ -49,7 +49,7 @@ test('stage picker pages all saved stages and mobile buttons have matching 3D ic
 });
 import { activeStationIds, createGame, layoutSlots, STATIONS } from '../src/model.js';
 import { useKitchen, TUTORIAL_STEPS } from '../src/game.js';
-import { benchRequest } from '../src/benchmark.js';
+import { benchRequest, preparationCandidates } from '../src/benchmark.js';
 import {
   compactControls,
   preparation,
@@ -59,6 +59,34 @@ import {
   preparationAdvice,
   editPreparation,
 } from '../src/ui.js';
+
+test('hiring previews share the remaining stock and payroll budget with Jev', () => {
+  const game = createGame({
+    level: 4,
+    cash: 200,
+    stock: 5,
+    hired: ['helper', 'chef'],
+    duty: ['chef'],
+  });
+  const state = {
+    ...useKitchen.getState(),
+    game,
+    phase: 'finished',
+    cleared: true,
+    applicants: ['runner'],
+    menuOpen: false,
+  };
+  const view = { ...preparation(game), page: 1, stage: 'hiring' };
+  const balance = purchase(game, { ...view, selected: 'runner' }).cash;
+  assert.ok(balance < 0, 'legal hiring can require changes to stock or duty');
+  const preview = screen(state, view, 390, 844).items.find(
+    (i) => i.id === 'applicant-details',
+  ).text;
+  const candidate = preparationCandidates(state, view).find((c) => c.id === 'hire_runner');
+  assert.ok(preview.includes(`予定残金 ${balance}`));
+  assert.ok(candidate.label.includes(`予定残金${balance}コイン`));
+  assert.ok(preparationCandidates(state, view).some((c) => c.id === 'skip_hiring'));
+});
 
 test('current order recipes are readable in the human hints and the bench context', () => {
   const game = createGame({ level: 7, stock: 12 });

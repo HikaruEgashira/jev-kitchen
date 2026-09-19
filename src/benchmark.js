@@ -101,12 +101,18 @@ export function preparationCandidates(state, plan) {
       selected: null,
     });
   for (const id of state.applicants) {
-    if (id !== plan.selected)
+    if (id !== plan.selected) {
+      const quote = purchase(g, {
+        ...plan,
+        selected: id,
+        duty: duty.filter((id) => id !== plan.selected),
+      });
       candidates.push({
         id: `hire_${id}`,
-        label: `${STAFF[id].name}を採用予定にする（${STAFF[id].cost}コイン）`,
+        label: `${STAFF[id].name}を採用予定にする（採用${STAFF[id].cost}・今の仕入れと配置で予定残金${quote.cash}コイン）`,
         selected: id,
       });
+    }
   }
   for (const id of Object.keys(available)) {
     if (levelConfig(g.level + 1).partner) continue;
@@ -463,7 +469,7 @@ export function benchRequest(
     questions: buildQuestions(candidates, 'human'),
   };
   const context = compactDecisionState(request.state);
-  if (preparing)
+  if (preparing && plan.stage === 'investment')
     request.questions.next_action.instructions =
       'You control the HUMAN player in a cooking campaign. Choose one action that improves the chance of clearing this and later shifts. Each shift requires serving the quota before time runs out. Cash and upgrades carry over.';
   // One bounded history replaces duplicate actor and preparation logs.

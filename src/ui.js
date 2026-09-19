@@ -1030,7 +1030,15 @@ export function screen(s, view, width, height) {
         const rowH = short ? 14 : narrow ? 19 : 24;
         const barH = short ? 8 : narrow ? 12 : 14;
         const dash = staff.canDash ? '  ・  ダッシュ' : '';
-        const cost = `採用 ${staff.cost}  ・  給与 ${staff.wage ?? 0}/営業  ・  お財布 ${g.cash}${dash}`;
+        const hiring =
+          view.selected === id
+            ? bill
+            : purchase(g, {
+                ...view,
+                selected: id,
+                duty: view.duty.filter((member) => member !== view.selected),
+              });
+        const cost = `採用 ${staff.cost}  ・  給与 ${staff.wage ?? 0}/営業  ・  予定残金 ${hiring.cash}${dash}`;
         add('avatar', 'applicant-avatar', '', x + 16, top, avatarW, avatarW, {
           color: staff.color,
           label: `${staff.name}の立ち姿`,
