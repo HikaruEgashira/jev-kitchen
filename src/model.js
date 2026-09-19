@@ -279,6 +279,17 @@ export function kitchenBounds(g = {}) {
   };
 }
 
+export const kitchenExpansion = (game) =>
+  Math.min(3, Math.max(1, Math.floor(Number(game.equipment?.kitchen?.level) || 1)));
+
+// The room shell spans wider than the station bounds. Framing and the Room mesh
+// share this so the camera centers on what the player actually sees.
+export function roomShell(tier, expansion) {
+  const baseRight = tier === 1 ? 7.1 : tier === 2 ? 9.1 : 13.1;
+  const right = baseRight + 2 * Math.max(0, expansion - 1);
+  return { right, width: right + 7.1, center: (right - 7.1) / 2 };
+}
+
 function slotInBounds(slot, bounds) {
   return (
     slot.x >= bounds.minX && slot.x <= bounds.maxX && slot.y >= bounds.minY && slot.y <= bounds.maxY

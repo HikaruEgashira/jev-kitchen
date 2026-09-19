@@ -51,9 +51,15 @@ export function Plaque({
   color = PAPER,
   edge = WOOD,
   order = 1000,
+  progress = null,
+  progressColor = INK,
+  progressOpacity = 0.34,
   children,
   ...events
 }) {
+  const innerWidth = width - 4;
+  const innerHeight = height - 5;
+  const fill = progress == null ? 0 : innerHeight * Math.min(1, Math.max(0, progress));
   return (
     <group {...events}>
       <RoundedBox
@@ -71,7 +77,7 @@ export function Plaque({
         />
       </RoundedBox>
       <RoundedBox
-        args={[width - 4, height - 5, 4]}
+        args={[innerWidth, innerHeight, 4]}
         position={[0, 2, 3]}
         radius={Math.min(6, height / 5)}
         smoothness={2}
@@ -85,6 +91,24 @@ export function Plaque({
           toneMapped={false}
         />
       </RoundedBox>
+      {fill > 0.5 && (
+        <RoundedBox
+          args={[innerWidth, fill, 4]}
+          position={[0, 2 - (innerHeight - fill) / 2, 4]}
+          radius={Math.min(6, fill / 2)}
+          smoothness={2}
+          renderOrder={order + 1}
+        >
+          <meshBasicMaterial
+            color={progressColor}
+            transparent
+            opacity={progressOpacity}
+            depthTest={false}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </RoundedBox>
+      )}
       <group position={[0, 2, 6]}>{children}</group>
     </group>
   );
@@ -145,6 +169,9 @@ export function WorldLabel({
           height={labelHeight}
           color={color}
           edge={danger ? '#ba443c' : WOOD}
+          progress={progress}
+          progressColor={danger ? '#ba443c' : INK}
+          progressOpacity={danger ? 0.42 : 0.34}
           onClick={onClick}
         >
           <Lettering
@@ -153,22 +180,6 @@ export function WorldLabel({
             height={labelHeight - 4}
             size={narrow ? 11 : 12}
           />
-          {progress != null && (
-            <mesh
-              position={[(-(labelWidth - 12) * (1 - progress)) / 2, -labelHeight / 2 + 5, 1]}
-              renderOrder={1003}
-              raycast={() => null}
-            >
-              <planeGeometry args={[Math.max(0.1, (labelWidth - 12) * progress), 4]} />
-              <meshBasicMaterial
-                color={danger ? '#ba443c' : INK}
-                transparent
-                depthTest={false}
-                depthWrite={false}
-                toneMapped={false}
-              />
-            </mesh>
-          )}
         </Plaque>
       </ScreenSizer>
     </Billboard>

@@ -12,7 +12,9 @@ import {
   BOOST_MAX,
   burnGraceMs,
   activeStationIds,
+  kitchenExpansion,
   levelConfig,
+  roomShell,
   stationInfo,
   stationKind,
 } from './model.js';
@@ -23,8 +25,6 @@ const world = (x, y, height = 0) => [(x - 450) / 65, height, (y - 270) / 65];
 const FLOOR_ROWS = 8;
 const FLOOR_COLUMNS = Object.freeze({ 1: 14, 2: 16, 3: 20 });
 const FLOOR_MAX_TILES = FLOOR_ROWS * (FLOOR_COLUMNS[3] + 2 * 2);
-const kitchenExpansion = (game) =>
-  Math.min(3, Math.max(1, Math.floor(Number(game.equipment?.kitchen?.level) || 1)));
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const palette = {
   mint: '#76b59b',
@@ -107,10 +107,7 @@ function Entrance({ timeline, delay = 0, children }) {
 }
 
 const Room = memo(function Room({ level, expansion, timeline }) {
-  const baseRight = level === 1 ? 7.1 : level === 2 ? 9.1 : 13.1;
-  const right = baseRight + 2 * Math.max(0, expansion - 1);
-  const width = right + 7.1;
-  const center = (right - 7.1) / 2;
+  const { right, width, center } = roomShell(level, expansion);
   const parts = [
     <group key="floor">
       <Block size={[width, 0.4, 8.8]} position={[center, -0.26, 0]} radius={0.16} color="#94b7a0" />
@@ -518,7 +515,7 @@ function Station({ id }) {
                   ? '#f4cd75'
                   : palette.white
         }
-        progress={working ? progress : ready ? burnWindow : null}
+        progress={working ? progress : ready && burnWindow !== null ? 1 - burnWindow : null}
         danger={danger}
         onClick={pick}
       />
