@@ -7,6 +7,7 @@ import {
   setPolicy,
   togglePause,
   setMenuOpen,
+  setMenuPage,
   setCameraMode,
   setMovementMode,
   togglePauseWhenAway,
@@ -42,6 +43,7 @@ test.beforeEach(() => {
     ready: true,
     phase: 'ready',
     menuOpen: false,
+    menuPage: null,
     cameraMode: 'auto',
     movementMode: 'grid',
     pauseWhenAway: false,
@@ -66,6 +68,19 @@ test('camera settings preserve the shift and do not resume a paused menu', () =>
   assert.equal(useKitchen.getState().phase, 'paused');
   setCameraMode('auto');
   assert.equal(useKitchen.getState().cameraMode, 'auto');
+});
+
+test('reopening the menu starts at the first page', () => {
+  setMenuOpen(true);
+  setMenuPage('controls');
+  assert.equal(useKitchen.getState().menuPage, 'controls');
+  setMenuOpen(false);
+  setMenuOpen(true);
+  assert.equal(useKitchen.getState().menuPage, null);
+  setMenuPage('diagnostics');
+  assert.equal(useKitchen.getState().menuPage, 'diagnostics');
+  setMenuPage('nonsense');
+  assert.equal(useKitchen.getState().menuPage, 'diagnostics');
 });
 
 test('keyboard movement keeps equal speed in screen and grid modes', () => {

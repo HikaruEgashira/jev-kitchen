@@ -54,8 +54,8 @@ test('every sheet keeps distinct, reachable 44px controls in portrait and landsc
         for (const menuPage of [null, 'settings', 'controls', 'help', 'diagnostics']) {
           for (const page of [0, 1, 2]) {
             const ui = screen(
-              { ...base, phase, cleared, menuOpen: menuPage !== null },
-              { ...preparation(game), page, menuPage },
+              { ...base, phase, cleared, menuOpen: menuPage !== null, menuPage },
+              { ...preparation(game), page },
               width,
               height,
             );
@@ -110,11 +110,12 @@ test('camera settings expose the three modes as Three UI controls with matching 
     const s = {
       ...useKitchen.getState(),
       menuOpen: true,
+      menuPage: 'controls',
       phase: 'paused',
       cameraMode: mode,
       movementMode: 'grid',
     };
-    const ui = screen(s, { ...preparation(s.game), menuPage: 'controls' }, 320, 568);
+    const ui = screen(s, preparation(s.game), 320, 568);
     const controls = ui.items.filter((item) => item.action === 'camera');
     assert.deepEqual(
       controls.map((item) => item.value),
@@ -138,16 +139,29 @@ test('camera settings expose the three modes as Three UI controls with matching 
   }
 });
 
-test('the menu exposes the away-pause toggle and reflects its state', () => {
+test('operation settings expose the away-pause toggle and reflect its state', () => {
   for (const pauseWhenAway of [false, true]) {
-    const s = { ...useKitchen.getState(), menuOpen: true, phase: 'paused', pauseWhenAway };
-    const ui = screen(s, { ...preparation(s.game), menuPage: 'settings' }, 320, 568);
+    const s = {
+      ...useKitchen.getState(),
+      menuOpen: true,
+      menuPage: 'controls',
+      phase: 'paused',
+      pauseWhenAway,
+    };
+    const ui = screen(s, preparation(s.game), 320, 568);
     const toggle = ui.items.find((item) => item.action === 'away-pause');
     assert.ok(toggle);
     assert.equal(toggle.pressed, pauseWhenAway);
     assert.match(toggle.text, pauseWhenAway ? /オン/ : /オフ/);
     assert.ok([...toggle.text].length * toggle.size <= toggle.w - 8);
   }
+  const settings = screen(
+    { ...useKitchen.getState(), menuOpen: true, menuPage: 'settings', phase: 'paused' },
+    preparation(useKitchen.getState().game),
+    320,
+    568,
+  );
+  assert.ok(!settings.items.some((item) => item.action === 'away-pause'));
 });
 
 test('preparation screen exposes multi-person duty selection and fatigue status', () => {

@@ -15,6 +15,7 @@ import {
   retryShift,
   togglePause,
   setMenuOpen,
+  setMenuPage,
   setCameraMode,
   setMovementMode,
   rollbackToPreparation,
@@ -228,7 +229,7 @@ function Screen() {
         setMovementMode(value);
         break;
       case 'menu-page':
-        patch({ menuPage: value });
+        setMenuPage(value);
         break;
       case 'interact':
         humanInteract();
@@ -338,7 +339,7 @@ function Screen() {
         </ScreenSizer>
       </ScreenSpace>
       <DomBridge>
-        <Semantics ui={ui} semantic={semantic} page={view.menuPage} ready={s.ready}>
+        <Semantics ui={ui} semantic={semantic} page={s.menuPage} ready={s.ready}>
           {ui.items
             .filter((item) => !item.inert)
             .map((item) => {

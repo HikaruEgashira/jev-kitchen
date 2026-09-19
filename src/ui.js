@@ -351,15 +351,15 @@ export function screen(s, view, width, height) {
     });
   if (s.menuOpen) {
     title(
-      view.menuPage === 'help'
+      s.menuPage === 'help'
         ? 'キッチンの手引き'
-        : view.menuPage === 'controls'
+        : s.menuPage === 'controls'
           ? '操作設定'
-          : view.menuPage === 'diagnostics'
+          : s.menuPage === 'diagnostics'
             ? '診断情報'
             : 'ひと休み',
     );
-    const page = view.menuPage ?? 'settings';
+    const page = s.menuPage ?? 'settings';
     if (page === 'controls') {
       const bw = (inside - 16) / 3;
       label('camera-heading', 'カメラ', x + 16, y + 54, inside, 20, {
@@ -394,9 +394,24 @@ export function screen(s, view, width, height) {
           label: `移動：${text}`,
         }),
       );
-      button('back', '設定に戻る', x + 16, footerY - 54, inside, 'menu-page', {
+      const fw = (inside - 8) / 2;
+      button('back', '設定に戻る', x + 16, footerY - 54, fw, 'menu-page', {
         value: 'settings',
+        size: 13,
       });
+      button(
+        'away-pause',
+        s.pauseWhenAway ? '裏画面で停止：オン' : '裏画面で停止：オフ',
+        x + 24 + fw,
+        footerY - 54,
+        fw,
+        'away-pause',
+        {
+          pressed: s.pauseWhenAway,
+          size: 13,
+          label: '他の画面に切り替えたときに一時停止する',
+        },
+      );
     } else if (page === 'help') {
       copy(
         'help',
@@ -429,24 +444,10 @@ export function screen(s, view, width, height) {
       });
       button('benchmark', 'jev-bench', x + 24 + bw, footerY - 54, bw, 'link', { href: '/bench' });
     } else {
-      const bw = (inside - 8) / 2;
-      button('sound', s.sound ? '音オン' : '音オフ', x + 16, y + 64, bw, 'sound', {
+      button('sound', s.sound ? '音オン' : '音オフ', x + 16, y + 64, inside, 'sound', {
         pressed: s.sound,
         size: 13,
       });
-      button(
-        'away-pause',
-        s.pauseWhenAway ? '裏画面で停止：オン' : '裏画面で停止：オフ',
-        x + 24 + bw,
-        y + 64,
-        bw,
-        'away-pause',
-        {
-          pressed: s.pauseWhenAway,
-          size: 13,
-          label: '他の画面に切り替えたときに一時停止する',
-        },
-      );
       const nav = (inside - 16) / 3;
       button('controls', '操作設定', x + 16, y + 116, nav, 'menu-page', {
         value: 'controls',

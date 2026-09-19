@@ -183,6 +183,7 @@ export const useKitchen = create(() => ({
   backend: '準備中',
   ready: false,
   menuOpen: false,
+  menuPage: null,
   cameraMode: 'auto',
   movementMode: 'grid',
   sound: true,
@@ -456,7 +457,14 @@ export function setMenuOpen(open) {
   if (open && state().phase === 'playing') togglePause();
   keys.clear();
   target = null;
-  update({ menuOpen: Boolean(open) });
+  // Reopening the menu always starts at the first page.
+  update({ menuOpen: Boolean(open), ...(open ? { menuPage: null } : {}) });
+}
+
+const MENU_PAGES = new Set(['settings', 'help', 'controls', 'diagnostics']);
+
+export function setMenuPage(menuPage) {
+  if (menuPage === null || MENU_PAGES.has(menuPage)) update({ menuPage });
 }
 
 export function setCameraMode(cameraMode) {
