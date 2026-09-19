@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { activeStationIds, createGame, layoutSlots, STATIONS } from '../src/model.js';
 import { useKitchen, TUTORIAL_STEPS } from '../src/game.js';
-import { compactControls, preparation, purchase, screen } from '../src/ui.js';
+import { compactControls, preparation, purchase, screen, screenContext } from '../src/ui.js';
 import { STAFF } from '../src/staff.js';
 
 test('title screen contains no playing HUD, orders, stock or staff', () => {
@@ -463,4 +463,28 @@ test('candidate adoption uses a themed avatar and performance bars instead of ra
   assert.ok(!ui.items.some((item) => (item.text ?? '').includes('速さ ×')));
   const roster = screen(state, { ...preparation(game), page: 2, selected: 'chef' }, 1440, 900);
   assert.equal(roster.items.find((item) => item.id === 'duty-chef').avatar, STAFF.chef.color);
+});
+
+test('preparation hint carries the next quota and pending stock into the model context', () => {
+  const game = createGame({ level: 1, cash: 500 });
+  const state = {
+    ...useKitchen.getState(),
+    game,
+    phase: 'finished',
+    cleared: true,
+    ready: true,
+    applicants: ['chef'],
+  };
+  const view = preparation(game);
+  const ui = screen(state, view, 1440, 900);
+  const hint = ui.items.find((item) => item.id === 'hint');
+  assert.equal(hint.text, ui.status);
+  assert.match(ui.status, /ノルマ6皿/);
+  assert.match(ui.status, /仕入れ予定8個/);
+  assert.match(ui.status, /在庫8個/);
+  assert.equal(screenContext(state, view, 1440, 900).status, ui.status);
+  assert.match(
+    screenContext(state, { ...view, page: 2, quantity: 0 }, 1440, 900).status,
+    /あと6個の仕入れが必要/,
+  );
 });

@@ -117,6 +117,22 @@ export function purchase(g, view) {
   };
 }
 
+// Same role as the in-game action hint: name the next decision and always state
+// the next quota and the pending stock, so the player and the model context can
+// tell whether the plan can open without re-deriving it from the bill.
+export function preparationHint(g, view, bill) {
+  if (view.error) return view.error;
+  if (bill.error) return bill.error;
+  const plan = `次は Lv.${g.level + 1}、ノルマ${bill.quota}皿。仕入れ予定${bill.quantity}個で在庫${bill.stock}個`;
+  if (view.page === 0) return `${plan}。相棒を選ぼう`;
+  if (view.page === 1)
+    return view.selected
+      ? `${plan}。${STAFF[view.selected]?.name ?? '応募者'}を採用予定`
+      : `${plan}。応募者を採用するか、見送って仕入れへ`;
+  if (view.page === 2) return `${plan}。この内容で開店できる`;
+  return `${plan}。設備と配置を確認して開店しよう`;
+}
+
 function layoutSlotOf(layout, id) {
   return typeof layout?.[id] === 'string' ? layout[id] : null;
 }
@@ -660,6 +676,10 @@ export function screen(s, view, width, height) {
         short ? 90 : 116,
         { size: 17 },
       );
+      if (!short)
+        label('hint', preparationHint(g, view, bill), x + 16, footerY - 72, inside, 30, {
+          size: 12,
+        });
       primary('次のステージ', 'page', { value: 1 });
     } else if (view.page === 1) {
       title('候補者の採用');
@@ -837,11 +857,11 @@ export function screen(s, view, width, height) {
           42,
           { size: 12 },
         );
-      if ((bill.error || view.error) && !short)
-        copy('error', view.error || bill.error, short ? stockY + 82 - y : stockY + 102 - y, 26, {
-          color: '#a1372f',
+      if (!short && stockY + 128 <= footerY)
+        label('hint', preparationHint(g, view, bill), x + 16, stockY + 102 - y, inside, 26, {
+          color: bill.error || view.error ? '#a1372f' : undefined,
           size: 12,
-          live: true,
+          live: Boolean(bill.error || view.error),
         });
       const backW = narrow ? 72 : 120;
       const equipmentW = narrow ? 68 : 100;
@@ -1168,11 +1188,11 @@ export function screen(s, view, width, height) {
           28,
           { size: narrow ? 11 : 13, color: bill.error && short ? '#a1372f' : undefined },
         );
-        if (bill.error && !short)
-          copy('equipment-error', bill.error, summaryY + 26 - y, 26, {
-            color: '#a1372f',
+        if (!short && summaryY + 52 <= footerY)
+          label('hint', preparationHint(g, view, bill), x + 16, summaryY + 26 - y, inside, 26, {
+            color: bill.error ? '#a1372f' : undefined,
             size: 12,
-            live: true,
+            live: Boolean(bill.error),
           });
       }
     }
@@ -1189,7 +1209,10 @@ export function screen(s, view, width, height) {
     items,
     modal,
     title: items.find((i) => i.id === 'title').text,
-    status: view.error || (view.page >= 2 && s.cleared ? purchase(g, view).error : ''),
+    status:
+      s.cleared && !s.menuOpen && s.phase === 'finished' && !s.campaignComplete
+        ? preparationHint(g, view, purchase(g, view))
+        : view.error || '',
   };
 }
 
