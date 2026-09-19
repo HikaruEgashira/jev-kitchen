@@ -51,8 +51,10 @@ class FakeAudioContext {
 
   constructor() {
     this.currentTime = 10;
+    this.sampleRate = 8000;
     this.destination = {};
     this.oscillators = [];
+    this.buffers = [];
     this.states = [];
     FakeAudioContext.instances.push(this);
   }
@@ -65,6 +67,17 @@ class FakeAudioContext {
 
   createGain() {
     return new FakeGain();
+  }
+
+  createBuffer(channels, length, sampleRate) {
+    const samples = new Float32Array(length);
+    return { sampleRate, length, getChannelData: () => samples };
+  }
+
+  createBufferSource() {
+    const source = new FakeOscillator();
+    this.buffers.push(source);
+    return source;
   }
 
   resume() {
@@ -103,6 +116,28 @@ test('audio patterns distinguish action, success, and failure', () => {
         [196, 'triangle'],
       ],
     );
+  } finally {
+    globalThis.AudioContext = previous;
+  }
+});
+
+test('clear applause is bounded, ends after three seconds, and obeys mute', () => {
+  const previous = globalThis.AudioContext;
+  globalThis.AudioContext = FakeAudioContext;
+  FakeAudioContext.instances = [];
+  try {
+    const audio = createAudio();
+    assert.equal(audio.play('applause'), true);
+    const source = FakeAudioContext.instances[0].buffers[0];
+    const samples = source.buffer.getChannelData(0);
+    assert.equal(source.buffer.length / source.buffer.sampleRate, 3);
+    assert.ok(samples.some((value) => Math.abs(value) > 0.05));
+    assert.ok(samples.every((value) => Number.isFinite(value) && Math.abs(value) <= 1));
+    assert.deepEqual(source.started, [10]);
+    assert.deepEqual(source.stopped, [13]);
+    audio.setEnabled(false);
+    assert.equal(source.cancelled, 1);
+    assert.equal(audio.play('applause'), false);
   } finally {
     globalThis.AudioContext = previous;
   }

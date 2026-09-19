@@ -1064,7 +1064,8 @@ function finishShift() {
   }
   if (cleared) frozenApplicants = null;
   update({ phase: 'finished', best, cleared, applicants, campaignComplete, checkpoint });
-  playSound('finish');
+  if (cleared) playSound('success');
+  playSound(cleared ? 'applause' : 'finish');
   publish();
 }
 
