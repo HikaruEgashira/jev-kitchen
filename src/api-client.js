@@ -61,6 +61,8 @@ export async function apiFetch(path, body, mode, options = {}) {
   // Keep the cached path synchronous up to `fetch` so a decision that already
   // holds a ticket is issued in the same tick (tests and retry timing rely on it).
   const ticket = readyTicket(mode) ?? (await runTicket(mode, options.signal));
+  // Submission closes this run; the next attempt needs its own decision chain.
+  if (path === '/api/runs/finish') sessions.delete(mode);
   return fetch(path, {
     ...options,
     method: 'POST',
