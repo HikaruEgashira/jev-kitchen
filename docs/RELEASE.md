@@ -4,6 +4,15 @@
 
 MVPを短い協力料理ゲームとして本番公開するための判定台帳である。肩書きや計画ではなく、実行した変更・検証結果・証拠・採否を記録する。
 
+## 2026-09-19 health修正の配信前検証
+
+- 本番mainの`7ec116a`を基準に、Workerと回帰テストだけを変更する。並行中のThree.js置換、厨房登場演出、従業員・シフトの別ブランチは含めず、公開画面を変更しない。
+- `runJev`は共通の通信・エラー検証を担当し、行動判断の投影は`/api/decide`で行う。healthは`answers.ok`のNoul形式を検証し、公開応答は`ok`／`engine`／`via`／`model`／`upstreamMs`に限定する。
+- TypeSafe直APIとWorkers AIの両経路で、実際の応答形式に合わせたstubによる成功、異常値の拒否、answers・usage・非公開metadataの非露出、行動判断の検証維持を確認。実Jev応答と本番確認は別の検証である。
+- 配信用ツリーで`pnpm test`は46 pass／0 fail、`pnpm typecheck`、`pnpm check`（23 files／lint12、警告なし）、`pnpm build`がpass。frozen/offline installもpass。並行開発中の共有ツリーのテスト件数と混同しない。
+- `Kitchen` chunkは1,499.93kB／gzip406.11kB。既知のサイズ警告であり、今回のWorker修正による描画性能の検証を意味しない。
+- mainへのpushでWorkers Buildsから配信する。配信前の100% versionは`b0d3ab8a-30a3-4ffe-a2e9-39d4d784e27d`。復旧時は`pnpm exec wrangler rollback b0d3ab8a-30a3-4ffe-a2e9-39d4d784e27d`を使用する。Cloudflare Accessを解除しない。
+
 ## 出荷判定
 
 | ゲート | 合格条件                                                               | 証拠                                           |

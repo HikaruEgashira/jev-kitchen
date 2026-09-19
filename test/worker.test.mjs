@@ -176,27 +176,102 @@ test('health is GET-only and rejects other methods before billing', async () => 
   assert.equal(calls.length, 0);
 });
 
-test('GET health returns only operational metadata', async () => {
-  calls.length = 0;
-  const response = await worker.fetch(new Request('https://kitchen.test/api/health'), {
-    AI: {
-      async run(model, input) {
-        calls.push({ model, input });
-        return {
-          model: 'jev-1.13.0',
-          details: 'provider metadata is discarded',
-          answers: { next_action: { type: 'choice', choice: 'wait' } },
-        };
+for (const direct of [false, true]) {
+  test(`GET health accepts answers.ok and returns only metadata (${direct ? 'direct' : 'binding'})`, async (t) => {
+    let seen;
+    const raw = {
+      model: 'private provider model',
+      details: 'private provider metadata',
+      usage: { input_tokens: 12 },
+      answers: { ok: { type: 'noul', noul: direct ? 0 : 0.99 } },
+    };
+    const testEnv = {
+      AI: {
+        async run(model, input) {
+          assert.equal(model, 'typesafe/jev');
+          assert.equal(direct, false, 'direct health must not use Workers AI');
+          seen = input;
+          return raw;
+        },
       },
-    },
+    };
+    if (direct) {
+      testEnv.TYPESAFE_API_KEY = 'sk-test';
+      t.mock.method(globalThis, 'fetch', async (_url, init) => {
+        seen = JSON.parse(init.body);
+        return Response.json(raw);
+      });
+    }
+    const response = await worker.fetch(new Request('https://kitchen.test/api/health'), testEnv);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(Object.keys(body).sort(), ['engine', 'model', 'ok', 'upstreamMs', 'via']);
+    assert.equal(body.ok, true);
+    assert.equal(body.engine, 'jev');
+    assert.equal(body.via, direct ? 'typesafe-api' : 'workers-ai');
+    assert.equal(body.model, direct ? 'jev-latest' : 'typesafe/jev');
+    assert.ok(Number.isFinite(body.upstreamMs) && body.upstreamMs >= 0);
+    assert.deepEqual(seen.questions, {
+      ok: { type: 'noul', instructions: 'Is a cook chopping a tomato?' },
+    });
+    assert.doesNotMatch(JSON.stringify(body), /private provider|input_tokens|answers/);
   });
-  assert.equal(response.status, 200);
-  const body = await response.json();
-  assert.equal(body.model, 'typesafe/jev');
-  assert.equal(body.answers, undefined);
-  assert.equal(body.usage, undefined);
-  assert.equal(calls.length, 1);
-});
+
+  test(`health rejects malformed answers.ok (${direct ? 'direct' : 'binding'})`, async (t) => {
+    let raw;
+    const testEnv = { AI: { run: async () => raw } };
+    if (direct) {
+      testEnv.TYPESAFE_API_KEY = 'sk-test';
+      t.mock.method(globalThis, 'fetch', async () => Response.json(raw));
+    }
+    for (const answer of [
+      undefined,
+      null,
+      { type: 'choice', choice: 'wait' },
+      { type: 'noul', noul: '0.9' },
+      { type: 'noul', noul: -0.1 },
+      { type: 'noul', noul: 1.1 },
+    ]) {
+      raw = { answers: { ok: answer }, details: 'private provider metadata' };
+      const response = await worker.fetch(new Request('https://kitchen.test/api/health'), testEnv);
+      assert.equal(response.status, 502);
+      const body = await response.json();
+      assert.equal(body.error, 'upstream unavailable');
+      assert.doesNotMatch(JSON.stringify(body), /private provider|answers/);
+    }
+  });
+
+  test(`decide still validates and projects next_action (${direct ? 'direct' : 'binding'})`, async (t) => {
+    let raw = {
+      answers: {
+        next_action: { type: 'choice', choice: 'wait', confidence: 0.9, private: 'hidden' },
+        ok: { type: 'noul', noul: 0.99 },
+      },
+      usage: { input_tokens: 12 },
+      details: 'private provider metadata',
+    };
+    const testEnv = { AI: { run: async () => raw } };
+    if (direct) {
+      testEnv.TYPESAFE_API_KEY = 'sk-test';
+      t.mock.method(globalThis, 'fetch', async () => Response.json(raw));
+    }
+    const response = await worker.fetch(
+      post('/api/decide', { state: 'x', questions: validQuestions }),
+      testEnv,
+    );
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).result, {
+      answers: { next_action: { type: 'choice', choice: 'wait', confidence: 0.9 } },
+    });
+    raw = { answers: { ok: { type: 'noul', noul: 0.99 } }, details: 'private provider metadata' };
+    const invalid = await worker.fetch(
+      post('/api/decide', { state: 'x', questions: validQuestions }),
+      testEnv,
+    );
+    assert.equal(invalid.status, 502);
+    assert.equal((await invalid.json()).error, 'upstream unavailable');
+  });
+}
 
 test('health rejects a successful upstream error envelope without leaking details', async () => {
   const original = globalThis.fetch;
