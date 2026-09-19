@@ -32,18 +32,22 @@
   white-space: nowrap;
   margin-left: auto;
 }
-.bench-controls,
-.bench-controls fieldset,
-.bench-actions {
-  display: flex;
-  align-items: end;
+.bench-controls {
+  display: grid;
   gap: 8px;
+  flex-shrink: 0;
 }
 .bench-controls fieldset {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
   border: 0;
   padding: 0;
   margin: 0;
   min-width: 0;
+}
+.bench-controls select {
+  grid-column: 1 / -1;
 }
 .bench-controls label {
   display: grid;
@@ -53,7 +57,7 @@
 .bench-controls input,
 .bench-controls select {
   min-width: 0;
-  width: 108px;
+  width: 100%;
   min-height: 44px;
   padding: 6px 8px;
   border: 2px solid #b68050;
@@ -63,8 +67,12 @@
   font: inherit;
   font-size: 16px;
 }
-.bench-controls select {
-  width: 130px;
+.bench-actions {
+  display: flex;
+  gap: 8px;
+}
+.bench-actions button {
+  flex: 1;
 }
 .bench-page button {
   min-height: 44px;
@@ -99,8 +107,8 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(220px, 26vw, 340px);
-  grid-template-rows: minmax(0, 1fr) minmax(150px, 38%);
+  grid-template-columns: minmax(0, 1fr) clamp(240px, 28vw, 340px);
+  grid-template-rows: minmax(0, 1fr) minmax(340px, 58%);
   grid-template-areas: 'game log' 'game side';
   gap: 8px;
 }
@@ -129,8 +137,9 @@
   grid-area: side;
   display: flex;
   flex-direction: column;
-  padding: 12px;
   gap: 8px;
+  padding: 12px;
+  overflow: auto;
 }
 .bench-clock {
   display: block;
@@ -147,8 +156,9 @@
   font-size: 12px;
 }
 .bench-splits {
+  flex: 1;
   overflow: auto;
-  min-height: 0;
+  min-height: 44px;
 }
 .bench-splits table {
   width: 100%;
@@ -174,8 +184,10 @@
   overflow: auto;
 }
 .bench-current {
-  margin: 0 0 4px;
-  font-size: 17px;
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px solid #c9b895;
+  font-size: 12px;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -204,51 +216,22 @@
   .bench-header h1 {
     font-size: 18px;
   }
-  .bench-controls {
-    order: 1;
-    width: 100%;
-  }
-  .bench-controls fieldset {
-    flex: 1;
-  }
-  .bench-controls label {
-    flex: 1;
-    min-width: 0;
-  }
-  .bench-controls input {
-    width: 100%;
-  }
-  .bench-controls select {
-    width: 110px;
-  }
   .bench-broadcast {
-    grid-template-columns: minmax(0, 1fr) 190px;
-    grid-template-rows: minmax(0, 1fr) minmax(130px, 42%);
+    grid-template-columns: minmax(0, 1fr) 230px;
+    grid-template-rows: minmax(0, 1fr) minmax(300px, 56%);
   }
   .bench-sidebar {
     padding: 8px;
   }
 }
 @media (max-width: 600px) {
-  .bench-controls {
-    flex-wrap: wrap;
-  }
-  .bench-controls select {
-    width: 90px;
-  }
-  .bench-actions {
-    width: 100%;
-  }
-  .bench-actions button {
-    flex: 1;
-  }
   .bench-broadcast {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr) 112px;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas: 'game' 'log' 'side';
   }
   .bench-sidebar {
-    gap: 2px;
+    gap: 6px;
   }
   .bench-clock {
     padding: 2px;
@@ -266,9 +249,6 @@
   }
   .bench-commentary {
     padding: 8px;
-  }
-  .bench-current {
-    font-size: 14px;
   }
   .bench-commentary ol {
     font-size: 11px;

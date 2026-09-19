@@ -78,63 +78,6 @@ export default function Bench() {
     <main className="bench-page">
       <header className="bench-header">
         <h1>jev-bench</h1>
-        <form className="bench-controls" onSubmit={start} aria-label="実行条件">
-          <fieldset disabled={bench.running}>
-            <select
-              aria-label="モデル"
-              value={modelId}
-              onChange={(e) => setModelId(e.target.value)}
-            >
-              {models.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.name}
-                </option>
-              ))}
-            </select>
-            <label>
-              frequency（Hz）
-              <input
-                name="frequency"
-                type="number"
-                inputMode="decimal"
-                min="0.1"
-                max="10"
-                step="any"
-                required
-                defaultValue="5"
-              />
-            </label>
-            <label>
-              最大 call 数
-              <input
-                name="maxRequests"
-                type="number"
-                inputMode="numeric"
-                min="1"
-                max="10000"
-                step="1"
-                required
-                defaultValue="1000"
-              />
-            </label>
-          </fieldset>
-          <div className="bench-actions">
-            <button
-              type={bench.running ? 'button' : 'submit'}
-              onClick={bench.running ? (paused ? resumeBenchmark : pauseBenchmark) : undefined}
-              disabled={!bench.running && (!kitchen.ready || !models.length)}
-            >
-              {bench.running ? (paused ? '再開' : '中断') : '開始'}
-            </button>
-            <button
-              type="button"
-              disabled={bench.running || !latest}
-              onClick={() => download(latest)}
-            >
-              JSON
-            </button>
-          </div>
-        </form>
         <a href="/">自分でプレイ</a>
       </header>
       <div className="bench-broadcast">
@@ -146,7 +89,64 @@ export default function Bench() {
             </Suspense>
           </div>
         </section>
-        <aside className="bench-sidebar" aria-label="今回のクリア記録">
+        <aside className="bench-sidebar" aria-label="実行条件と今回のクリア記録">
+          <form className="bench-controls" onSubmit={start} aria-label="実行条件">
+            <fieldset disabled={bench.running}>
+              <select
+                aria-label="モデル"
+                value={modelId}
+                onChange={(e) => setModelId(e.target.value)}
+              >
+                {models.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+              <label>
+                frequency（Hz）
+                <input
+                  name="frequency"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.1"
+                  max="10"
+                  step="any"
+                  required
+                  defaultValue="5"
+                />
+              </label>
+              <label>
+                最大 call 数
+                <input
+                  name="maxRequests"
+                  type="number"
+                  inputMode="numeric"
+                  min="1"
+                  max="10000"
+                  step="1"
+                  required
+                  defaultValue="1000"
+                />
+              </label>
+            </fieldset>
+            <div className="bench-actions">
+              <button
+                type={bench.running ? 'button' : 'submit'}
+                onClick={bench.running ? (paused ? resumeBenchmark : pauseBenchmark) : undefined}
+                disabled={!bench.running && (!kitchen.ready || !models.length)}
+              >
+                {bench.running ? (paused ? '再開' : '中断') : '開始'}
+              </button>
+              <button
+                type="button"
+                disabled={bench.running || !latest}
+                onClick={() => download(latest)}
+              >
+                JSON
+              </button>
+            </div>
+          </form>
           <strong className="bench-clock" aria-label="経過時間">
             {timer(bench.running ? bench.elapsedMs : (latest?.activeMs ?? 0))}
           </strong>
@@ -171,8 +171,6 @@ export default function Bench() {
               </tbody>
             </table>
           </div>
-        </aside>
-        <section className="bench-commentary" aria-label="AIの判断ログ">
           <p className="bench-current" role={error ? 'alert' : 'status'}>
             {error ||
               (bench.running
@@ -181,6 +179,8 @@ export default function Bench() {
                   : bench.action
                 : latest?.error || statusNames[latest?.status])}
           </p>
+        </aside>
+        <section className="bench-commentary" aria-label="AIの判断ログ">
           <ol>
             {bench.log
               .slice(0, -1)
