@@ -1,6 +1,9 @@
 import { MathUtils } from 'three/webgpu';
 import { kitchenBounds } from './model.js';
 
+// Fraction of the screen height the kitchen render is lowered by.
+export const SCENE_DROP = 0.06;
+
 export function cameraFraming(game, phase, mode, width, height, entranceComplete = true) {
   const bounds = kitchenBounds(game);
   const follow =
@@ -20,7 +23,7 @@ export function cameraFraming(game, phase, mode, width, height, entranceComplete
   };
 }
 
-export function moveCamera(camera, target, framing, delta, reducedMotion) {
+export function moveCamera(camera, target, framing, delta, reducedMotion, width, height) {
   const approach = (current, goal) =>
     reducedMotion ? goal : MathUtils.damp(current, goal, 8, Math.max(0, delta));
   target.x = approach(target.x, framing.target[0]);
@@ -30,5 +33,8 @@ export function moveCamera(camera, target, framing, delta, reducedMotion) {
   camera.position.set(target.x + 10, target.y + 14.75, target.z + 18);
   camera.lookAt(target);
   camera.zoom = approach(camera.zoom, framing.zoom);
+  // Lower the kitchen render so the play area sits a little below the screen center.
+  if (width > 0 && height > 0)
+    camera.setViewOffset(width, height, 0, -SCENE_DROP * height, width, height);
   camera.updateProjectionMatrix();
 }

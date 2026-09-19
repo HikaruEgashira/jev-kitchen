@@ -1171,19 +1171,28 @@ test('easier quotas preserve paid openings, rehired staff and rewind stock', () 
   }
 });
 
-test('E hands items to nearby partners while tapping a station still works there', () => {
+test('E works a station in reach and only hands items to partners on open floor', () => {
   startShift();
   const g = useKitchen.getState().game;
+  // Standing at the board, E chops instead of passing the tomato to a partner.
   Object.assign(g.human, { ...STATIONS.board, carrying: 'tomato' });
   Object.assign(g.ai, { x: g.human.x + 20, y: g.human.y, carrying: null });
   humanInteract();
   assert.equal(g.human.carrying, null);
-  assert.equal(g.ai.carrying, 'tomato');
-  g.human.carrying = 'plate';
+  assert.equal(g.ai.carrying, null);
+  assert.equal(g.stations.board.state, 'chopping');
+
+  // Away from every station, the same E hands the item to the nearby partner.
+  Object.assign(g.human, { x: 500, y: 300, carrying: 'tomato', intent: null });
+  Object.assign(g.ai, { x: 520, y: 300, carrying: null });
   humanInteract();
-  assert.equal(g.human.carrying, 'plate');
-  g.human.carrying = 'tomato';
+  assert.equal(g.human.carrying, null);
+  assert.equal(g.ai.carrying, 'tomato');
+
+  // Tapping a station still works it there.
+  g.stations.board.state = 'idle';
   g.ai.carrying = null;
+  Object.assign(g.human, { ...STATIONS.board, carrying: 'tomato' });
   goTo('board');
   assert.equal(g.stations.board.state, 'chopping');
   assert.equal(g.ai.carrying, null);

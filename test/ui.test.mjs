@@ -409,8 +409,9 @@ test('stock and attendance use stacked portrait and side-by-side landscape layou
   }
 });
 
-test('landscape dialogs separate primary actions from content while portrait keeps them below', () => {
+test('landscape dialogs keep the action group in a bottom bar while portrait stacks it below', () => {
   const game = createGame({ level: 9, cash: 3000, stock: 20 });
+  const actionIds = ['primary', 'back', 'hire', 'skip', 'retry', 'review', 'previous'];
   for (const phase of ['paused', 'finished']) {
     for (const cleared of [false, true]) {
       for (const menuPage of [null, 'settings', 'controls', 'help', 'diagnostics', 'stages']) {
@@ -426,10 +427,18 @@ test('landscape dialogs separate primary actions from content while portrait kee
           };
           const view = { ...preparation(game), page };
           const landscape = screen(state, view, 844, 390);
-          const rail = landscape.items.find((i) => i.id === 'actions-board');
-          assert.ok(rail);
-          const primary = landscape.items.find((i) => i.id === 'primary' || i.id === 'retry');
-          assert.ok(primary.x >= rail.x && primary.x + primary.w <= rail.x + rail.w);
+          assert.ok(!landscape.items.some((i) => i.id === 'actions-board'));
+          const sheet = landscape.items.find((i) => i.id === 'sheet');
+          const actions = landscape.items.filter(
+            (i) => !i.inert && i.kind === 'button' && actionIds.includes(i.id),
+          );
+          assert.ok(actions.length, `${phase}/${cleared}/${menuPage}/${page}`);
+          const rowY = actions[0].y;
+          for (const item of actions) {
+            assert.equal(item.y, rowY, `${item.id} shares the bottom row`);
+            assert.ok(item.y + item.h > sheet.y + sheet.h - 24, `${item.id} hugs the sheet bottom`);
+            assert.ok(item.y + item.h <= sheet.y + sheet.h, `${item.id} stays inside the sheet`);
+          }
           const portrait = screen(state, view, 390, 844);
           assert.ok(!portrait.items.some((i) => i.id === 'actions-board'));
         }

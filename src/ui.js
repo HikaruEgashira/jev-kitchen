@@ -32,6 +32,9 @@ import { MAX_TRAINING, VITAMINS, quoteVitamins, trainingLevel } from './training
 
 export const compactControls = (width, height) => width < 600 || height < 500;
 
+// Main call-to-action height, so 開店-type buttons stay comfortably tappable.
+const ACTION_HEIGHT = 68;
+
 export function preparation(g, reviewing = false) {
   const duty = nextDuty(g);
   return {
@@ -635,44 +638,57 @@ export function screen(s, view, width, height) {
           ? 580
           : 900,
   );
-  const rail =
-    !portrait && !stockSheet && !welcome ? Math.min(176, Math.floor(sheetWidth * 0.28)) : 0;
-  const pw = sheetWidth - rail;
+  const pw = sheetWidth;
   const ph = Math.min(
     height - 24,
     s.menuOpen
-      ? 400
+      ? 448
       : stockSheet && portrait
-        ? 560
+        ? 620
         : placementSheet
-          ? 296
+          ? 344
           : s.phase === 'finished' && s.cleared && !s.campaignComplete
-            ? 384
+            ? 440
             : s.phase === 'finished' && !s.cleared && !s.campaignComplete
-              ? 296
+              ? 400
               : welcome
                 ? narrow
                   ? 136
                   : 178
-                : 256,
+                : 304,
   );
+  // The action row is a full-width bar at the bottom of the sheet. Portrait keeps
+  // the biggest height; the stock sheet and very short landscape screens have the
+  // least room, so they trade height for keeping the roster and bill visible.
+  const stockPortrait = stockSheet && portrait;
+  const actionH =
+    welcome || (portrait && !stockPortrait)
+      ? ACTION_HEIGHT
+      : stockPortrait
+        ? Math.min(ACTION_HEIGHT, 56)
+        : Math.max(48, Math.min(ACTION_HEIGHT, ph - 248));
   const x = welcome && !portrait ? 16 : (width - sheetWidth) / 2,
     y = welcome ? 20 : placementSheet ? height - ph - 12 : (height - ph) / 2;
   order = 4000;
   if (!welcome) add('veil', 'veil', '', 0, 0, width, height);
   panel('sheet', x, y, sheetWidth, ph);
-  if (rail) panel('actions-board', x + pw, y + 12, rail - 12, ph - 24, { color: '#dbe3d2' });
   panel('clip', x + pw / 2 - 36, y - 5, 72, 16, { color: '#76b59b', edge: '#245e50' });
   const inside = pw - 32;
   const title = (text) =>
     label('title', text, x + 16, y + 18, inside, 34, { size: narrow ? 21 : 26 });
   const copy = (id, text, top, h = 30, extra = {}) =>
     label(id, text, x + 16, y + top, inside, h, { size: 14, ...extra });
-  const footerY = welcome ? height - 68 : y + ph - 60;
+  const footerY = welcome
+    ? height - actionH - 16
+    : stockPortrait
+      ? y + ph - 60
+      : y + ph - actionH - 12;
   const primary = (text, action, extra = {}) =>
     button('primary', text, x + 16, footerY, inside, action, {
       color: '#245e50',
       ink: '#fff9e8',
+      h: actionH,
+      size: 18,
       ...extra,
     });
   if (s.menuOpen) {
@@ -829,14 +845,14 @@ export function screen(s, view, width, height) {
       const lines = text
         .split('\n')
         .flatMap((line) => line.match(new RegExp(`.{1,${cols}}`, 'gu')) ?? ['']);
-      const perPage = Math.max(3, Math.floor((ph - 180) / (size * 1.5)));
+      const perPage = Math.max(3, Math.floor((ph - 200) / (size * 1.5)));
       const pages = Math.ceil(lines.length / perPage);
       const pageIndex = Math.min(pages - 1, Math.max(0, view.advicePage ?? 0));
       copy(
         'advice-copy',
         lines.slice(pageIndex * perPage, (pageIndex + 1) * perPage).join('\n'),
         60,
-        ph - 180,
+        ph - 200,
         { size },
       );
       button('advice-previous', '‹', x + 16, footerY - 54, 44, 'advice-page', {
@@ -874,7 +890,7 @@ export function screen(s, view, width, height) {
       copy(
         'privacy',
         '相棒の判断にゲーム状態を\nTypeSafe または Cloudflare へ送信します。',
-        ph < 340 ? 136 : 180,
+        ph < 340 ? 136 : 172,
         ph < 340 ? 42 : 54,
         { size: 12 },
       );
@@ -959,7 +975,7 @@ export function screen(s, view, width, height) {
           : '開店'
         : 'キッチンを準備中…',
       'start',
-      { disabled: !s.ready },
+      { disabled: !s.ready, size: 24 },
     );
     if (Object.keys(s.stages ?? {}).length)
       button('stages', 'ステージを選ぶ', x + 16, footerY - 54, inside, 'open-stages', {
@@ -991,13 +1007,19 @@ export function screen(s, view, width, height) {
         54,
         { size: narrow ? 13 : 16 },
       );
-      button('retry', '同じ条件で再挑戦', x + 16, y + 126, inside, 'retry', { size: 14 });
-      button('review', '開店準備から見直す', x + 16, y + 174, inside, 'review', {
-        size: 14,
+      const actionStep = actionH + 8;
+      button('retry', '同じ条件で再挑戦', x + 16, footerY - actionStep * 2, inside, 'retry', {
+        size: 16,
+        h: actionH,
+      });
+      button('review', '開店準備から見直す', x + 16, footerY - actionStep, inside, 'review', {
+        size: 16,
+        h: actionH,
         disabled: !s.rollback?.preparation,
       });
-      button('previous', '前のステージへ戻る', x + 16, y + 222, inside, 'previous', {
-        size: 14,
+      button('previous', '前のステージへ戻る', x + 16, footerY, inside, 'previous', {
+        size: 16,
+        h: actionH,
         disabled: g.level <= 1 || !s.rollback?.previous,
       });
     }
@@ -1020,7 +1042,7 @@ export function screen(s, view, width, height) {
         { size: 17 },
       );
       if (!short && (view.error || hint))
-        label('hint', view.error || hint, x + 16, footerY - 72, inside, 30, {
+        label('hint', view.error || hint, x + 16, y + 250, inside, 30, {
           color: '#a1372f',
           size: 12,
         });
@@ -1246,15 +1268,17 @@ export function screen(s, view, width, height) {
         portrait ? 30 : 24,
         { size: 13, color: warning ? '#a1372f' : '#245e50', live: true },
       );
-      const backW = narrow ? 72 : 120;
-      const equipmentW = narrow ? 68 : 100;
+      const backW = narrow ? 64 : 120;
+      const equipmentW = narrow ? 60 : 100;
       button('back', g.level < 3 ? '戻る' : '採用', x + 16, footerY, backW, 'page', {
         value: g.level < 3 ? 0 : 1,
         size: 13,
+        h: actionH,
       });
       button('equipment', '設備', x + 24 + backW, footerY, equipmentW, 'page', {
         value: 3,
         size: 13,
+        h: actionH,
         label: '設備投資を見る',
       });
       button(
@@ -1268,7 +1292,8 @@ export function screen(s, view, width, height) {
           disabled: Boolean(bill.error),
           color: '#245e50',
           ink: '#fff9e8',
-          size: 14,
+          size: 16,
+          h: actionH,
         },
       );
     } else {
@@ -1291,13 +1316,18 @@ export function screen(s, view, width, height) {
       const currentLayout = bill.layout ?? view.layout ?? g.layout ?? {};
       const capacity = equipmentCapacity(bill.equipment);
 
-      const backW = narrow ? 76 : 120;
-      const modeW = narrow ? 64 : 88;
-      button('back', '仕入れへ', x + 16, footerY, backW, 'page', { value: 2, size: 13 });
+      const backW = narrow ? 64 : 120;
+      const modeW = narrow ? 56 : 88;
+      button('back', '仕入れへ', x + 16, footerY, backW, 'page', {
+        value: 2,
+        size: 13,
+        h: actionH,
+      });
       if (vitaminMode)
         button('layout-mode', 'やめる', x + 24 + backW, footerY, modeW, 'vitamin-cancel', {
           label: '育成の対象選択をやめる',
           size: 13,
+          h: actionH,
         });
       else
         button(
@@ -1310,6 +1340,7 @@ export function screen(s, view, width, height) {
           {
             label: layoutMode === 'layout' ? '設備一覧へ戻る' : '設備の配置を変更',
             size: 13,
+            h: actionH,
           },
         );
       button(
@@ -1323,7 +1354,8 @@ export function screen(s, view, width, height) {
           disabled: Boolean(bill.error),
           color: '#245e50',
           ink: '#fff9e8',
-          size: 14,
+          size: 16,
+          h: actionH,
         },
       );
 
@@ -1697,9 +1729,11 @@ export function screen(s, view, width, height) {
     if (welcome) main.x = (width - main.w - 56) / 2;
     button('sheet-menu', '≡', main.x + main.w + 16, footerY, 44, 'menu', {
       label: 'メニューを開く',
+      h: actionH,
     });
   }
-  if (rail) {
+  if (!portrait && !stockSheet && !welcome) {
+    // Landscape dialogs keep the action group together in a bar at the bottom.
     const actions = items.filter(
       (item) =>
         !item.inert &&
@@ -1707,16 +1741,22 @@ export function screen(s, view, width, height) {
         (item.y === footerY ||
           ['primary', 'back', 'hire', 'skip', 'retry', 'review', 'previous'].includes(item.id)),
     );
-    const top = y + (ph - (actions.length * 52 - 8)) / 2;
-    actions.forEach((item, index) =>
-      Object.assign(item, {
-        x: x + pw + 6,
-        y: top + index * 52,
-        w: rail - 24,
-        h: 44,
-      }),
-    );
-  } else if (welcome && !portrait) {
+    if (actions.length) {
+      const gap = 8;
+      const each = Math.min((sheetWidth - 32 - gap * (actions.length - 1)) / actions.length, 240);
+      const total = each * actions.length + gap * (actions.length - 1);
+      const left = x + (sheetWidth - total) / 2;
+      actions.forEach((item, index) =>
+        Object.assign(item, {
+          x: left + index * (each + gap),
+          y: footerY,
+          w: each,
+          h: actionH,
+        }),
+      );
+    }
+  }
+  if (welcome && !portrait) {
     const actionWidth = Math.min(300, width * 0.4);
     const left = width - actionWidth - 20;
     Object.assign(
