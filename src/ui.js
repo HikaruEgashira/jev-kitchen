@@ -912,11 +912,22 @@ export function screen(s, view, width, height) {
         href: '/third-party-notices.html',
         size: 13,
       });
-      if (!s.benchmark)
-        button('reset', 'リセット', x + 32 + lw * 2, footerY - 54, lw, 'reset', {
-          size: 13,
-          label: '保存した進行を初期化',
-        });
+      if (!s.benchmark) {
+        const resetArmed = view.resetArmed === true;
+        button(
+          'reset',
+          resetArmed ? 'リセット確定' : 'リセット',
+          x + 32 + lw * 2,
+          footerY - 54,
+          lw,
+          'reset',
+          {
+            size: 13,
+            ...(resetArmed ? { color: '#a1372f', ink: '#fff9e8' } : {}),
+            label: resetArmed ? 'もう一度で保存した進行を初期化' : '保存した進行を初期化',
+          },
+        );
+      }
     }
     primary('閉じる', 'close-menu');
   } else if (s.phase === 'ready') {

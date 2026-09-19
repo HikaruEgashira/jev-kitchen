@@ -311,7 +311,8 @@ function Screen() {
         setMenuOpen(false);
         break;
       case 'reset':
-        resetGame();
+        if (view.resetArmed) resetGame();
+        else patch({ resetArmed: true });
         break;
       case 'sound':
         toggleSound();
@@ -476,6 +477,10 @@ function Screen() {
       gl.domElement.style.cursor = '';
     };
   }, [gl, hover]);
+  // A reset confirmation only applies while the menu stays on the same page.
+  useEffect(() => {
+    setView((v) => (v.resetArmed ? { ...v, resetArmed: false } : v));
+  }, [s.menuOpen, s.menuPage]);
   useEffect(() => {
     const keydown = (e) => {
       if (e.key === 'Escape' && e.target?.tagName === 'INPUT') {
