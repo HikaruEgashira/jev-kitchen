@@ -23,7 +23,7 @@ import {
 import { STAFF, nextStaffState, payroll } from './staff.js';
 import { EQUIPMENT, equipmentCapacity, quoteEquipment } from './equipment.js';
 import { VITAMINS, quoteVitamins } from './training.js';
-import { preparation, purchase, preparationAdvice, preparationKey } from './ui.js';
+import { preparation, purchase, preparationAdvice, preparationKey, equipmentEffect } from './ui.js';
 
 export const BENCH_PROTOCOL = 'jev-bench-v4';
 
@@ -162,9 +162,13 @@ export function preparationCandidates(state, plan) {
         kind === 'kitchen'
           ? `設備枠${equipmentCapacity(bill.equipment).limit}→${equipmentCapacity(quote.equipment).limit}、`
           : '';
+      const effect =
+        action === 'add' && ['board', 'pot', 'grill'].includes(kind)
+          ? `同時に${quote.equipment[kind].count}台で調理できる`
+          : equipmentEffect(kind, quote.equipment[kind]);
       candidates.push({
         id: `equipment_${pending ? 'cancel_' : ''}${purchaseId}`,
-        label: `${label}${pending ? 'を取り消す' : 'を予定する'}（${capacityChange}${quote.cost - equipmentCost}コイン）`,
+        label: `${label}${pending ? 'を取り消す' : 'を予定する'}（${capacityChange}${effect}・${quote.cost - equipmentCost}コイン）`,
         equipmentPurchases: next,
       });
     }
@@ -465,6 +469,9 @@ export function benchRequest(
     questions: buildQuestions(candidates, 'human'),
   };
   const context = compactDecisionState(request.state);
+  if (preparing)
+    request.questions.next_action.instructions =
+      'You control the HUMAN player in a cooking campaign. Choose one action that improves the chance of clearing this and later shifts. Each shift requires serving the quota before time runs out. Cash and upgrades carry over.';
   // One bounded history replaces duplicate actor and preparation logs.
   if (context.human) delete context.human.recent_actions;
   if (context.preparation) delete context.preparation.recent_actions;

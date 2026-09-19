@@ -550,7 +550,11 @@ test('investment facts reflect the pending board without choosing an upgrade', (
   const instruction = () =>
     benchRequest(s, { preparing: true, plan, candidates: preparationCandidates(s, plan) }).state
       .situation;
-  assert.match(instruction(), /2 staff, 1 boards/);
+  assert.match(instruction(), /A station serves one actor/);
+  assert.match(
+    preparationCandidates(s, plan).find((c) => c.id === 'equipment_add_board').label,
+    /同時に2台/,
+  );
   plan.equipmentPurchases = ['add_board'];
   const pending = preparationCandidates(s, plan);
   assert.ok(!pending.some((c) => c.id === 'equipment_add_board'));
@@ -558,8 +562,7 @@ test('investment facts reflect the pending board without choosing an upgrade', (
     pending.find((c) => c.id === 'equipment_cancel_add_board').equipmentPurchases,
     [],
   );
-  assert.doesNotMatch(instruction(), /2 staff, 1 boards/);
-  assert.match(instruction(), /2 staff, 2 boards/);
+  assert.match(pending.find((c) => c.id === 'equipment_cancel_add_board').label, /同時に1台/);
   const request = benchRequest(s, { preparing: true, plan, candidates: pending });
   assert.equal(request.state.preparation.equipment.board.count, 2);
   assert.equal(request.state.equipment, undefined);

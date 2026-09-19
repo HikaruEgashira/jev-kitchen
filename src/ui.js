@@ -211,7 +211,8 @@ export function preparationAdvice(g, plan) {
           .join('・')}`,
       },
       investment: {
-        instructions: `Pending plan: ${bill.duty.length} staff, ${bill.equipment.board.count} boards. A station serves one actor at a time. Human training: move ${training.move}/${MAX_TRAINING}, cook ${training.cook}/${MAX_TRAINING}. Vitamins permanently improve one actor: movement +4% or cooking time -4% per level, ${VITAMINS.move.cost} coins each. Equipment additions allow parallel work; board, pot and grill upgrades reduce cooking time. Cash remaining already deducts all pending purchases, stock and wages; it carries over. Purchases become final at open_shift.`,
+        instructions:
+          'A station serves one actor at a time. Equipment additions allow parallel work. Purchases become final at open_shift; cash_remaining already deducts pending purchases, stock and wages.',
         hint: `購入予定後は出勤${bill.duty.length}人・まな板${bill.equipment.board.count}台。同じ作業台を同時に使えるのは1人です。自分の育成：移動${training.move}/${MAX_TRAINING}・調理${training.cook}/${MAX_TRAINING}。育成は1個${VITAMINS.move.cost}コインで1人の移動＋4%／調理時間−4%、効果は持続します。設備を増やすと並行作業ができます。まな板・鍋・グリルの強化で調理が速くなります。残金は購入予定・仕入れ・給与を差し引いた額で、持ち越せます。購入は開店時に確定します。`,
       },
     }[plan.stage] ?? {
@@ -252,7 +253,7 @@ function stationName(g, id) {
   return (typeof info === 'string' ? info : info?.name) ?? STATIONS[id]?.name ?? id;
 }
 
-function equipmentEffect(kind, state) {
+export function equipmentEffect(kind, state) {
   const level = Math.max(1, Math.min(3, Number(state?.level) || 1));
   if (kind === 'warmer')
     return state?.count > 0 ? `焦げ猶予×${[1, 1.5, 1.75, 2][level]}` : '未導入';
