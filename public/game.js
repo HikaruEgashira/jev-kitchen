@@ -102,6 +102,14 @@ async function maybeDecide() {
   const obs = observe(g, policy);
   const obsAt = performance.now();
 
+  // Jev の Choice は 2..255 択が必須。実行可能な行動が1つだけの盤面
+  // （例: 切れたトマトを人間が先に盛り付けて、AI は待つしかない）では
+  // 問い合わせず、その一手をそのまま実行する。
+  if (cands.length < 2) {
+    applyDecision(cands[0], obsAt, 0, null, cands, null, 'skip');
+    return;
+  }
+
   if (mode === 'rule') {
     applyDecision(rulePick(g, cands), obsAt, 0, null, cands, null);
     return;
@@ -137,7 +145,7 @@ function applyDecision(cand, obsAt, latency, confidence, cands, upstreamMs, via)
   decisions += 1;
   hud.obs = obsLabel(obsAt);
   hud.age = `${Math.round(performance.now() - obsAt)} ms`;
-  hud.lat = upstreamMs != null ? `${latency}ms（model ${upstreamMs}ms · ${via}）` : `${latency} ms`;
+  hud.lat = upstreamMs != null ? `${latency}ms（model ${upstreamMs}ms · ${via}）` : via === 'skip' ? '問い合わせ不要（候補1つ）' : `${latency} ms`;
   hud.conf = confidence == null ? '—' : confidence.toFixed(2);
   hud.cands = cands.length;
 

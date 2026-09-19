@@ -85,3 +85,30 @@ test('unknown actions are never feasible', () => {
   assert.equal(isFeasible(g, { id: 'fly_to_moon' }), false);
   assert.equal(isFeasible(g, null), false);
 });
+
+// Jev の Choice は 2..255 択。候補が1つになる盤面があるので、呼び出し側は
+// 問い合わせずに実行する必要がある（game.js の maybeDecide）。
+test('some reachable states leave exactly one feasible action', () => {
+  const cases = [
+    (g) => {
+      g.ai.carrying = 'tomato';
+      g.stations.board.state = 'chopped'; // 人間が先に盛り付けた
+    },
+    (g) => {
+      g.ai.carrying = 'plate';
+      g.stations.board.state = 'idle';
+    },
+    (g) => {
+      g.ai.carrying = 'plate';
+      g.stations.board.state = 'chopping';
+    },
+  ];
+
+  for (const setup of cases) {
+    const g = createGame();
+    setup(g);
+    const cands = buildCandidates(g);
+    assert.equal(cands.length, 1);
+    assert.equal(cands[0].id, 'wait');
+  }
+});
