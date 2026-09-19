@@ -158,6 +158,8 @@ const Tile = memo(function Tile({ item, active, activate, hover }) {
           width={item.w}
           height={item.h}
           order={item.order}
+          progress={item.progress}
+          progressColor={item.progressColor}
           color={
             item.disabled ? '#d2d8c7' : active || item.pressed ? '#f4cd75' : (item.color ?? PAPER)
           }
