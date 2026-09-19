@@ -78,16 +78,11 @@ pnpm exec wrangler deploy --dry-run
 | `src/Surface.jsx` / `src/Food.jsx`                     | Glyphの文字、看板、共有商品モデル                 |
 | `src/App.jsx` / `src/style.css`                        | Canvasの起動、不可視の操作要素、描画障害時の案内  |
 | `src/benchmark.js` / `src/Bench.jsx` / `src/bench.css` | jev-benchの試行ループ、画面、スタイル             |
-| `src/worker.ts`                                        | 課金APIの入口、入力検証、Jev・比較用LLMへの転送   |
-| `src/session.ts`                                       | run ticketの発行・検証とレート制限の境界          |
-| `src/api-client.js`                                    | ticketを付けて課金APIを呼ぶクライアント           |
+| `src/worker.ts`                                        | Jev・比較用LLMへのAPIプロキシ、ヘルスチェック     |
 
 ブラウザのゲーム状態が唯一の正。コードが合法な行動を列挙し、Jevはその中から次の一手だけを選ぶ。
 移動先に到着した時点で再検証する。リセット・一時停止では通信を中止し、古い回答を破棄する。
 通信失敗時は10秒間固定ルールで補い、その旨を表示する。秘密はWorker側にのみ保持する。
-
-課金するルートは `POST /api/session` が発行する run ticket を必須とする。`TICKET_SECRET` 未設定なら503で閉じる。
-IP単位のレート制限を `wrangler.jsonc` で設定する。境界とランキング基盤の設計は[公開API仕様](docs/public-api.md)を正とする。
 
 `TYPESAFE_API_KEY` があればTypeSafe直API、なければWorkers AIを使う。
 後者はAI Gatewayクレジットが必要。`/api/health` と設定内のAIログで実際の経路を確認できる。
@@ -116,16 +111,14 @@ pnpm deploy
 pnpm exec wrangler rollback <version-id> # 復旧時のみ
 ```
 
-公開先は `https://jev-kitchen.egahika.dev`。custom domainは `egahika.dev` リポジトリのTerraformが管理する。
-Cloudflare Accessは使わず一般公開する。`workers_dev` は無効。
-課金ルートはrun ticketとIPレート制限で保護し、WorkerではAPI入力の型・サイズ・候補数を検証してから有料モデルを呼ぶ。
-上流のspend limitは口座側で設定する。公開前チェックは[公開API仕様](docs/public-api.md)に従う。
+公開先は `https://jev-kitchen.egahika.dev`。custom domainとCloudflare Accessは `egahika.dev` リポジトリのTerraformが管理する。
+`workers_dev` は無効。Accessのアカウントメンバー制限を維持する。未認証アクセスはAccessへリダイレクトされる。
+WorkerではAPI入力の型・サイズ・候補数を検証してから有料モデルを呼ぶ。
 
 ## 受入境界
 
-- 公開範囲は一般公開とする。Accessは使わない。課金ルートはrun ticketで保護する。
-- 公開ランキングは未提供。改ざん不能な順位にはサーバ実行型かリプレイ検証型が必要で、どちらも未実装。検証が無いリーダーボードは公開しない。設計は[公開API仕様](docs/public-api.md)。
-- リリース判定は自動検査（test / typecheck / check / build）、ブラウザでの描画、初回の一皿、ノルマ・星、仕入れ、採用、リトライ、設定内ログ、停止／再開、狭い画面の確認を満たすこと。
+- 現在の公開範囲はCloudflare Accessの許可メンバーのみ。未認証の一般公開、外部投稿、課金を伴う提供はこのリポジトリの受入対象に含めない。
+- リリース判定は自動検査（test / typecheck / check / build）、認証済みブラウザでの描画、初回の一皿、ノルマ・星、仕入れ、採用、リトライ、設定内ログ、停止／再開、狭い画面の確認を満たすこと。
 - Jev／Workers AI／Cloudflareの利用料、上流サービスの可用性、契約・プライバシー条件はこのリポジトリから保証しない。比較用LLMはコアゲームの必須条件ではない。
 - AIリクエストのabort／timeoutはブラウザの待ち時間と古い応答の破棄を制御するだけで、上流処理の停止や利用料の請求停止を保証しない。
 - 相棒の判断に必要なゲーム状態をAIプロバイダーへ送信する。依存物と外部サービスの確認は [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) に記録する。
@@ -133,8 +126,7 @@ Cloudflare Accessは使わず一般公開する。`workers_dev` は無効。
 ## 残る制約
 
 - ゲーム状態は端末内のみ。同期対戦とクラウドセーブは扱わない。
-- run ticketはステートレスで、有効期限内の再利用を防がない。run単位のcall予算とTurnstileは未実装。IPレート制限と口座側のspend limitで費用を縛る。
-- ランキングは未実装。サーバ実行型ベンチかリプレイ検証のどちらかを先に作る。
+- Worker自身のAccess JWT検証とレート制限は未実装。Accessを無効化して公開しない。
 - Workers AI経路はクレジット未設定の環境では動作しない。API障害時も固定ルールで継続する。
 
 ## 現在の状態
