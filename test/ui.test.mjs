@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createGame, STATIONS, activeStationIds } from '../src/model.js';
+import { activeStationIds, createGame, layoutSlots, STATIONS } from '../src/model.js';
 import { useKitchen, TUTORIAL_STEPS } from '../src/game.js';
-import { preparation, purchase, screen } from '../src/ui.js';
+import { compactControls, preparation, purchase, screen } from '../src/ui.js';
+import { STAFF } from '../src/staff.js';
 
 test('title screen contains no playing HUD, orders, stock or staff', () => {
   const base = { ...useKitchen.getState(), phase: 'ready', ready: true };
@@ -21,6 +22,7 @@ test('title screen contains no playing HUD, orders, stock or staff', () => {
   const playing = screen({ ...base, phase: 'playing' }, preparation(base.game), 1440, 900);
   assert.ok(playing.items.some((i) => i.id === 'shift'));
   assert.ok(playing.items.some((i) => i.kind === 'food'));
+  assert.match(playing.items.find((i) => i.id === 'roster').text, /ハル/);
   for (const id of ['score', 'roster']) {
     const text = playing.items.find((i) => i.id === id);
     const board = playing.items.find((i) => i.id === `${id}-board`);
@@ -52,7 +54,7 @@ test('every sheet keeps distinct, reachable 44px controls in portrait and landsc
     for (const phase of ['ready', 'playing', 'paused', 'finished']) {
       for (const cleared of [false, true]) {
         for (const menuPage of [null, 'settings', 'controls', 'help', 'diagnostics']) {
-          for (const page of [0, 1, 2]) {
+          for (const page of [0, 1, 2, 3]) {
             const ui = screen(
               { ...base, phase, cleared, menuOpen: menuPage !== null, menuPage },
               { ...preparation(game), page },
@@ -193,6 +195,109 @@ test('preparation screen exposes multi-person duty selection and fatigue status'
   assert.equal(preparation(game, true).page, 1);
 });
 
+test('equipment page keeps pending investments, effects and controls within the sheet', () => {
+  const game = createGame({ level: 14, cash: 1200, stock: 20 });
+  const state = {
+    ...useKitchen.getState(),
+    game,
+    phase: 'finished',
+    cleared: true,
+    ready: true,
+    applicants: ['veteran'],
+  };
+  const view = { ...preparation(game), page: 3, equipmentPurchases: ['add_board'] };
+  const bill = purchase(game, view);
+  assert.equal(bill.equipmentPurchases[0], 'add_board');
+  assert.equal(bill.equipment.board.count, 2);
+  assert.ok(bill.equipmentCost > 0);
+  assert.equal(bill.cash, game.cash - bill.quantity * 8 - bill.wages - bill.equipmentCost);
+  const recovered = purchase(game, {
+    ...view,
+    equipmentPurchases: [],
+    layout: bill.layout,
+  });
+  assert.equal(recovered.error, '');
+  assert.equal(recovered.layout.board2, undefined);
+  for (const [width, height] of [
+    [320, 568],
+    [568, 320],
+    [390, 844],
+  ]) {
+    const ui = screen(state, view, width, height);
+    assert.ok(ui.items.find((item) => item.id === 'equipment-summary'));
+    assert.ok(ui.items.find((item) => item.id === 'equipment-add-board')?.pressed);
+    assert.ok(ui.items.find((item) => item.id === 'equipment-next'));
+    const controls = ui.items.filter((item) => item.action && !item.inert);
+    for (const control of controls) {
+      assert.ok(control.w >= 44 && control.h >= 44, `${control.id} touch target`);
+      assert.ok(
+        control.x >= 0 &&
+          control.y >= 0 &&
+          control.x + control.w <= width &&
+          control.y + control.h <= height,
+        `${control.id} outside ${width}x${height}`,
+      );
+    }
+  }
+});
+
+test('equipment placement uses named slots, swaps occupied stations, and stays tappable', () => {
+  const game = createGame({ level: 20, cash: 2000, stock: 30 });
+  const state = {
+    ...useKitchen.getState(),
+    game,
+    phase: 'finished',
+    cleared: true,
+    ready: true,
+    applicants: [],
+  };
+  const baseView = { ...preparation(game), page: 3, layoutMode: 'layout' };
+  const slots = layoutSlots(game);
+  const targetSlot = Object.keys(slots).find((slot) => slot !== game.layout.board);
+  for (const [width, height] of [
+    [320, 568],
+    [568, 320],
+  ]) {
+    const list = screen(state, baseView, width, height);
+    assert.equal(list.items.find((item) => item.id === 'layout-mode').text, '設備');
+    assert.ok(list.items.find((item) => item.id === 'layout-select-board'));
+    const selected = screen(state, { ...baseView, layoutSelection: 'board' }, width, height);
+    const destination = selected.items.find((item) => item.id === `layout-slot-${targetSlot}`);
+    assert.ok(destination);
+    assert.equal(destination.disabled, false);
+    assert.ok(!destination.text.includes(targetSlot));
+    const controls = selected.items.filter((item) => item.action && !item.inert);
+    for (const control of controls) {
+      assert.ok(control.w >= 44 && control.h >= 44, `${control.id} touch target`);
+      assert.ok(
+        control.x >= 0 &&
+          control.y >= 0 &&
+          control.x + control.w <= width &&
+          control.y + control.h <= height,
+        `${control.id} outside ${width}x${height}`,
+      );
+      for (const other of controls) {
+        if (other === control) continue;
+        assert.ok(
+          control.x + control.w <= other.x ||
+            other.x + other.w <= control.x ||
+            control.y + control.h <= other.y ||
+            other.y + other.h <= control.y,
+          `${control.id} overlaps ${other.id}`,
+        );
+      }
+    }
+  }
+  const warmer = screen(state, { ...preparation(game), page: 3, equipmentIndex: 1 }, 320, 568);
+  assert.match(warmer.items.find((item) => item.id === 'equipment-summary').text, /設備枠/);
+  const kitchen = screen(state, { ...preparation(game), page: 3, equipmentIndex: 2 }, 320, 568);
+  assert.equal(
+    kitchen.items.find((item) => item.id === 'equipment-add-kitchen'),
+    undefined,
+  );
+  assert.ok(kitchen.items.find((item) => item.id === 'equipment-upgrade-kitchen'));
+});
+
 test('three order previews stay below the compact staff roster', () => {
   const game = createGame({
     level: 30,
@@ -227,7 +332,7 @@ test('failed shift gives explicit recovery choices and gates previous level', ()
   };
   const ui = screen(state, preparation(game), 320, 568);
   assert.equal(ui.items.find((item) => item.id === 'retry').text, '同じ条件で再挑戦');
-  assert.equal(ui.items.find((item) => item.id === 'review').text, '仕入れ・採用から見直す');
+  assert.equal(ui.items.find((item) => item.id === 'review').text, '開店準備から見直す');
   assert.equal(ui.items.find((item) => item.id === 'previous').disabled, false);
   assert.match(ui.items.find((item) => item.id === 'result').text, /資金・在庫・疲労/);
 });
@@ -288,8 +393,74 @@ test('phone station buttons stay below the kitchen and respect onboarding restri
         assert.ok(item.w >= 44 && item.h >= 44);
         assert.ok(item.x >= 0 && item.x + item.w <= width);
         assert.ok([...item.text].length * item.size <= item.w - 8, `${item.id} label fits`);
-        if (index) assert.ok(stations[index - 1].x + stations[index - 1].w <= item.x);
+        for (const other of stations.slice(0, index))
+          assert.ok(
+            item.x + item.w <= other.x ||
+              other.x + other.w <= item.x ||
+              item.y + item.h <= other.y ||
+              other.y + other.h <= item.y,
+            `${item.id} overlaps ${other.id}`,
+          );
       }
     }
+    const maxEquipmentGame = createGame({
+      level: 100,
+      equipment: {
+        board: { count: 2, level: 3 },
+        pot: { count: 2, level: 3 },
+        grill: { count: 2, level: 3 },
+        warmer: { count: 1, level: 3 },
+        kitchen: { count: 1, level: 3 },
+      },
+    });
+    const maxStations = screen(
+      {
+        ...useKitchen.getState(),
+        game: maxEquipmentGame,
+        tutorial: null,
+        phase: 'playing',
+        ready: true,
+      },
+      preparation(maxEquipmentGame),
+      width,
+      height,
+    ).items.filter((item) => item.action === 'station');
+    assert.equal(
+      maxStations.length,
+      compactControls(width, height) ? activeStationIds(maxEquipmentGame).length : 0,
+    );
+    if (maxStations.length) {
+      assert.ok(maxStations.every((item) => item.w >= 44 && item.h >= 44));
+      for (const item of maxStations)
+        assert.ok(item.x >= 0 && item.x + item.w <= width && item.y + item.h <= height);
+    }
   }
+});
+
+test('candidate adoption uses a themed avatar and performance bars instead of raw stats', () => {
+  const game = createGame({ level: 2, cash: 500, stock: 4, hired: ['helper', 'runner'] });
+  const state = {
+    ...useKitchen.getState(),
+    game,
+    phase: 'finished',
+    cleared: true,
+    ready: true,
+    applicants: ['chef'],
+  };
+  const ui = screen(state, { ...preparation(game), page: 1 }, 1440, 900);
+  const avatar = ui.items.find((item) => item.id === 'applicant-avatar');
+  assert.equal(avatar.kind, 'avatar');
+  assert.equal(avatar.color, STAFF.chef.color);
+  const bars = ui.items.filter(
+    (item) => item.id.startsWith('applicant-bar-') && !item.id.endsWith('-label'),
+  );
+  assert.deepEqual(
+    bars.map((bar) => bar.kind),
+    ['bar', 'bar', 'bar', 'bar'],
+  );
+  assert.ok(bars.every((bar) => bar.ratio > 0 && bar.ratio <= 1));
+  assert.ok(bars.every((bar) => bar.x >= 0 && bar.x + bar.w <= 1440));
+  assert.ok(!ui.items.some((item) => (item.text ?? '').includes('速さ ×')));
+  const roster = screen(state, { ...preparation(game), page: 2, selected: 'chef' }, 1440, 900);
+  assert.equal(roster.items.find((item) => item.id === 'duty-chef').avatar, STAFF.chef.color);
 });

@@ -7,7 +7,14 @@ import {
   togglePause,
   setMenuOpen,
 } from './game.js';
-import { buildCandidates, buildQuestions, observe, MAX_LEVEL, STOCK_PRICE } from './model.js';
+import {
+  activeStationIds,
+  buildCandidates,
+  buildQuestions,
+  observe,
+  MAX_LEVEL,
+  STOCK_PRICE,
+} from './model.js';
 import { STAFF } from './staff.js';
 import { preparation, purchase, screenContext } from './ui.js';
 
@@ -61,7 +68,8 @@ export function preparationCandidates(state, plan) {
 }
 
 function prepare(candidate, plan, g) {
-  if (candidate.id === 'open_shift') return nextShift(plan.selected, plan.quantity, plan.duty);
+  if (candidate.id === 'open_shift')
+    return nextShift(plan.selected, plan.quantity, plan.duty, plan.equipmentPurchases, plan.layout);
   if ('selected' in candidate) {
     plan.selected = candidate.selected;
     if (candidate.selected) plan.duty = [candidate.selected];
@@ -108,17 +116,19 @@ export function benchRequest(state, { preparing, plan, candidates }) {
       player_intent: g.human.intent?.id ?? null,
       dash_ready_in_ms: Math.max(0, g.human.dashReadyAt - g.time),
       cooking: Object.fromEntries(
-        ['board', 'pot', 'grill'].map((id) => {
-          const station = g.stations[id];
-          return [
-            id,
-            {
-              remaining_ms: Math.max(0, station.busyUntil - g.time),
-              progress: station.duration ? (g.time - station.startedAt) / station.duration : null,
-              boosted: station.boosted,
-            },
-          ];
-        }),
+        activeStationIds(g)
+          .filter((id) => g.stations[id]?.duration !== undefined)
+          .map((id) => {
+            const station = g.stations[id];
+            return [
+              id,
+              {
+                remaining_ms: Math.max(0, station.busyUntil - g.time),
+                progress: station.duration ? (g.time - station.startedAt) / station.duration : null,
+                boosted: station.boosted,
+              },
+            ];
+          }),
       ),
       ...(preparing
         ? {
@@ -126,6 +136,8 @@ export function benchRequest(state, { preparing, plan, candidates }) {
               selected: plan.selected,
               duty: plan.duty,
               quantity: plan.quantity,
+              equipmentPurchases: plan.equipmentPurchases ?? [],
+              layout: plan.layout ?? g.layout,
               bill: purchase(g, plan),
               stock_price: STOCK_PRICE,
               applicants: state.applicants.map((id) => ({ id, ...STAFF[id] })),

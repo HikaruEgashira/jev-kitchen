@@ -26,9 +26,14 @@ import {
   ITEM_EMOJI,
   activeStationIds,
   kitchenBounds,
+  layoutSlots,
+  resolveLayout,
+  stationInfo,
   actor,
+  stationKind,
+  burnGraceMs,
 } from '../src/model.js';
-import { nextStaffState, payroll, staffAvailable } from '../src/staff.js';
+import { nextStaffState, payroll, staffAvailable, STAFF, staffPerformance } from '../src/staff.js';
 
 test('the four-step pipeline produces one served dish', () => {
   const g = createGame();
@@ -386,6 +391,188 @@ test('crew reservations prevent duplicate tomato and plate pickups', () => {
   );
 });
 
+test('equipment adds parallel stations only when purchased', () => {
+  const locked = createGame({ level: 10, stock: 20 });
+  assert.deepEqual(activeStationIds(locked), ['crate', 'board', 'pot', 'grill', 'plates', 'serve']);
+  assert.equal(locked.stations.board2.state, 'idle');
+  assert.equal(stationKind('board2'), 'board');
+
+  const expanded = createGame({
+    level: 10,
+    stock: 20,
+    equipment: {
+      board: { count: 2, level: 1 },
+      pot: { count: 2, level: 1 },
+      grill: { count: 2, level: 1 },
+    },
+    hired: ['helper', 'sous'],
+    duty: ['helper', 'sous'],
+  });
+  assert.deepEqual(activeStationIds(expanded), [
+    'crate',
+    'board',
+    'board2',
+    'pot',
+    'pot2',
+    'grill',
+    'grill2',
+    'plates',
+    'serve',
+  ]);
+  actor(expanded, 'helper').carrying = 'tomato';
+  actor(expanded, 'sous').carrying = 'tomato';
+  assert.equal(interact(expanded, 'helper', 'board').ok, true);
+  assert.equal(interact(expanded, 'sous', 'board2').ok, true);
+  assert.equal(expanded.stations.board.by, 'helper');
+  assert.equal(expanded.stations.board2.by, 'sous');
+});
+
+test('equipment levels shorten the matching station without changing recipes', () => {
+  const g = createGame({
+    level: 10,
+    stock: 20,
+    equipment: {
+      board: { count: 1, level: 2 },
+      pot: { count: 1, level: 2 },
+      grill: { count: 1, level: 3 },
+    },
+  });
+  g.human.carrying = 'tomato';
+  assert.equal(interact(g, 'human', 'board').ok, true);
+  assert.equal(g.stations.board.duration, Math.round(CHOP_MS * 0.92));
+  g.stations.board.state = 'idle';
+  g.human.carrying = 'chopped';
+  assert.equal(interact(g, 'human', 'pot').ok, true);
+  assert.equal(g.stations.pot.duration, Math.round(COOK_MS * 0.92));
+  g.stations.pot.state = 'idle';
+  g.human.carrying = 'chopped';
+  assert.equal(interact(g, 'human', 'grill').ok, true);
+  assert.equal(g.stations.grill.duration, Math.round(GRILL_MS * 0.84));
+});
+
+test('additional heat stations keep burn and boost boundaries independent', () => {
+  const g = createGame({
+    level: 20,
+    stock: 20,
+    equipment: {
+      board: { count: 2, level: 2 },
+      pot: { count: 2, level: 1 },
+      grill: { count: 2, level: 1 },
+    },
+  });
+  g.human.carrying = 'chopped';
+  assert.equal(interact(g, 'human', 'pot2').ok, true);
+  const pot = g.stations.pot2;
+  advance(g, pot.duration);
+  assert.equal(pot.state, 'ready');
+  assert.equal(pot.burnAt, pot.busyUntil + burnGraceMs(g, 'pot2'));
+  advance(g, burnGraceMs(g, 'pot2'));
+  assert.equal(pot.state, 'burnt');
+  assert.equal(interact(g, 'human', 'pot2').action, '焦げを片づけた');
+
+  g.human.carrying = 'tomato';
+  assert.equal(interact(g, 'human', 'board2').ok, true);
+  advance(g, g.stations.board2.duration * 0.4);
+  assert.ok(buildCandidates(g, 'human').some((candidate) => candidate.id === 'boost_board_board2'));
+  assert.equal(interact(g, 'human', 'board2').quality, true);
+});
+
+test('equipment layout keeps positions valid across kitchen expansion', () => {
+  const g = createGame({
+    level: 20,
+    stock: 20,
+    equipment: {
+      board: { count: 2, level: 1 },
+      pot: { count: 2, level: 1 },
+      grill: { count: 2, level: 1 },
+      warmer: { count: 1, level: 2 },
+      kitchen: { count: 1, level: 3 },
+    },
+  });
+  assert.equal(kitchenBounds(g).maxX, 1435);
+  assert.deepEqual(stationInfo(g, 'board'), {
+    name: 'まな板',
+    x: 390,
+    y: 190,
+    dx: 0,
+    dy: -84,
+  });
+  assert.equal(layoutSlots(g).warmer.x, 680);
+  assert.equal(layoutSlots(g).top_extra.x, 1390);
+
+  const moved = resolveLayout(g, { board: 'top_extra' });
+  assert.equal(moved.board, 'top_extra');
+  assert.equal(stationInfo({ ...g, layout: moved }, 'board').x, 1390);
+  assert.equal(resolveLayout(g, { board: 'top_extra', board2: 'top_extra' }), null);
+  assert.equal(resolveLayout(g, { unknown: 'board' }), null);
+
+  const level2 = createGame({
+    level: 10,
+    stock: 10,
+    equipment: { kitchen: { count: 1, level: 2 } },
+  });
+  assert.equal(kitchenBounds(level2).maxX, 1305);
+  assert.equal(layoutSlots(level2).top_extra, undefined);
+});
+
+test('expanded fixed slots keep every relocated countertop non-overlapping', () => {
+  const g = createGame({
+    level: 20,
+    stock: 20,
+    equipment: {
+      board: { count: 2, level: 1 },
+      pot: { count: 2, level: 1 },
+      grill: { count: 2, level: 1 },
+      warmer: { count: 1, level: 1 },
+      kitchen: { count: 1, level: 3 },
+    },
+  });
+  const slots = Object.entries(layoutSlots(g));
+  const maxWidth = 2.56 * 65;
+  const maxDepth = 1.5 * 65;
+  for (let i = 0; i < slots.length; i++) {
+    const [, a] = slots[i];
+    const ax = a.x + a.dx;
+    const ay = a.y + a.dy;
+    for (let j = i + 1; j < slots.length; j++) {
+      const [, b] = slots[j];
+      const bx = b.x + b.dx;
+      const by = b.y + b.dy;
+      assert.ok(
+        Math.abs(ax - bx) >= maxWidth || Math.abs(ay - by) >= maxDepth,
+        `slot overlap: ${slots[i][0]} / ${slots[j][0]}`,
+      );
+    }
+  }
+  const layout = resolveLayout(g, { board: 'top_extra', board2: 'bottom_extra' });
+  assert.equal(stationInfo({ ...g, layout }, 'board').x, 1390);
+  assert.equal(stationInfo({ ...g, layout }, 'board2').x, 1390);
+});
+
+test('observations expose active station coordinates and the saved layout', () => {
+  const g = createGame({ level: 5, stock: 8, layout: { board: 'board2' } });
+  const body = observe(g);
+  assert.equal(body.layout.board, 'board2');
+  assert.deepEqual(body.kitchen_bounds, kitchenBounds(g));
+  assert.equal(body.stations.board.active, true);
+  assert.equal(body.stations.board.x, 620);
+  assert.equal(body.stations.board2.active, false);
+  assert.equal(body.stations.board2.x, undefined);
+});
+
+test('a moved station survives the next unlock without colliding with the new station', () => {
+  const equipment = { kitchen: { count: 1, level: 3 } };
+  const before = createGame({ level: 4, stock: 8, equipment, layout: { board: 'pot' } });
+  assert.equal(before.layout.board, 'pot');
+  assert.equal(before.layout.pot, undefined);
+
+  const after = resolveLayout({ level: 5, equipment }, before.layout);
+  assert.equal(after.board, 'pot');
+  assert.notEqual(after.pot, after.board);
+  assert.equal(new Set(Object.values(after)).size, Object.keys(after).length);
+  assert.equal(stationInfo({ level: 5, equipment, layout: after }, 'board').x, 930);
+});
+
 test('payroll and role-specific rest advance once per shift and only after Lv25', () => {
   const g = createGame({
     level: 25,
@@ -710,4 +897,28 @@ test('practice mode teaches one salad without timers or pressure', () => {
   assert.equal(interact(g, 'human', 'crate').ok, true);
   assert.equal(discard(g, 'human'), true);
   assert.equal(observe(g).seconds_left, null);
+});
+
+test('every sidekick has a unique theme color and relative performance bars', () => {
+  const colors = Object.values(STAFF).map((profile) => profile.color);
+  assert.equal(new Set(colors).size, colors.length);
+  assert.ok(colors.every((color) => /^#[0-9a-f]{6}$/i.test(color)));
+  for (const id of Object.keys(STAFF)) {
+    const bars = staffPerformance(id);
+    assert.deepEqual(
+      bars.map((bar) => bar.key),
+      ['speed', 'decision', 'chop', 'cook'],
+    );
+    assert.ok(
+      bars.every((bar) => bar.ratio > 0 && bar.ratio <= 1),
+      `${id} ratio`,
+    );
+  }
+  const ratio = (id, key) => staffPerformance(id).find((bar) => bar.key === key).ratio;
+  assert.equal(ratio('sprinter', 'speed'), 1);
+  assert.equal(ratio('veteran', 'decision'), 1);
+  assert.equal(ratio('chef', 'chop'), 1);
+  assert.equal(ratio('chef', 'cook'), 1);
+  assert.equal(ratio('chef', 'speed'), 0.15);
+  assert.equal(staffPerformance('missing').length, 0);
 });

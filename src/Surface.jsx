@@ -90,6 +90,40 @@ export function Plaque({
   );
 }
 
+// Horizontal meter used to visualize relative staff performance without raw numbers.
+export function Meter({ width, height, ratio = 0, color = INK, track = '#dbe3d2', order = 1000 }) {
+  const inner = Math.max(1, width - 4);
+  const fill = Math.max(height - 4, inner * Math.min(1, Math.max(0, ratio)));
+  return (
+    <group>
+      <RoundedBox args={[width, height, 4]} radius={height / 2} smoothness={2} renderOrder={order}>
+        <meshBasicMaterial
+          color={track}
+          transparent
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </RoundedBox>
+      <RoundedBox
+        args={[fill, height - 4, 4]}
+        radius={(height - 4) / 2}
+        smoothness={2}
+        position={[-(inner - fill) / 2, 0, 2]}
+        renderOrder={order + 1}
+      >
+        <meshBasicMaterial
+          color={color}
+          transparent
+          depthTest={false}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </RoundedBox>
+    </group>
+  );
+}
+
 export function WorldLabel({
   position,
   text,

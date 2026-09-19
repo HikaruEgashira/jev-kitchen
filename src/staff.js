@@ -1,10 +1,12 @@
 import { levelConfig } from './progression.js';
+import { investmentCost } from './equipment.js';
 
 // Staff profiles keep movement, capabilities, payroll, and fatigue in one table.
 export const STAFF = Object.freeze({
   helper: {
     name: '見習いのハル',
     icon: '🐣',
+    color: '#f0b03b',
     role: 'allrounder',
     description: '切る・盛る担当。煮る・焼くはあなた。',
     capabilities: ['prep', 'serve'],
@@ -22,6 +24,7 @@ export const STAFF = Object.freeze({
   runner: {
     name: '配膳係のソラ',
     icon: '⚡',
+    color: '#4f9fd8',
     role: 'runner',
     description: '運搬と盛り付け専門。足が速い。',
     capabilities: ['serve'],
@@ -30,7 +33,7 @@ export const STAFF = Object.freeze({
     wage: 20,
     maxConsecutive: 2,
     restShifts: 1,
-    cost: 80,
+    cost: investmentCost(4),
     decisionMs: 1400,
     speed: 1.18,
     chop: 1.15,
@@ -39,6 +42,7 @@ export const STAFF = Object.freeze({
   chef: {
     name: '料理人のナギ',
     icon: '🔪',
+    color: '#d1583c',
     role: 'chef',
     description: '仕込みと加熱専門。配膳はしない。',
     capabilities: ['prep', 'cook'],
@@ -47,7 +51,7 @@ export const STAFF = Object.freeze({
     wage: 45,
     maxConsecutive: 3,
     restShifts: 2,
-    cost: 180,
+    cost: investmentCost(7),
     decisionMs: 900,
     speed: 0.9,
     chop: 0.55,
@@ -56,6 +60,7 @@ export const STAFF = Object.freeze({
   sous: {
     name: '副料理長のリン',
     icon: '⏱️',
+    color: '#3f9e7d',
     role: 'expediter',
     description: '全工程に対応。締切を優先。',
     capabilities: ['prep', 'cook', 'serve'],
@@ -64,7 +69,7 @@ export const STAFF = Object.freeze({
     wage: 60,
     maxConsecutive: 2,
     restShifts: 2,
-    cost: 260,
+    cost: investmentCost(10),
     decisionMs: 500,
     speed: 1.05,
     chop: 0.8,
@@ -73,6 +78,7 @@ export const STAFF = Object.freeze({
   prep: {
     name: '仕込み係のミオ',
     icon: '🥬',
+    color: '#8cbf4d',
     role: 'chef',
     description: '切る専門。手際がいい。',
     capabilities: ['prep'],
@@ -81,7 +87,7 @@ export const STAFF = Object.freeze({
     wage: 16,
     maxConsecutive: 3,
     restShifts: 1,
-    cost: 60,
+    cost: investmentCost(3),
     decisionMs: 2000,
     speed: 1,
     chop: 0.55,
@@ -90,6 +96,7 @@ export const STAFF = Object.freeze({
   sprinter: {
     name: '特急配膳のレオ',
     icon: '💨',
+    color: '#e08a3c',
     role: 'runner',
     description: '配膳専門。ダッシュで届ける。',
     capabilities: ['serve'],
@@ -98,7 +105,7 @@ export const STAFF = Object.freeze({
     wage: 32,
     maxConsecutive: 2,
     restShifts: 1,
-    cost: 200,
+    cost: investmentCost(8),
     decisionMs: 1200,
     speed: 1.2,
     chop: 1,
@@ -107,6 +114,7 @@ export const STAFF = Object.freeze({
   veteran: {
     name: '店長候補のアオ',
     icon: '🌟',
+    color: '#8b6bd6',
     role: 'expediter',
     description: '全工程に対応。ダッシュもできる。',
     capabilities: ['prep', 'cook', 'serve'],
@@ -115,7 +123,7 @@ export const STAFF = Object.freeze({
     wage: 85,
     maxConsecutive: 2,
     restShifts: 2,
-    cost: 420,
+    cost: investmentCost(16),
     decisionMs: 300,
     speed: 1.15,
     chop: 0.75,
@@ -163,4 +171,33 @@ export function nextStaffState(g) {
           : [id, { worked, rest: 0 }];
       }),
   );
+}
+
+// Relative strengths for the hiring screen. Higher ratio is always better, so
+// slower decisions and chop/cook time multipliers invert before normalizing.
+const PERFORMANCE = Object.freeze([
+  { key: 'speed', label: '速さ', read: (p) => p.speed, higher: true },
+  { key: 'decision', label: '判断', read: (p) => p.decisionMs, higher: false },
+  { key: 'chop', label: '仕込み', read: (p) => p.chop, higher: false },
+  { key: 'cook', label: '加熱', read: (p) => p.cook, higher: false },
+]);
+const PERFORMANCE_RANGE = Object.freeze(
+  Object.fromEntries(
+    PERFORMANCE.map(({ key, read }) => {
+      const values = Object.values(STAFF).map(read);
+      return [key, { min: Math.min(...values), max: Math.max(...values) }];
+    }),
+  ),
+);
+
+export function staffPerformance(id) {
+  const profile = STAFF[id];
+  if (!profile) return [];
+  return PERFORMANCE.map(({ key, label, read, higher }) => {
+    const { min, max } = PERFORMANCE_RANGE[key];
+    const value = read(profile);
+    const relative =
+      max === min ? 1 : higher ? (value - min) / (max - min) : (max - value) / (max - min);
+    return { key, label, ratio: 0.15 + 0.85 * relative };
+  });
 }

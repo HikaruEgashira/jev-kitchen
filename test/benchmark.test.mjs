@@ -11,6 +11,7 @@ import {
   movePlayer,
 } from '../src/model.js';
 import { useKitchen, startBenchmark, benchmarkAction, tick, nextShift } from '../src/game.js';
+import { STAFF } from '../src/staff.js';
 import {
   runBenchmark,
   stopBenchmark,
@@ -212,6 +213,7 @@ test('dash, directional movement, interruption and boosts use the human mechanic
 
 test('frequency spaces calls and the model hires, buys stock and assigns the next partner', async (t) => {
   const calls = [];
+  const preparationCash = STAFF.chef.cost + 320;
   const choices = ['wait', 'hire_chef', 'stock_9', 'assign_helper', 'open_shift'];
   t.mock.method(globalThis, 'fetch', async (_url, options) => {
     calls.push(performance.now());
@@ -220,7 +222,7 @@ test('frequency spaces calls and the model hires, buys stock and assigns the nex
     assert.ok(choice in body.questions.next_action.criteria);
     if (calls.length === 1) {
       const g = useKitchen.getState().game;
-      g.cash = 500;
+      g.cash = preparationCash;
       g.served = g.quota;
       g.time = SHIFT_MS;
       tick(0);
@@ -245,7 +247,7 @@ test('frequency spaces calls and the model hires, buys stock and assigns the nex
   assert.equal(result.clearedLevels, 1);
   assert.deepEqual(
     useBenchmark.getState().splits.map(({ level, cash, score }) => ({ level, cash, score })),
-    [{ level: 1, cash: 500, score: 0 }],
+    [{ level: 1, cash: preparationCash, score: 0 }],
   );
   assert.equal(result.requests, 5);
   assert.equal(result.conditions.frequency, 10);

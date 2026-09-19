@@ -22,9 +22,12 @@ import {
   STOCK_PRICE,
   SPEED,
   actor,
+  stationInfo,
+  resolveLayout,
 } from './model.js';
 import { createAudio } from './audio.js';
 import { STAFF, nextStaffState, payroll, staffAvailable } from './staff.js';
+import { equipmentState, validateEquipment, quoteEquipment } from './equipment.js';
 
 const BEST_KEY = 'sidekick-best-v2';
 const ONBOARDED_KEY = 'sidekick-onboarded-v1';
@@ -82,6 +85,11 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
   }
   if (value.version !== CHECKPOINT_VERSION || typeof value.completed !== 'boolean') return null;
   if (!Number.isSafeInteger(value.level) || value.level < 1 || value.level > MAX_LEVEL) return null;
+  if (value.equipment !== undefined && !validateEquipment(value.equipment, value.level))
+    return null;
+  const equipment = equipmentState(value.equipment);
+  const layout = resolveLayout({ level: value.level, equipment }, value.layout);
+  if (!layout) return null;
   if (!safeMoney(value.cash) || !safeStock(value.stock)) return null;
   if ((value.level === 1) !== (value.stock === null)) return null;
   if (!allowUnreadyStock && value.level > 1 && value.stock < quotaForLevel(value.level))
@@ -131,6 +139,8 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
     duty: [...value.duty],
     staffState: Object.fromEntries(value.hired.map((id) => [id, { ...value.staffState[id] }])),
     hired: [...value.hired],
+    equipment,
+    layout,
     completed: value.completed,
     frozenApplicants,
   };
@@ -177,6 +187,7 @@ export const useKitchen = create(() => ({
   phase: 'ready',
   benchmark: false,
   benchPreparation: null,
+  preparationPreview: null,
   revision: 0,
   mode: 'jev',
   policy: '',
@@ -292,6 +303,8 @@ function snapshot(g) {
     duty: [...g.duty],
     staffState: Object.fromEntries(hired.map((id) => [id, { ...g.staffState[id] }])),
     hired,
+    equipment: equipmentState(g.equipment),
+    layout: { ...g.layout },
   };
 }
 
@@ -356,6 +369,8 @@ function beginShift({
   staffState,
   hired = ['helper'],
   stock = null,
+  equipment,
+  layout,
   rollback = null,
   frozenApplicants: successorApplicants = null,
 } = {}) {
@@ -366,7 +381,17 @@ function beginShift({
   lastPublish = 0;
   policyChangedAt = -Infinity;
   frozenApplicants = Array.isArray(successorApplicants) ? [...successorApplicants] : null;
-  const game = createGame({ practice, level, cash, duty, staffState, hired, stock });
+  const game = createGame({
+    practice,
+    level,
+    cash,
+    duty,
+    staffState,
+    hired,
+    stock,
+    equipment,
+    layout,
+  });
   const checkpoint = !practice
     ? writeCheckpoint({ ...snapshot(game), rollback, frozenApplicants })
     : null;
@@ -374,6 +399,7 @@ function beginShift({
   update({
     game,
     benchPreparation: null,
+    preparationPreview: null,
     phase: 'playing',
     tutorial: practice ? 0 : null,
     cleared: false,
@@ -497,7 +523,13 @@ export function setPolicy(policy) {
   update({ policy: typeof policy === 'string' ? policy.slice(0, 300) : '' });
 }
 
-export function nextShift(applicantId = null, buyStock, assignedDuty) {
+export function nextShift(
+  applicantId = null,
+  buyStock,
+  assignedDuty,
+  equipmentPurchases = [],
+  layout,
+) {
   const current = state();
   if (
     !current.ready ||
@@ -554,7 +586,14 @@ export function nextShift(applicantId = null, buyStock, assignedDuty) {
     )
   )
     return false;
-  const total = hiringCost + purchased * STOCK_PRICE + payroll(duty);
+  const investment = quoteEquipment(g.equipment, equipmentPurchases, nextLevel);
+  if (investment.error) return false;
+  const nextLayout = resolveLayout(
+    { level: nextLevel, equipment: investment.equipment },
+    layout === undefined ? g.layout : layout,
+  );
+  if (!nextLayout) return false;
+  const total = hiringCost + purchased * STOCK_PRICE + payroll(duty) + investment.cost;
   if (total > cash) return false;
   beginShift({
     level: nextLevel,
@@ -563,9 +602,25 @@ export function nextShift(applicantId = null, buyStock, assignedDuty) {
     duty,
     staffState,
     hired,
+    equipment: investment.equipment,
+    layout: nextLayout,
     rollback,
   });
   return true;
+}
+
+export function setPreparationPreview(preview) {
+  const current = state();
+  if (preview === null) {
+    if (current.preparationPreview) update({ preparationPreview: null });
+    return;
+  }
+  if (!current.ready || current.phase !== 'finished' || !current.cleared) return;
+  const level = Math.min(MAX_LEVEL, current.game.level + 1);
+  if (!preview || !validateEquipment(preview.equipment, level)) return;
+  const layout = resolveLayout({ level, equipment: preview.equipment }, preview.layout);
+  if (!layout) return;
+  update({ preparationPreview: { ...current.game, level, equipment: preview.equipment, layout } });
 }
 
 export function retryShift() {
@@ -604,6 +659,7 @@ export function rollbackToPreparation() {
   shiftSnapshot = checkpoint;
   update({
     game,
+    preparationPreview: null,
     phase: 'finished',
     cleared: true,
     applicants: [...preparation.applicants],
@@ -611,7 +667,7 @@ export function rollbackToPreparation() {
     checkpoint,
     rollback: null,
     reviewing: true,
-    toast: '仕入れと採用をやり直せます',
+    toast: '開店準備をやり直せます',
   });
   publish();
   return true;
@@ -926,7 +982,7 @@ export function tick(delta) {
   if (ax || ay) {
     movePlayer(g, ax, ay, step, state().movementMode);
   } else if (target) {
-    const station = STATIONS[target];
+    const station = stationInfo(g, target);
     if (moveToward(g.human, station.x, station.y, step)) humanInteract(true);
   }
   if (practice && state().tutorial === TUTORIAL_STEPS.length) {
@@ -967,7 +1023,7 @@ export function tick(delta) {
       discard(g, who);
       cook.intent = null;
     } else {
-      const station = STATIONS[intent.station];
+      const station = stationInfo(g, intent.station);
       const staff = STAFF[who] ?? STAFF.helper;
       if (
         who !== 'human' &&

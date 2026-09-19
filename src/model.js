@@ -1,7 +1,19 @@
 import { STAFF, staffAvailable } from './staff.js';
+import {
+  equipmentBurnMultiplier,
+  equipmentDurationMultiplier,
+  equipmentState,
+  stationKind,
+} from './equipment.js';
 import { levelConfig } from './progression.js';
 
 export { levelConfig, quotaForLevel, MAX_LEVEL } from './progression.js';
+export {
+  equipmentBurnMultiplier,
+  equipmentDurationMultiplier,
+  equipmentState,
+  stationKind,
+} from './equipment.js';
 
 // Both cooks use the same mechanics. Jev selects only from feasible actions.
 export const REACH = 68;
@@ -19,8 +31,11 @@ export const BOOST_MAX = 0.65;
 export const STATIONS = {
   crate: { name: 'トマト', x: 155, y: 190, dx: 0, dy: -84 },
   board: { name: 'まな板', x: 390, y: 190, dx: 0, dy: -84 },
+  board2: { name: 'まな板2', x: 620, y: 190, dx: 0, dy: -84 },
   pot: { name: 'スープ鍋', x: 930, y: 190, dx: 0, dy: -84 },
+  pot2: { name: 'スープ鍋2', x: 930, y: 390, dx: 0, dy: 82 },
   grill: { name: 'グリル', x: 1130, y: 320, dx: 84, dy: 0 },
+  grill2: { name: 'グリル2', x: 1130, y: 190, dx: 84, dy: 0 },
   plates: { name: 'お皿', x: 755, y: 285, dx: 84, dy: 0 },
   serve: { name: '配膳', x: 455, y: 390, dx: 0, dy: 82 },
 };
@@ -46,6 +61,7 @@ export const RECIPES = {
   soup: { name: 'トマトスープ', points: 140 },
   roast: { name: '焼きトマト', points: 180 },
 };
+
 function stockAmount(value) {
   const amount = Number(value);
   return Number.isFinite(amount) ? Math.max(0, Math.floor(amount)) : 0;
@@ -74,6 +90,7 @@ function initialOrderDeadline(g, index) {
 
 function syncConfig(g) {
   const config = levelConfig(g.practice ? 1 : g.level);
+  g.equipment = equipmentState(g.equipment);
   g.level = config.level;
   g.duration = g.practice ? Infinity : SHIFT_MS;
   g.quota = g.practice ? 1 : config.quota;
@@ -117,6 +134,31 @@ function makeActor(x, y) {
   };
 }
 
+function makeBoardStation() {
+  return {
+    state: 'idle',
+    busyUntil: 0,
+    by: null,
+    startedAt: 0,
+    duration: 0,
+    boosted: false,
+    quality: false,
+  };
+}
+
+function makeHeatStation() {
+  return {
+    state: 'idle',
+    busyUntil: 0,
+    by: null,
+    startedAt: 0,
+    duration: 0,
+    burnAt: 0,
+    boosted: false,
+    quality: false,
+  };
+}
+
 export function actor(g, who) {
   const id = who === 'ai' ? (g?.staffId ?? g?.duty?.[0]) : resolveWho(g, who);
   return id === 'human' ? (g?.human ?? null) : (g?.crew?.[id] ?? null);
@@ -146,33 +188,110 @@ function actionCapability(id) {
 }
 
 function cookDuration(g, who, stationId) {
-  const base = stationId === 'grill' ? GRILL_MS : COOK_MS;
+  const base = stationKind(stationId) === 'grill' ? GRILL_MS : COOK_MS;
   const profile = staffProfile(g, who);
-  return profile ? Math.round(base * profile.cook) : base;
+  const multiplier = Number(equipmentDurationMultiplier(g.equipment, stationKind(stationId)));
+  const equipmentFactor = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
+  return Math.round(base * equipmentFactor * (profile?.cook ?? 1));
 }
 
-function chopDuration(g, who) {
+function chopDuration(g, who, stationId = 'board') {
   const profile = staffProfile(g, who);
-  return profile ? Math.round(CHOP_MS * profile.chop) : CHOP_MS;
+  const multiplier = Number(equipmentDurationMultiplier(g.equipment, stationKind(stationId)));
+  const equipmentFactor = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
+  return Math.round(CHOP_MS * equipmentFactor * (profile?.chop ?? 1));
 }
 
-export function activeStationIds(g) {
+export function activeStationIds(g = {}) {
   const { kitchenTier } = levelConfig(g.practice ? 1 : g.level);
-  return kitchenTier >= 3
-    ? ['crate', 'board', 'pot', 'grill', 'plates', 'serve']
-    : kitchenTier >= 2
-      ? ['crate', 'board', 'pot', 'plates', 'serve']
-      : ['crate', 'board', 'plates', 'serve'];
+  const equipment = equipmentState(g.equipment);
+  const active = ['crate', 'board'];
+  if (equipment.board.count >= 2) active.push('board2');
+  if (kitchenTier >= 2) {
+    active.push('pot');
+    if (equipment.pot.count >= 2) active.push('pot2');
+  }
+  if (kitchenTier >= 3) {
+    active.push('grill');
+    if (equipment.grill.count >= 2) active.push('grill2');
+  }
+  active.push('plates', 'serve');
+  return active;
 }
 
-export function kitchenBounds(g) {
+const WARMER_SLOT = { name: '保温台', x: 680, y: 390, dx: 0, dy: 82 };
+const EXPANSION_SLOTS = {
+  top_extra: { name: '拡張台（上）', x: 1390, y: 190, dx: 0, dy: -84 },
+  bottom_extra: { name: '拡張台（下）', x: 1390, y: 390, dx: 0, dy: 82 },
+};
+
+export function kitchenBounds(g = {}) {
   const active = activeStationIds(g);
+  const kitchenLevel = equipmentState(g.equipment).kitchen.level;
+  const baseMaxX = active.includes('grill') ? 1175 : active.includes('pot') ? 975 : 775;
   return {
     minX: 85,
-    maxX: active.includes('grill') ? 1175 : active.includes('pot') ? 975 : 775,
+    maxX: baseMaxX + (kitchenLevel - 1) * 130,
     minY: 175,
     maxY: 402,
   };
+}
+
+function slotInBounds(slot, bounds) {
+  return (
+    slot.x >= bounds.minX && slot.x <= bounds.maxX && slot.y >= bounds.minY && slot.y <= bounds.maxY
+  );
+}
+
+export function layoutSlots(g = {}) {
+  const bounds = kitchenBounds(g);
+  const slots = {};
+  for (const id of STATION_IDS) {
+    if (slotInBounds(STATIONS[id], bounds)) slots[id] = { ...STATIONS[id] };
+  }
+  if (slotInBounds(WARMER_SLOT, bounds)) slots.warmer = { ...WARMER_SLOT };
+  for (const [id, slot] of Object.entries(EXPANSION_SLOTS)) {
+    if (slotInBounds(slot, bounds)) slots[id] = { ...slot };
+  }
+  return slots;
+}
+
+export function resolveLayout(g = {}, proposed = {}) {
+  if (
+    proposed === null ||
+    typeof proposed !== 'object' ||
+    Array.isArray(proposed) ||
+    Object.getOwnPropertySymbols(proposed).length
+  )
+    return null;
+  const active = [...activeStationIds(g)];
+  if (equipmentState(g.equipment).warmer.count > 0) active.push('warmer');
+  const slots = layoutSlots(g);
+  if (!active.every((id) => Object.hasOwn(slots, id))) return null;
+  const available = new Set(Object.keys(slots));
+  const result = {};
+  const used = new Set();
+  for (const [id, slot] of Object.entries(proposed)) {
+    if (!active.includes(id) || !available.has(slot) || used.has(slot)) return null;
+    result[id] = slot;
+    used.add(slot);
+  }
+  for (const id of active) {
+    if (Object.hasOwn(result, id)) continue;
+    const slot = [id, ...available].find((candidate) => !used.has(candidate));
+    if (!slot) return null;
+    result[id] = slot;
+    used.add(slot);
+  }
+  return result;
+}
+
+export function stationInfo(g, id) {
+  const base = STATIONS[id] ?? (id === 'warmer' ? WARMER_SLOT : null);
+  if (!base) return null;
+  const slots = layoutSlots(g);
+  const slot = slots[g?.layout?.[id]] ?? slots[id] ?? base;
+  return { ...base, x: slot.x, y: slot.y, dx: slot.dx, dy: slot.dy };
 }
 
 export function createGame({
@@ -184,6 +303,8 @@ export function createGame({
   duty,
   staffState = {},
   stock = null,
+  equipment,
+  layout,
 } = {}) {
   const initialConfig = levelConfig(practice ? 1 : level);
   const initialLevel = initialConfig.level;
@@ -225,6 +346,7 @@ export function createGame({
     duty: initialDuty,
     staffState: normalizedStaffState,
     stock: initialStock,
+    equipment: equipmentState(equipment),
     time: 0,
     served: 0,
     score: 0,
@@ -238,35 +360,12 @@ export function createGame({
     orders: [],
     stations: {
       crate: {},
-      board: {
-        state: 'idle',
-        busyUntil: 0,
-        by: null,
-        startedAt: 0,
-        duration: 0,
-        boosted: false,
-        quality: false,
-      },
-      pot: {
-        state: 'idle',
-        busyUntil: 0,
-        by: null,
-        startedAt: 0,
-        duration: 0,
-        burnAt: 0,
-        boosted: false,
-        quality: false,
-      },
-      grill: {
-        state: 'idle',
-        busyUntil: 0,
-        by: null,
-        startedAt: 0,
-        duration: 0,
-        burnAt: 0,
-        boosted: false,
-        quality: false,
-      },
+      board: makeBoardStation(),
+      board2: makeBoardStation(),
+      pot: makeHeatStation(),
+      pot2: makeHeatStation(),
+      grill: makeHeatStation(),
+      grill2: makeHeatStation(),
       plates: {},
       serve: {},
     },
@@ -278,6 +377,7 @@ export function createGame({
       ]),
     ),
   };
+  g.layout = resolveLayout(g, layout) ?? resolveLayout(g);
   g.ai = g.crew[g.staffId] ?? null;
   g.orders = practice
     ? [order(g, Infinity, 'dish')]
@@ -296,6 +396,8 @@ export function completeOnboarding(g) {
     hired: g.hired,
     duty: g.duty,
     staffState: g.staffState,
+    equipment: g.equipment,
+    layout: g.layout,
   });
   Object.assign(g, fresh, {
     served,
@@ -311,7 +413,8 @@ export function stationAt(g, who) {
   let id = null;
   let dist = Infinity;
   for (const key of activeStationIds(g)) {
-    const s = STATIONS[key];
+    const s = stationInfo(g, key);
+    if (!s) continue;
     const d = Math.hypot(e.x - s.x, e.y - s.y);
     if (d < dist) {
       dist = d;
@@ -319,6 +422,10 @@ export function stationAt(g, who) {
     }
   }
   return { id, dist, inReach: dist <= REACH };
+}
+
+function stationName(g, id) {
+  return stationInfo(g, id)?.name ?? STATIONS[id]?.name ?? id;
 }
 
 export function moveToward(e, x, y, step) {
@@ -377,6 +484,15 @@ function startHeat(g, who, stationId, st, quality = false) {
   st.by = who;
 }
 
+export function burnGraceMs(g, stationId) {
+  const kind = stationKind(stationId);
+  if (g.practice || !levelConfig(g.level).burningEnabled) return 0;
+  if (kind !== 'pot' && kind !== 'grill') return 0;
+  const base = kind === 'grill' ? GRILL_BURN_MS : POT_BURN_MS;
+  const multiplier = Number(equipmentBurnMultiplier(g.equipment));
+  return Math.round(base * (Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1));
+}
+
 function boostAvailable(g, st) {
   if (g.practice || !levelConfig(g.level).boostEnabled) return false;
   if (!['chopping', 'cooking'].includes(st.state) || st.boosted || !st.duration) return false;
@@ -396,7 +512,11 @@ function tryBoost(g, who, st) {
   return { ok: true, action: '調理を早めた', quality: true };
 }
 
-const EXCLUSIVE_STATIONS = new Set(['board', 'pot', 'grill']);
+const EXCLUSIVE_STATION_KINDS = new Set(['board', 'pot', 'grill']);
+
+function stationIdsOfKind(g, kind) {
+  return activeStationIds(g).filter((id) => stationKind(id) === kind);
+}
 
 function crewIds(g) {
   return Array.isArray(g.duty) ? g.duty : Object.keys(g.crew ?? {});
@@ -409,7 +529,7 @@ function otherCrew(g, who, predicate) {
 function stationReserved(g, stationId, who) {
   return (
     who !== 'human' &&
-    EXCLUSIVE_STATIONS.has(stationId) &&
+    EXCLUSIVE_STATION_KINDS.has(stationKind(stationId)) &&
     otherCrew(g, who, (_id, e) => e?.intent?.station === stationId)
   );
 }
@@ -428,11 +548,14 @@ function canFetchTomato(g, who) {
 }
 
 function plateDemand(g) {
-  return [
-    g.stations.board.state === 'chopped' && g.orders.some((o) => o.recipe === 'dish'),
-    g.stations.pot.state === 'ready' && g.orders.some((o) => o.recipe === 'soup'),
-    g.stations.grill.state === 'ready' && g.orders.some((o) => o.recipe === 'roast'),
-  ].filter(Boolean).length;
+  return ['board', 'pot', 'grill'].reduce((demand, kind) => {
+    const ready = stationIdsOfKind(g, kind).filter((id) =>
+      ['board' === kind ? 'chopped' : 'ready'].includes(g.stations[id].state),
+    ).length;
+    const recipe = kind === 'board' ? 'dish' : kind === 'grill' ? 'roast' : 'soup';
+    const orders = g.orders.filter((orderTicket) => orderTicket.recipe === recipe).length;
+    return demand + Math.min(ready, orders);
+  }, 0);
 }
 
 function plateSlotsUsed(g, who) {
@@ -458,6 +581,7 @@ export function interact(g, who, stationId) {
     return { ok: false, reason: 'その相棒は今シフトに入っていません' };
   const e = actor(g, who),
     st = g.stations[stationId];
+  const kind = stationKind(stationId);
   if (!e) return { ok: false, reason: '担当者が見つかりません' };
   if (!st) return { ok: false, reason: 'ここでは作業できません' };
   if (!g.practice && g.time >= g.duration) return { ok: false, reason: '営業時間外です' };
@@ -466,12 +590,12 @@ export function interact(g, who, stationId) {
     return { ok: false, reason: '相棒がその作業台を使っています' };
   const success = (action) => ({ ok: true, action });
   const boostStation =
-    (stationId === 'board' && st.state === 'chopping') ||
-    ((stationId === 'pot' || stationId === 'grill') && st.state === 'cooking');
+    (kind === 'board' && st.state === 'chopping') ||
+    ((kind === 'pot' || kind === 'grill') && st.state === 'cooking');
   if (boostStation) {
     if (!e.carrying) return tryBoost(g, who, st);
   }
-  switch (stationId) {
+  switch (kind) {
     case 'crate':
       if (!e.carrying) {
         const denied = capabilityFailure(g, who, 'prep');
@@ -521,7 +645,7 @@ export function interact(g, who, stationId) {
         if (denied) return denied;
         e.carrying = null;
         st.state = 'chopping';
-        st.duration = chopDuration(g, who);
+        st.duration = chopDuration(g, who, stationId);
         st.startedAt = g.time;
         st.busyUntil = g.time + st.duration;
         st.boosted = false;
@@ -663,16 +787,17 @@ export function advance(g, elapsed = 0) {
   g.time = g.practice
     ? g.time + Math.max(0, elapsed)
     : Math.min(g.duration, g.time + Math.max(0, elapsed));
-  const board = g.stations.board;
-  if (board.state === 'chopping' && g.time >= board.busyUntil) board.state = 'chopped';
-  for (const [id, burnMs] of [
-    ['pot', POT_BURN_MS],
-    ['grill', GRILL_BURN_MS],
-  ]) {
-    const st = g.stations[id];
+  for (const [id, st] of Object.entries(g.stations)) {
+    const kind = stationKind(id);
+    if (kind === 'board') {
+      if (st.state === 'chopping' && g.time >= st.busyUntil) st.state = 'chopped';
+      continue;
+    }
+    if (kind !== 'pot' && kind !== 'grill') continue;
     if (st.state === 'cooking' && g.time >= st.busyUntil) {
       st.state = 'ready';
-      st.burnAt = config.burningEnabled && !g.practice ? st.busyUntil + burnMs : 0;
+      const grace = burnGraceMs(g, id);
+      st.burnAt = grace ? st.busyUntil + grace : 0;
     }
     if (st.state === 'ready' && st.burnAt && g.time >= st.burnAt) {
       st.state = 'burnt';
@@ -703,17 +828,24 @@ export function buildCandidates(g, who) {
   normalizeDuty(g);
   const id = resolveWho(g, who);
   const player = id === 'human';
-  const e = actor(g, id),
-    b = g.stations.board,
-    p = g.stations.pot,
-    grill = g.stations.grill,
-    active = activeStationIds(g);
+  const e = actor(g, id);
+  const active = activeStationIds(g);
+  const boards = stationIdsOfKind(g, 'board');
+  const pots = stationIdsOfKind(g, 'pot');
+  const grills = stationIdsOfKind(g, 'grill');
   const out = [];
-  const add = (actionId, label, station) => {
-    const capability = actionCapability(actionId);
+  const add = (baseId, label, station) => {
+    const capability = actionCapability(baseId);
     if (capability && !canOperate(g, id, capability)) return;
     if (station && stationReserved(g, station, id)) return;
-    out.push({ id: actionId, label, station });
+    const kind = station ? stationKind(station) : null;
+    const candidateId = station && station !== kind ? `${baseId}_${station}` : baseId;
+    out.push({
+      id: candidateId,
+      ...(candidateId === baseId ? {} : { baseId }),
+      label,
+      station,
+    });
   };
   const needs = (recipe) => player || g.orders.some((o) => o.recipe === recipe);
   if (e && (g.practice || g.time < g.duration)) {
@@ -723,52 +855,71 @@ export function buildCandidates(g, who) {
       else if (!player) add('discard', '注文のない料理を片づける', null);
     }
     if (e.carrying === 'chopped') {
-      if (active.includes('pot') && p.state === 'idle' && needs('soup'))
-        add('cook', '切ったトマトでスープを煮込む', 'pot');
-      if (active.includes('grill') && grill.state === 'idle' && needs('roast'))
-        add('grill', '切ったトマトをグリルで焼く', 'grill');
+      for (const station of pots)
+        if (g.stations[station].state === 'idle' && needs('soup'))
+          add('cook', `${stationName(g, station)}でスープを煮込む`, station);
+      for (const station of grills)
+        if (g.stations[station].state === 'idle' && needs('roast'))
+          add('grill', `${stationName(g, station)}で焼く`, station);
       if (needs('dish') || (!needs('soup') && !needs('roast')))
         add('assemble', '切ったトマトをお皿に盛ってサラダにする', 'plates');
     }
     if (e.carrying === 'plate') {
-      if (b.state === 'chopped' && needs('dish')) add('plate', 'サラダを盛り付ける', 'board');
-      if (active.includes('pot') && p.state === 'ready' && needs('soup'))
-        add('plate_soup', 'スープを盛り付ける', 'pot');
-      if (active.includes('grill') && grill.state === 'ready' && needs('roast'))
-        add('plate_roast', '焼きトマトを盛り付ける', 'grill');
+      for (const station of boards)
+        if (g.stations[station].state === 'chopped' && needs('dish'))
+          add('plate', `${stationName(g, station)}でサラダを盛り付ける`, station);
+      for (const station of pots)
+        if (g.stations[station].state === 'ready' && needs('soup'))
+          add('plate_soup', `${stationName(g, station)}で盛り付ける`, station);
+      for (const station of grills)
+        if (g.stations[station].state === 'ready' && needs('roast'))
+          add('plate_roast', `${stationName(g, station)}で盛り付ける`, station);
       add('return_plate', 'お皿を戻して手を空ける', 'plates');
     }
     if (e.carrying === 'tomato') {
-      if (b.state === 'idle') add('chop', 'トマトを切り始める', 'board');
-      if (player || b.state !== 'idle')
-        add('return_tomato', 'トマトを戻して別の仕事を手伝う', 'crate');
+      const idleBoard = boards.some((station) => g.stations[station].state === 'idle');
+      for (const station of boards)
+        if (g.stations[station].state === 'idle')
+          add('chop', `${stationName(g, station)}で切り始める`, station);
+      if (player || !idleBoard) add('return_tomato', 'トマトを戻して別の仕事を手伝う', 'crate');
     }
     if (!e.carrying) {
-      if ((player || b.state === 'idle') && canFetchTomato(g, id))
-        add('fetch_tomato', 'トマトを取る', 'crate');
       if (
-        b.state === 'chopped' &&
-        (player ||
-          (active.includes('pot') && p.state === 'idle' && needs('soup')) ||
-          (active.includes('grill') && grill.state === 'idle' && needs('roast')))
+        (player || boards.some((station) => g.stations[station].state === 'idle')) &&
+        canFetchTomato(g, id)
       )
-        add('collect', '切ったトマトを取る', 'board');
-      if (active.includes('pot') && p.state === 'burnt')
-        add('clean_pot', '焦げた鍋を片づける', 'pot');
-      if (active.includes('grill') && grill.state === 'burnt')
-        add('clean_grill', '焦げたグリルを片づける', 'grill');
-      if (id === 'human' && boostAvailable(g, b))
-        add('boost_board', 'まな板の仕上げを早める', 'board');
-      if (id === 'human' && active.includes('pot') && boostAvailable(g, p))
-        add('boost_pot', '鍋の仕上げを早める', 'pot');
-      if (id === 'human' && active.includes('grill') && boostAvailable(g, grill))
-        add('boost_grill', 'グリルの仕上げを早める', 'grill');
+        add('fetch_tomato', 'トマトを取る', 'crate');
+      for (const station of boards)
+        if (
+          g.stations[station].state === 'chopped' &&
+          (player ||
+            pots.some((target) => g.stations[target].state === 'idle' && needs('soup')) ||
+            grills.some((target) => g.stations[target].state === 'idle' && needs('roast')))
+        )
+          add('collect', `${stationName(g, station)}から材料を取る`, station);
+      for (const station of pots)
+        if (g.stations[station].state === 'burnt')
+          add('clean_pot', `${stationName(g, station)}を片づける`, station);
+      for (const station of grills)
+        if (g.stations[station].state === 'burnt')
+          add('clean_grill', `${stationName(g, station)}を片づける`, station);
+      if (id === 'human') {
+        for (const station of boards)
+          if (boostAvailable(g, g.stations[station]))
+            add('boost_board', `${stationName(g, station)}の仕上げを早める`, station);
+        for (const station of pots)
+          if (boostAvailable(g, g.stations[station]))
+            add('boost_pot', `${stationName(g, station)}の仕上げを早める`, station);
+        for (const station of grills)
+          if (boostAvailable(g, g.stations[station]))
+            add('boost_grill', `${stationName(g, station)}の仕上げを早める`, station);
+      }
       if (
         player ||
-        (((b.state === 'chopped' && needs('dish')) ||
-          (active.includes('pot') && p.state === 'ready' && needs('soup')) ||
-          (active.includes('grill') && grill.state === 'ready' && needs('roast'))) &&
-          canFetchPlate(g, id))
+        (canFetchPlate(g, id) &&
+          (boards.some((station) => g.stations[station].state === 'chopped' && needs('dish')) ||
+            pots.some((station) => g.stations[station].state === 'ready' && needs('soup')) ||
+            grills.some((station) => g.stations[station].state === 'ready' && needs('roast'))))
       )
         add('fetch_plate', 'お皿を用意する', 'plates');
     }
@@ -777,7 +928,7 @@ export function buildCandidates(g, who) {
       const near = stationAt(g, 'human');
       if (near.inReach && out.some((c) => c.station === near.id))
         add('interact', '近くの作業台で作業する（E）', near.id);
-      for (const id of active) add(`move_${id}`, `${STATIONS[id].name}へ移動する`, id);
+      for (const id of active) add(`move_${id}`, `${stationName(g, id)}へ移動する`, id);
       for (const [direction, dx, dy] of [
         ['up', 0, -1],
         ['down', 0, 1],
@@ -873,9 +1024,27 @@ function staffObservation(g, id) {
   };
 }
 
+function stationObservation(g, id, active) {
+  const station = g.stations[id];
+  const info = active ? stationInfo(g, id) : null;
+  return {
+    active,
+    ...(info ? { x: info.x, y: info.y, dx: info.dx, dy: info.dy } : {}),
+    state: station.state ?? 'idle',
+    by: station.by ?? null,
+    started_at: station.startedAt ?? 0,
+    duration: station.duration ?? 0,
+    burn_seconds:
+      station.state === 'ready' && station.burnAt
+        ? Math.max(0, Math.ceil((station.burnAt - g.time) / 1000))
+        : null,
+  };
+}
+
 export function observe(g, policy, who) {
   syncConfig(g);
   const id = resolveWho(g, who);
+  const active = new Set(activeStationIds(g));
   const crew = Object.fromEntries(
     crewIds(g).map((crewId) => [crewId, actorObservation(actor(g, crewId))]),
   );
@@ -889,6 +1058,15 @@ export function observe(g, policy, who) {
     hired: g.hired,
     duty: g.duty,
     staff_state: g.staffState,
+    equipment: g.equipment,
+    layout: { ...g.layout },
+    kitchen_bounds: kitchenBounds(g),
+    stations: Object.fromEntries(
+      Object.keys(g.stations).map((stationId) => [
+        stationId,
+        stationObservation(g, stationId, active.has(stationId)),
+      ]),
+    ),
     staff: staffObservation(g, id),
     actor: actorObservation(actor(g, id)),
     crew,
@@ -1001,7 +1179,7 @@ export function rulePick(g, cands, who) {
     return true;
   });
   const rank = (candidate) => {
-    const index = priority.indexOf(candidate.id);
+    const index = priority.indexOf(candidate.baseId ?? candidate.id);
     return index < 0 ? priority.length : index;
   };
   return [...usable].sort((a, b) => rank(a) - rank(b))[0] ?? cands.find((c) => c.id === 'wait');
@@ -1009,6 +1187,7 @@ export function rulePick(g, cands, who) {
 
 export function actionHint(g, id) {
   const item = g.human.carrying;
+  const kind = stationKind(id);
   if (id === 'crate') {
     if (item === 'tomato') return 'トマトを戻す';
     return item ? '手元を空ける' : 'トマトを取る';
@@ -1020,8 +1199,8 @@ export function actionHint(g, id) {
     if (RECIPES[item]) return '配膳口へ運ぶ';
     return 'お皿を取る';
   }
-  if (id === 'board') {
-    const board = g.stations.board;
+  if (kind === 'board') {
+    const board = g.stations[id] ?? g.stations.board;
     if (board.state === 'chopping') {
       return !item && boostAvailable(g, board) ? '仕上げる' : '切り終わるまで待つ';
     }
@@ -1034,8 +1213,8 @@ export function actionHint(g, id) {
     if (item === 'chopped') return 'お皿の台へ運ぶ';
     return 'トマトを取ってこよう';
   }
-  if (id === 'pot') {
-    const pot = g.stations.pot;
+  if (kind === 'pot') {
+    const pot = g.stations[id] ?? g.stations.pot;
     if (pot.state === 'cooking') {
       return !item && boostAvailable(g, pot) ? '仕上げる' : '煮込み中、別の仕事へ';
     }
@@ -1045,8 +1224,8 @@ export function actionHint(g, id) {
     if (RECIPES[item]) return '配膳口へ運ぶ';
     return '切ったトマトを持ってこよう';
   }
-  if (id === 'grill') {
-    const grill = g.stations.grill;
+  if (kind === 'grill') {
+    const grill = g.stations[id] ?? g.stations.grill;
     if (grill.state === 'cooking') {
       return !item && boostAvailable(g, grill) ? '仕上げる' : '焼き上がりを待とう';
     }

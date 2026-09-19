@@ -8,13 +8,13 @@ import { Block, Ball, Cylinder, Tomato, Food } from './Food.jsx';
 import * as THREE from 'three/webgpu';
 import { graphicsLost, TUTORIAL_STEPS, useKitchen, goTo, tick } from './game.js';
 import {
-  STATIONS,
   BOOST_MIN,
   BOOST_MAX,
-  POT_BURN_MS,
-  GRILL_BURN_MS,
+  burnGraceMs,
   activeStationIds,
   levelConfig,
+  stationInfo,
+  stationKind,
 } from './model.js';
 import { ENTRANCE_DURATION, entranceHeight } from './entrance.js';
 import { STAFF } from './staff.js';
@@ -22,7 +22,9 @@ import { STAFF } from './staff.js';
 const world = (x, y, height = 0) => [(x - 450) / 65, height, (y - 270) / 65];
 const FLOOR_ROWS = 8;
 const FLOOR_COLUMNS = Object.freeze({ 1: 14, 2: 16, 3: 20 });
-const FLOOR_MAX_TILES = FLOOR_ROWS * FLOOR_COLUMNS[3];
+const FLOOR_MAX_TILES = FLOOR_ROWS * (FLOOR_COLUMNS[3] + 2 * 2);
+const kitchenExpansion = (game) =>
+  Math.min(3, Math.max(1, Math.floor(Number(game.equipment?.kitchen?.level) || 1)));
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const palette = {
   mint: '#76b59b',
@@ -52,9 +54,12 @@ function Plant({ position, scale = 1 }) {
   );
 }
 
-function Floor({ level }) {
+function Floor({ level, expansion = 1 }) {
   const tiles = useRef();
-  const columns = FLOOR_COLUMNS[level] ?? FLOOR_COLUMNS[1];
+  const columns = Math.min(
+    FLOOR_MAX_TILES / FLOOR_ROWS,
+    (FLOOR_COLUMNS[level] ?? FLOOR_COLUMNS[1]) + 2 * Math.max(0, expansion - 1),
+  );
   useLayoutEffect(() => {
     const mesh = tiles.current;
     if (!mesh) return;
@@ -101,14 +106,15 @@ function Entrance({ timeline, delay = 0, children }) {
   );
 }
 
-const Room = memo(function Room({ level, timeline }) {
-  const right = level === 1 ? 7.1 : level === 2 ? 9.1 : 13.1;
+const Room = memo(function Room({ level, expansion, timeline }) {
+  const baseRight = level === 1 ? 7.1 : level === 2 ? 9.1 : 13.1;
+  const right = baseRight + 2 * Math.max(0, expansion - 1);
   const width = right + 7.1;
   const center = (right - 7.1) / 2;
   const parts = [
     <group key="floor">
       <Block size={[width, 0.4, 8.8]} position={[center, -0.26, 0]} radius={0.16} color="#94b7a0" />
-      <Floor level={level} />
+      <Floor level={level} expansion={expansion} />
     </group>,
     <group key="back-wall">
       <Block size={[width - 0.2, 2.45, 0.2]} position={[center, 1.2, -4.17]} color="#c4ddc4" />
@@ -228,12 +234,51 @@ function Steam({ active }) {
   );
 }
 
+function Warmer() {
+  useKitchen((s) => s.revision);
+  const graphicsReady = useKitchen((s) => s.ready);
+  const phase = useKitchen((s) => s.phase);
+  const preparationPreview = useKitchen((s) => s.preparationPreview);
+  const game = preparationPreview ?? useKitchen.getState().game;
+  const warmer = game.equipment?.warmer;
+  const count = Math.max(0, Math.floor(Number(warmer?.count) || 0));
+  if (!count) return null;
+  const level = Math.min(3, Math.max(1, Math.floor(Number(warmer.level) || 1)));
+  const station = stationInfo(game, 'warmer');
+  if (!station) return null;
+  return (
+    <group position={world(station.x + station.dx, station.y + station.dy)}>
+      <Block size={[1.28, 0.16, 0.58]} position={[0, 0.25, 0]} color="#8b6b4d" radius={0.04} />
+      <Block size={[1.05, 0.08, 0.42]} position={[0, 0.39, 0]} color="#d68c4f" radius={0.02} />
+      <Block size={[0.08, 0.45, 0.08]} position={[-0.48, 0.6, 0]} color="#65776c" radius={0.02} />
+      <Block size={[0.08, 0.45, 0.08]} position={[0.48, 0.6, 0]} color="#65776c" radius={0.02} />
+      <Block size={[1.05, 0.06, 0.08]} position={[0, 0.78, 0]} color="#65776c" radius={0.02} />
+      <Cylinder radii={[0.12, 0.14]} height={0.16} position={[0, 0.95, 0]} color="#f4a64f" />
+      <Ball size={0.07} position={[0, 1.08, 0]} color="#ffe09a" />
+      <WorldLabel
+        position={[0, 1.58, 0]}
+        text={`保温 Lv${level}`}
+        width={84}
+        visible={graphicsReady && phase !== 'ready'}
+      />
+    </group>
+  );
+}
+
 function Station({ id }) {
   useKitchen((s) => s.revision);
   const narrow = useThree((s) => compactControls(s.size.width, s.size.height));
-  const g = useKitchen.getState().game,
-    station = STATIONS[id],
+  const preparationPreview = useKitchen((s) => s.preparationPreview);
+  const g = preparationPreview ?? useKitchen.getState().game,
+    kind = stationKind(id),
+    station = stationInfo(g, id),
     st = g.stations[id];
+  const equipmentLevel = Math.min(
+    3,
+    Math.max(1, Math.floor(Number(g.equipment?.[kind]?.level) || 1)),
+  );
+  const upgraded = equipmentLevel > 1;
+  const equipmentLabel = upgraded ? ` Lv${equipmentLevel}` : '';
   const phase = useKitchen((s) => s.phase);
   const tutorial = useKitchen((s) => s.tutorial);
   const graphicsReady = useKitchen((s) => s.ready);
@@ -255,9 +300,10 @@ function Station({ id }) {
   const working = st.state === 'chopping' || heating;
   const progress = working ? clamp01(1 - (st.busyUntil - g.time) / st.duration) : 1;
   const burnDeadline = st.burnAt;
+  const burnGrace = Number(burnGraceMs(g, id));
   const burnWindow =
-    ready && burnDeadline > 0 && Number.isFinite(burnDeadline)
-      ? clamp01((burnDeadline - g.time) / (id === 'grill' ? GRILL_BURN_MS : POT_BURN_MS))
+    ready && burnDeadline > 0 && Number.isFinite(burnDeadline) && burnGrace > 0
+      ? clamp01((burnDeadline - g.time) / burnGrace)
       : null;
   const danger = burnt || (ready && burnWindow !== null && burnWindow < 0.35);
   const stockFinite = Number.isFinite(g.stock);
@@ -267,7 +313,7 @@ function Station({ id }) {
     levelConfig(g.level).boostEnabled &&
     !g.practice &&
     working &&
-    (id === 'board' || id === 'pot' || id === 'grill') &&
+    (kind === 'board' || kind === 'pot' || kind === 'grill') &&
     !st.boosted &&
     !g.human.carrying &&
     progress >= BOOST_MIN &&
@@ -306,12 +352,12 @@ function Station({ id }) {
   return (
     <group position={world(station.x + station.dx, station.y + station.dy)} onClick={pick}>
       <Block
-        size={id === 'serve' ? [2.4, 0.93, 1.15] : [1.92, 0.93, 1.35]}
+        size={kind === 'serve' ? [2.4, 0.93, 1.15] : [1.92, 0.93, 1.35]}
         position={[0, 0.48, 0]}
-        color={id === 'serve' ? palette.coral : id === 'grill' ? '#52665e' : palette.mint}
+        color={kind === 'serve' ? palette.coral : kind === 'grill' ? '#52665e' : palette.mint}
       />
       <Block
-        size={id === 'serve' ? [2.56, 0.14, 1.3] : [2.08, 0.14, 1.5]}
+        size={kind === 'serve' ? [2.56, 0.14, 1.3] : [2.08, 0.14, 1.5]}
         position={[0, 1.015, 0]}
         color={palette.white}
       />
@@ -322,7 +368,15 @@ function Station({ id }) {
         radius={0.014}
       />
       <Block size={[0.03, 0.67, 0.02]} position={[0, 0.41, 0.682]} color="#66a48b" radius={0.005} />
-      {id === 'crate' && (
+      {upgraded && (
+        <Block
+          size={[0.18, 0.07, 0.06]}
+          position={[0, 1.11, 0.72]}
+          color={palette.yellow}
+          radius={0.02}
+        />
+      )}
+      {kind === 'crate' && (
         <>
           <Block size={[1.55, 0.16, 0.95]} position={[0, 1.13, 0]} color={palette.wood} />
           {[-0.65, 0.65].map((x) => (
@@ -341,7 +395,7 @@ function Station({ id }) {
           />
         </>
       )}
-      {id === 'board' && (
+      {kind === 'board' && (
         <>
           <Block size={[1.5, 0.09, 0.93]} position={[0, 1.12, 0]} color="#d9b47c" />
           {st.state === 'chopping' && <Tomato position={[0, 1.36, 0]} />}
@@ -356,7 +410,7 @@ function Station({ id }) {
           </group>
         </>
       )}
-      {id === 'pot' && (
+      {kind === 'pot' && (
         <>
           <Block size={[1.62, 0.08, 1.15]} position={[0, 1.12, 0]} color="#465d55" />
           <Cylinder
@@ -383,7 +437,7 @@ function Station({ id }) {
           <Steam active={heating || ready} />
         </>
       )}
-      {id === 'grill' && (
+      {kind === 'grill' && (
         <>
           <Block size={[1.62, 0.08, 1.15]} position={[0, 1.12, 0]} color="#465d55" />
           {[-0.42, -0.14, 0.14, 0.42].map((x) => (
@@ -409,7 +463,7 @@ function Station({ id }) {
           <Steam active={heating || ready} />
         </>
       )}
-      {id === 'plates' && (
+      {kind === 'plates' && (
         <>
           {[0, 1, 2, 3, 4].map((i) => (
             <Cylinder
@@ -423,7 +477,7 @@ function Station({ id }) {
           <Block size={[0.1, 0.1, 0.65]} position={[-0.7, 1.16, 0]} color={palette.wood} />
         </>
       )}
-      {id === 'serve' && (
+      {kind === 'serve' && (
         <>
           <Block size={[1.25, 0.06, 0.73]} position={[-0.22, 1.12, 0]} color={palette.wood} />
           <Cylinder
@@ -437,7 +491,7 @@ function Station({ id }) {
         </>
       )}
       <WorldLabel
-        position={[0, id === 'pot' || id === 'grill' ? 2.3 : 1.95, 0]}
+        position={[0, kind === 'pot' || kind === 'grill' ? 2.3 : 1.95, 0]}
         visible={
           graphicsReady &&
           phase !== 'ready' &&
@@ -448,9 +502,9 @@ function Station({ id }) {
             ? danger
               ? '焦げ注意'
               : working
-                ? '調理中'
-                : '完成'
-            : `${station.name}${ready || st.state === 'chopped' ? ' 完成' : ''}${danger ? ' 焦げ注意' : ''}`
+                ? `${equipmentLabel ? `Lv${equipmentLevel} ` : ''}調理中`
+                : `${equipmentLabel ? `Lv${equipmentLevel} ` : ''}完成`
+            : `${station.name}${equipmentLabel}${ready || st.state === 'chopped' ? ' 完成' : ''}${danger ? ' 焦げ注意' : ''}`
         }
         width={narrow ? 80 : danger ? 144 : 100}
         color={
@@ -486,17 +540,16 @@ function Chef({ who }) {
   const reducedMotion = useKitchen((s) => s.reducedMotion);
   const phase = useKitchen((s) => s.phase);
   const graphicsReady = useKitchen((s) => s.ready);
+  const preparationPreview = useKitchen((s) => s.preparationPreview);
   const human = who === 'human',
-    color = human
-      ? palette.coral
-      : STAFF[who]?.employment === '正社員'
-        ? palette.mint
-        : palette.yellow;
-  const game = useKitchen.getState().game;
+    color = human ? palette.coral : (STAFF[who]?.color ?? palette.yellow);
+  const game = preparationPreview ?? useKitchen.getState().game;
   const actor = human ? game.human : game.crew?.[who];
   useFrame(() => {
-    const { game: g, phase } = useKitchen.getState(),
-      a = human ? g.human : g.crew?.[who];
+    const current = useKitchen.getState();
+    const { phase } = current;
+    const g = current.preparationPreview ?? current.game;
+    const a = human ? g.human : g.crew?.[who];
     if (!a || !root.current) return;
     const station = a.station ? g.stations[a.station] : null;
     const carrying = Boolean(a.carrying);
@@ -594,9 +647,13 @@ function Chef({ who }) {
 
 function Confetti() {
   const group = useRef();
+  useKitchen((s) => s.revision);
   const celebration = useKitchen((s) => s.celebration);
   const phase = useKitchen((s) => s.phase);
   const reducedMotion = useKitchen((s) => s.reducedMotion);
+  const preparationPreview = useKitchen((s) => s.preparationPreview);
+  const game = preparationPreview ?? useKitchen.getState().game;
+  const serve = stationInfo(game, 'serve');
   const previousCelebration = useRef(celebration);
   const previousTime = useRef(useKitchen.getState().game.time);
   const born = useRef(-Infinity);
@@ -627,8 +684,9 @@ function Confetti() {
       piece.rotation.set(elapsed * 4, angle + elapsed, elapsed * 3);
     });
   });
+  if (!serve) return null;
   return (
-    <group ref={group} position={world(STATIONS.serve.x, STATIONS.serve.y)} visible={false}>
+    <group ref={group} position={world(serve.x + serve.dx, serve.y + serve.dy)} visible={false}>
       {Array.from({ length: 22 }, (_, i) => (
         <mesh key={i}>
           <boxGeometry args={[0.08, 0.16, 0.035]} />
@@ -644,8 +702,10 @@ function Scene() {
   useKitchen((s) => s.revision);
   const tutorial = useKitchen((s) => s.tutorial);
   const reducedMotion = useKitchen((s) => s.reducedMotion);
-  const game = useKitchen.getState().game;
+  const preparationPreview = useKitchen((s) => s.preparationPreview);
+  const game = preparationPreview ?? useKitchen.getState().game;
   const level = levelConfig(game.level).kitchenTier;
+  const expansion = kitchenExpansion(game);
   const stationIds = activeStationIds(game);
   const timeline = useRef(useKitchen.getState().phase === 'ready' ? 0 : ENTRANCE_DURATION);
   const cameraTarget = useRef(new THREE.Vector3(0, 0.25, 0));
@@ -658,10 +718,11 @@ function Scene() {
       useKitchen.setState({ ready: true });
     tick(delta);
     const current = useKitchen.getState();
+    const framingGame = current.preparationPreview ?? current.game;
     moveCamera(
       camera,
       cameraTarget.current,
-      cameraFraming(current.game, current.phase, current.cameraMode, size.width, size.height),
+      cameraFraming(framingGame, current.phase, current.cameraMode, size.width, size.height),
       delta,
       reducedMotion || !cameraInitialized.current,
     );
@@ -682,7 +743,8 @@ function Scene() {
         shadow-camera-bottom={-10}
         shadow-normalBias={0.025}
       />
-      <Room level={level} timeline={timeline} />
+      <Room level={level} expansion={expansion} timeline={timeline} />
+      <Warmer />
       {stationIds.map((id, index) => (
         <Entrance key={id} timeline={timeline} delay={0.7 + index * 0.1}>
           <Station id={id} />

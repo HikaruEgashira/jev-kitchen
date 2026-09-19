@@ -8,9 +8,13 @@ import {
   STATIONS,
   activeStationIds,
   levelConfig,
+  layoutSlots,
+  resolveLayout,
+  stationInfo,
 } from './model.js';
-import { STAFF, nextStaffState, payroll, staffAvailable } from './staff.js';
+import { STAFF, nextStaffState, payroll, staffAvailable, staffPerformance } from './staff.js';
 import { TUTORIAL_STEPS } from './game.js';
+import { EQUIPMENT, equipmentCapacity, quoteEquipment } from './equipment.js';
 
 export const compactControls = (width, height) => width < 600 || height < 500;
 
@@ -22,6 +26,12 @@ export function preparation(g, reviewing = false) {
     selected: null,
     duty,
     quantity: Math.max(0, quotaForLevel(g.level + 1) + 2 - (g.stock ?? 0)),
+    equipmentPurchases: [],
+    equipmentIndex: 0,
+    layout: g.layout ? { ...g.layout } : undefined,
+    layoutMode: 'equipment',
+    layoutSelection: null,
+    layoutIndex: 0,
   };
 }
 
@@ -62,7 +72,17 @@ export function purchase(g, view) {
     (id) => (!g.staffState?.[id] && id === view.selected) || staffAvailable(staffState, id),
   );
   const stock = (g.stock ?? 0) + quantity;
-  const cash = g.cash - hiring - quantity * STOCK_PRICE - wages;
+  const equipmentPurchases = [
+    ...new Set(Array.isArray(view.equipmentPurchases) ? view.equipmentPurchases : []),
+  ];
+  const equipmentQuote = quoteEquipment(g.equipment ?? null, equipmentPurchases, g.level + 1);
+  const equipment = equipmentQuote.equipment;
+  const equipmentCost = equipmentQuote.cost;
+  const layoutGame = { ...g, level: g.level + 1, equipment };
+  const proposedLayout = view.layout ?? g.layout;
+  const layout =
+    resolveLayout(layoutGame, proposedLayout) ?? normalizedLayout(layoutGame, proposedLayout);
+  const cash = g.cash - hiring - quantity * STOCK_PRICE - wages - equipmentCost;
   const quota = quotaForLevel(g.level + 1);
   const error = !valid
     ? '仕入れは0〜99個で入力'
@@ -72,10 +92,105 @@ export function purchase(g, view) {
         ? `このレベルの勤務上限は${slots}人`
         : !available
           ? '休養中の相棒は配置できません'
-          : cash < 0
-            ? `コインが${-cash}不足`
-            : '';
-  return { quantity, hiring, wages, duty, slots, stock, cash, quota, staffState, error };
+          : equipmentQuote.error
+            ? equipmentQuote.error
+            : !layout
+              ? '設備の配置を確認してください'
+              : cash < 0
+                ? `コインが${-cash}不足`
+                : '';
+  return {
+    quantity,
+    hiring,
+    wages,
+    duty,
+    slots,
+    stock,
+    cash,
+    quota,
+    staffState,
+    equipment,
+    equipmentCost,
+    equipmentPurchases,
+    layout,
+    error,
+  };
+}
+
+function layoutSlotOf(layout, id) {
+  return typeof layout?.[id] === 'string' ? layout[id] : null;
+}
+
+function normalizedLayout(g, proposed) {
+  const active = new Set([
+    ...activeStationIds(g),
+    ...(g.equipment?.warmer?.count ? ['warmer'] : []),
+  ]);
+  const slots = new Set(Object.keys(layoutSlots(g)));
+  const filtered = Object.fromEntries(
+    Object.entries(proposed ?? {}).filter(([id, slot]) => active.has(id) && slots.has(slot)),
+  );
+  return resolveLayout(g, filtered);
+}
+
+function layoutWithMove(layout, id, slot) {
+  const next = { ...layout };
+  const previous = next[id];
+  const owner = Object.entries(next).find(([, value]) => value === slot)?.[0];
+  next[id] = slot;
+  if (owner && owner !== id && previous) next[owner] = previous;
+  return next;
+}
+
+function stationName(g, id) {
+  const info = stationInfo(g, id);
+  return (typeof info === 'string' ? info : info?.name) ?? STATIONS[id]?.name ?? id;
+}
+
+function equipmentEffect(kind, state) {
+  const level = Math.max(1, Math.min(3, Number(state?.level) || 1));
+  if (kind === 'warmer')
+    return state?.count > 0 ? `焦げ猶予×${[1, 1.5, 1.75, 2][level]}` : '未導入';
+  if (kind === 'kitchen') return `床+${(level - 1) * 2}列`;
+  return `時間-${(level - 1) * 8}%`;
+}
+
+function equipmentOptionStatus(error) {
+  if (!error) return null;
+  if (/枠が足りません/.test(error)) return '枠不足';
+  if (/これ以上/.test(error)) return '上限';
+  if (/先に/.test(error)) return '先に導入';
+  if (/Lv\d+から/.test(error)) return error.match(/Lv\d+から/)?.[0] ?? '未解禁';
+  if (/改良のみ/.test(error)) return '改良のみ';
+  return '購入不可';
+}
+
+function stationButtonName(id) {
+  if (id.startsWith('board')) return `切る${id === 'board' ? '' : '2'}`;
+  if (id.startsWith('pot')) return `鍋${id === 'pot' ? '' : '2'}`;
+  if (id.startsWith('grill')) return `焼く${id === 'grill' ? '' : '2'}`;
+  if (id === 'plates') return '皿';
+  if (id === 'serve') return '配膳';
+  return STATIONS[id]?.name ?? id;
+}
+
+function layoutPositionName(slots, id) {
+  const slot = slots[id];
+  if (!slot) return '未配置';
+  const side = slot.dx > 0 ? '右' : slot.dy > 0 ? '手前' : '奥';
+  const orderBy = side === '右' ? 'y' : 'x';
+  const peers = Object.entries(slots)
+    .filter(([, candidate]) => {
+      const candidateSide = candidate.dx > 0 ? '右' : candidate.dy > 0 ? '手前' : '奥';
+      return candidateSide === side;
+    })
+    .sort(([, a], [, b]) => a[orderBy] - b[orderBy] || a.y - b.y);
+  const index =
+    Math.max(
+      0,
+      peers.findIndex(([slotId]) => slotId === id),
+    ) + 1;
+  return `${side}${index}`;
 }
 
 // One layout describes both Three meshes and their keyboard/screen-reader controls.
@@ -212,48 +327,57 @@ export function screen(s, view, width, height) {
   const near = stationAt(g, 'human');
   const step = TUTORIAL_STEPS[s.tutorial];
   const reached = near.inReach && (!practice || near.id === step?.station);
+  const stations = narrow ? activeStationIds(g) : [];
+  const stationGap = 4;
+  const stationColumns = narrow
+    ? Math.max(1, Math.floor((width - 24 + stationGap) / (44 + stationGap)))
+    : 1;
+  const stationRows = narrow ? Math.ceil(stations.length / stationColumns) : 0;
+  const stationTop = narrow ? height - 112 - (stationRows - 1) * 48 : height - 112;
   if (playing) {
     if (practice && step) {
+      const lessonHeight = narrow ? 36 : 68;
       panel(
         'lesson',
         width / 2 - Math.min(width - 24, 380) / 2,
-        height - (narrow ? 160 : 140),
+        narrow ? stationTop - lessonHeight - 12 : height - 140,
         Math.min(width - 24, 380),
-        narrow ? 36 : 68,
+        lessonHeight,
         { color: '#f4cd75' },
       );
       label(
         'lesson-copy',
         narrow ? `${STATIONS[step.station].name}をタップ` : `WASDで移動・Eで作業\n${step.label}`,
         width / 2 - Math.min(width - 32, 372) / 2,
-        height - (narrow ? 158 : 135),
+        narrow ? stationTop - lessonHeight - 10 : height - 135,
         Math.min(width - 32, 372),
         narrow ? 32 : 56,
         { size: 15 },
       );
     } else if (s.toast && g.time < s.toastUntil) {
       const tw = Math.min(width - 24, 520);
-      panel('toast-board', (width - tw) / 2, height - (narrow ? 160 : 112), tw, 38);
+      const toastY = narrow ? stationTop - 50 : height - 112;
+      panel('toast-board', (width - tw) / 2, toastY, tw, 38);
       label(
         'toast',
         s.toast.replace(/\p{Extended_Pictographic}|\uFE0F/gu, ''),
         (width - tw) / 2 + 4,
-        height - (narrow ? 158 : 110),
+        toastY + 2,
         tw - 8,
         32,
         { size: 14, live: true },
       );
     }
     if (narrow) {
-      const stations = activeStationIds(g);
-      const gap = 4;
-      const w = (width - 24 - gap * (stations.length - 1)) / stations.length;
+      const w = (width - 24 - stationGap * (stationColumns - 1)) / stationColumns;
       stations.forEach((id, index) => {
+        const row = Math.floor(index / stationColumns);
+        const col = index % stationColumns;
         button(
           `station-${id}`,
-          id === 'pot' ? 'スープ' : STATIONS[id].name,
-          12 + index * (w + gap),
-          height - 112,
+          stationButtonName(id),
+          12 + col * (w + stationGap),
+          stationTop + row * 48,
           w,
           'station',
           {
@@ -316,23 +440,27 @@ export function screen(s, view, width, height) {
     item.inert = true;
   });
   const welcome = modal === 'welcome';
+  const placementSheet =
+    s.phase === 'finished' && s.cleared && view.page === 3 && view.layoutMode === 'layout';
   const pw = Math.min(width - 24, welcome ? 700 : 580);
   const ph = Math.min(
     height - 24,
     s.menuOpen
       ? 400
-      : s.phase === 'finished' && s.cleared && !s.campaignComplete
-        ? 384
-        : s.phase === 'finished' && !s.cleared && !s.campaignComplete
-          ? 296
-          : welcome
-            ? narrow
-              ? 136
-              : 178
-            : 256,
+      : placementSheet
+        ? 296
+        : s.phase === 'finished' && s.cleared && !s.campaignComplete
+          ? 384
+          : s.phase === 'finished' && !s.cleared && !s.campaignComplete
+            ? 296
+            : welcome
+              ? narrow
+                ? 136
+                : 178
+              : 256,
   );
   const x = (width - pw) / 2,
-    y = welcome ? 20 : (height - ph) / 2;
+    y = welcome ? 20 : placementSheet ? height - ph - 12 : (height - ph) / 2;
   order = 4000;
   if (!welcome) add('veil', 'veil', '', 0, 0, width, height);
   panel('sheet', x, y, pw, ph);
@@ -502,13 +630,13 @@ export function screen(s, view, width, height) {
       title('営業失敗');
       copy(
         'result',
-        `${g.served} / ${g.quota}皿   ・   ${g.score}点\n資金・在庫・疲労は営業前の状態に戻せます。`,
+        `${g.served} / ${g.quota}皿   ・   ${g.score}点\n資金・在庫・疲労・設備配置を営業前へ戻せます。`,
         62,
         54,
         { size: narrow ? 13 : 16 },
       );
       button('retry', '同じ条件で再挑戦', x + 16, y + 126, inside, 'retry', { size: 14 });
-      button('review', '仕入れ・採用から見直す', x + 16, y + 174, inside, 'review', {
+      button('review', '開店準備から見直す', x + 16, y + 174, inside, 'review', {
         size: 14,
         disabled: !s.rollback?.preparation,
       });
@@ -532,9 +660,9 @@ export function screen(s, view, width, height) {
         short ? 90 : 116,
         { size: 17 },
       );
-      primary('相棒を選ぶ', 'page', { value: 1 });
+      primary('次のステージ', 'page', { value: 1 });
     } else if (view.page === 1) {
-      title('次の相棒を選ぼう');
+      title('候補者の採用');
       const id = s.applicants[view.applicantIndex % Math.max(1, s.applicants.length)];
       const staff = STAFF[id];
       if (staff) {
@@ -555,13 +683,51 @@ export function screen(s, view, width, height) {
           value: 1,
           label: '次の応募者',
         });
-        copy(
-          'applicant-description',
-          `${staff.description}\n速さ ×${staff.speed}  ・  判断 ${(staff.decisionMs / 1000).toFixed(1)}秒ごと${staff.canDash ? ' ・ ダッシュ' : ''}\n採用 ${staff.cost}  ・ 給与 ${staff.wage ?? 0}/営業 / お財布 ${g.cash}`,
-          short ? 112 : 126,
-          62,
-          { size: narrow ? 12 : 14 },
+        const top = y + (short ? 112 : 116);
+        const avatarW = short ? 52 : narrow ? 60 : 76;
+        const infoX = x + 24 + avatarW;
+        const infoW = x + 16 + inside - infoX;
+        const bars = staffPerformance(id);
+        const detailsH = short ? 14 : narrow ? 32 : 42;
+        const rowH = short ? 14 : narrow ? 19 : 24;
+        const barH = short ? 8 : narrow ? 12 : 14;
+        const dash = staff.canDash ? '  ・  ダッシュ' : '';
+        const cost = `採用 ${staff.cost}  ・  給与 ${staff.wage ?? 0}/営業  ・  お財布 ${g.cash}${dash}`;
+        add('avatar', 'applicant-avatar', '', x + 16, top, avatarW, avatarW, {
+          color: staff.color,
+          label: `${staff.name}の立ち姿`,
+        });
+        label(
+          'applicant-details',
+          short ? cost : `${staff.description}\n${cost}`,
+          infoX,
+          top,
+          infoW,
+          detailsH,
+          {
+            size: short ? 11 : narrow ? 12 : 14,
+          },
         );
+        bars.forEach((bar, index) => {
+          const rowY = top + detailsH + index * rowH;
+          label(`applicant-bar-${bar.key}-label`, bar.label, infoX, rowY, 46, rowH, {
+            size: short ? 10 : narrow ? 11 : 13,
+          });
+          add(
+            'bar',
+            `applicant-bar-${bar.key}`,
+            '',
+            infoX + 48,
+            rowY + (rowH - barH) / 2,
+            infoW - 48,
+            barH,
+            {
+              ratio: bar.ratio,
+              color: staff.color,
+              label: `${bar.label}の性能`,
+            },
+          );
+        });
         const bw = (inside - 8) / 2;
         button(
           'hire',
@@ -584,7 +750,7 @@ export function screen(s, view, width, height) {
           90,
         );
       primary('仕入れと配置へ', 'page', { value: 2 });
-    } else {
+    } else if (view.page === 2) {
       title(`Lv.${g.level + 1} 仕入れ・勤務表`);
       const roster = staffIds(g, view);
       const duty = [...new Set(Array.isArray(view.duty) ? view.duty : [])].filter((id) =>
@@ -615,9 +781,7 @@ export function screen(s, view, width, height) {
         const col = index % columns;
         button(
           `duty-${id}`,
-          narrow
-            ? `${staffShortName(id)}\n${availability}`
-            : `${staff.icon ?? '👤'} ${staffShortName(id)}\n${availability}`,
+          `${staffShortName(id)}\n${availability}`,
           x + 16 + col * (cellW + gap),
           dutyY + row * 48,
           cellW,
@@ -626,6 +790,7 @@ export function screen(s, view, width, height) {
             value: id,
             pressed: onDuty,
             disabled: (!available && !onDuty) || (!onDuty && duty.length >= bill.slots),
+            avatar: cellW >= 88 ? staff.color : undefined,
             label: `${staff.name}（${employment}、給与${wage}/営業、連勤上限${staff.maxConsecutive}回、休養${staff.restShifts}営業）。現在${onDuty ? '出勤中' : '待機中'}。${
               available ? (onDuty ? '勤務から外す' : '勤務に入れる') : '休養中で配置不可'
             }`,
@@ -678,14 +843,338 @@ export function screen(s, view, width, height) {
           size: 12,
           live: true,
         });
-      const backW = narrow ? 76 : 120;
-      button('back', '相棒選び', x + 16, footerY, backW, 'page', { value: 1, size: 13 });
-      button('primary', 'この準備で開店', x + 24 + backW, footerY, inside - backW - 8, 'next', {
-        disabled: Boolean(bill.error),
-        color: '#245e50',
-        ink: '#fff9e8',
-        size: 14,
+      const backW = narrow ? 72 : 120;
+      const equipmentW = narrow ? 68 : 100;
+      button('back', '採用', x + 16, footerY, backW, 'page', { value: 1, size: 13 });
+      button('equipment', '設備', x + 24 + backW, footerY, equipmentW, 'page', {
+        value: 3,
+        size: 13,
+        label: '設備投資を見る',
       });
+      button(
+        'primary',
+        'この準備で開店',
+        x + 32 + backW + equipmentW,
+        footerY,
+        inside - backW - equipmentW - 16,
+        'next',
+        {
+          disabled: Boolean(bill.error),
+          color: '#245e50',
+          ink: '#fff9e8',
+          size: 14,
+        },
+      );
+    } else {
+      title(`Lv.${g.level + 1} 設備投資`);
+      const baseEquipment = g.equipment ?? null;
+      const pending = new Set(bill.equipmentPurchases);
+      const nextLevel = g.level + 1;
+      const layoutMode = view.layoutMode === 'layout' ? 'layout' : 'equipment';
+      const layoutGame = { ...g, level: nextLevel, equipment: bill.equipment };
+      const currentLayout = bill.layout ?? view.layout ?? g.layout ?? {};
+      const capacity = equipmentCapacity(bill.equipment);
+
+      const backW = narrow ? 76 : 120;
+      const modeW = narrow ? 64 : 88;
+      button('back', '仕入れへ', x + 16, footerY, backW, 'page', { value: 2, size: 13 });
+      button(
+        'layout-mode',
+        layoutMode === 'layout' ? '設備' : '配置',
+        x + 24 + backW,
+        footerY,
+        modeW,
+        'layout-mode',
+        {
+          label: layoutMode === 'layout' ? '設備一覧へ戻る' : '設備の配置を変更',
+          size: 13,
+        },
+      );
+      button(
+        'primary',
+        'この準備で開店',
+        x + 32 + backW + modeW,
+        footerY,
+        inside - backW - modeW - 16,
+        'next',
+        {
+          disabled: Boolean(bill.error),
+          color: '#245e50',
+          ink: '#fff9e8',
+          size: 14,
+        },
+      );
+
+      if (layoutMode === 'layout') {
+        const slotMap = layoutSlots(layoutGame) ?? {};
+        const slots = Object.entries(slotMap);
+        const stationIds = [
+          ...new Set([
+            ...activeStationIds(layoutGame),
+            ...(bill.equipment?.warmer?.count ? ['warmer'] : []),
+            ...Object.keys(currentLayout),
+          ]),
+        ];
+        const movable = stationIds.filter((id) => {
+          try {
+            return Boolean(stationInfo(layoutGame, id) ?? STATIONS[id]);
+          } catch {
+            return Boolean(STATIONS[id]);
+          }
+        });
+        const selected = movable.includes(view.layoutSelection) ? view.layoutSelection : null;
+        const entries = selected
+          ? slots.map(([id, meta]) => ({ id, meta }))
+          : movable.map((id) => ({ id, meta: stationInfo(layoutGame, id) }));
+        const pageCount = Math.max(1, Math.ceil(entries.length / 2));
+        const layoutIndex = Math.min(
+          pageCount - 1,
+          Math.max(0, Math.floor(Number(view.layoutIndex) || 0)),
+        );
+        const visible = entries.slice(layoutIndex * 2, layoutIndex * 2 + 2);
+        if (pageCount > 1) {
+          button('layout-prev', '‹', x + 16, bodyTop, 44, 'layout-index', {
+            value: -1,
+            disabled: layoutIndex === 0,
+            label: '前の配置ページ',
+          });
+          if (selected)
+            button('layout-back', '設備を選ぶ', x + 66, bodyTop, inside - 116, 'layout-select', {
+              value: null,
+              size: 12,
+            });
+          else
+            label(
+              'layout-page',
+              `設備  ${layoutIndex + 1}/${pageCount}`,
+              x + 66,
+              bodyTop,
+              inside - 116,
+              44,
+              {
+                size: narrow ? 11 : 13,
+              },
+            );
+          button('layout-next', '›', x + pw - 60, bodyTop, 44, 'layout-index', {
+            value: 1,
+            disabled: layoutIndex >= pageCount - 1,
+            label: '次の配置ページ',
+          });
+        } else if (selected) {
+          button('layout-back', '設備を選ぶ', x + 16, bodyTop, inside, 'layout-select', {
+            value: null,
+            size: 12,
+          });
+        } else {
+          label(
+            'layout-heading',
+            selected ? `${stationName(layoutGame, selected)}の移動先` : '移動する設備を選ぶ',
+            x + 16,
+            bodyTop,
+            inside,
+            44,
+            { size: narrow ? 12 : 14 },
+          );
+        }
+        const rowTop = bodyTop + 44;
+        visible.forEach(({ id }, index) => {
+          const row = rowTop + index * 44;
+          if (!selected) {
+            const slot = layoutSlotOf(currentLayout, id);
+            button(
+              `layout-select-${id}`,
+              `${stationName(layoutGame, id)}\n${layoutPositionName(slotMap, slot)}`,
+              x + 16,
+              row,
+              inside,
+              'layout-select',
+              {
+                value: id,
+                pressed: false,
+                label: `${stationName(layoutGame, id)}を移動。現在${layoutPositionName(slotMap, slot)}`,
+                size: narrow ? 11 : 13,
+              },
+            );
+            return;
+          }
+          const slotId = id;
+          const owner = Object.entries(currentLayout).find(([, value]) => value === slotId)?.[0];
+          const occupied = owner && owner !== selected;
+          const proposed = layoutWithMove(currentLayout, selected, slotId);
+          let valid = false;
+          try {
+            valid = Boolean(resolveLayout(layoutGame, proposed));
+          } catch {
+            valid = false;
+          }
+          const name = layoutPositionName(slotMap, slotId);
+          button(
+            `layout-slot-${slotId}`,
+            `${name}${layoutSlotOf(currentLayout, selected) === slotId ? '\n現在地' : ''}`,
+            x + 16,
+            row,
+            inside,
+            'layout-slot',
+            {
+              value: slotId,
+              layout: proposed,
+              pressed: layoutSlotOf(currentLayout, selected) === slotId,
+              disabled: !valid,
+              label: `${name}${occupied ? '（入れ替え）' : 'へ移動'}`,
+              size: narrow ? 11 : 13,
+            },
+          );
+        });
+        if (!visible.length)
+          label('layout-empty', '移動できる区画がありません', x + 16, rowTop, inside, 44, {
+            size: 12,
+            color: '#a1372f',
+          });
+        const layoutSummary = selected
+          ? `${stationName(layoutGame, selected)}を選択中`
+          : `設備枠 ${capacity.used}/${capacity.limit}`;
+        label('layout-summary', layoutSummary, x + 16, rowTop + 88 + 4, inside, 28, {
+          size: narrow ? 11 : 13,
+        });
+      } else {
+        const kinds = Object.keys(EQUIPMENT);
+        const pageCount = Math.max(1, Math.ceil(kinds.length / 2));
+        const equipmentIndex = Math.min(
+          pageCount - 1,
+          Math.max(0, Math.floor(Number(view.equipmentIndex) || 0)),
+        );
+        const visibleKinds = kinds.slice(equipmentIndex * 2, equipmentIndex * 2 + 2);
+        const equipmentBudget = g.cash - bill.hiring - bill.quantity * STOCK_PRICE - bill.wages;
+        const optionQuote = (id) => {
+          const purchases = pending.has(id)
+            ? bill.equipmentPurchases.filter((purchaseId) => purchaseId !== id)
+            : [...bill.equipmentPurchases, id];
+          return quoteEquipment(baseEquipment, purchases, nextLevel);
+        };
+        const optionText = (id, action) => {
+          const quote = optionQuote(id);
+          if (pending.has(id)) return '取消';
+          const status = equipmentOptionStatus(quote.error);
+          if (status) return status;
+          if (quote.cost > equipmentBudget) return '資金不足';
+          const incremental = Math.max(0, quote.cost - bill.equipmentCost);
+          return `${action} 🪙${incremental}`;
+        };
+        const optionLabel = (kind, id, action) => {
+          const equipmentMeta = EQUIPMENT[kind];
+          const quote = optionQuote(id);
+          const incremental = Math.max(0, quote.cost - bill.equipmentCost);
+          return `${equipmentMeta.name ?? kind}の${action}（${quote.error || `費用${incremental}コイン`}）`;
+        };
+        const buttonW = narrow ? 86 : 112;
+        const labelW = inside - buttonW * 2 - 8;
+        if (pageCount > 1) {
+          button('equipment-prev', '‹', x + 16, bodyTop, 44, 'equipment-index', {
+            value: -1,
+            disabled: equipmentIndex === 0,
+            label: '前の設備ページ',
+          });
+          label(
+            'equipment-page',
+            `${equipmentIndex + 1} / ${pageCount}`,
+            x + 66,
+            bodyTop,
+            inside - 116,
+            44,
+            { size: 13 },
+          );
+          button('equipment-next', '›', x + pw - 60, bodyTop, 44, 'equipment-index', {
+            value: 1,
+            disabled: equipmentIndex >= pageCount - 1,
+            label: '次の設備ページ',
+          });
+        }
+        const rowTop = bodyTop + (pageCount > 1 ? 44 : 0);
+        visibleKinds.forEach((kind, index) => {
+          const meta = EQUIPMENT[kind];
+          const current = bill.equipment?.[kind] ?? { count: meta.initialCount ?? 0, level: 1 };
+          const row = rowTop + index * 44;
+          const addId = `add_${kind}`;
+          const upgradeId = `upgrade_${kind}`;
+          const addQuote = optionQuote(addId);
+          const upgradeQuote = optionQuote(upgradeId);
+          const maxCount = meta.maxCount ?? (kind === 'warmer' ? 1 : 2);
+          const addDisabled =
+            !pending.has(addId) &&
+            (current.count >= maxCount ||
+              nextLevel < meta.addUnlockLevel ||
+              Boolean(addQuote.error) ||
+              addQuote.cost > equipmentBudget);
+          const upgradeDisabled =
+            !pending.has(upgradeId) &&
+            (current.level >= 3 ||
+              current.count < 1 ||
+              nextLevel < (meta.upgradeUnlockLevel ?? meta.unlockLevel) ||
+              Boolean(upgradeQuote.error) ||
+              upgradeQuote.cost > equipmentBudget);
+          const effect = equipmentEffect(kind, current);
+          label(
+            `equipment-label-${kind}`,
+            narrow
+              ? `${meta.name ?? kind}\n${current.count}台 Lv${current.level}\n${effect}`
+              : `${meta.name ?? kind}\n${current.count}台 Lv${current.level}・${effect}`,
+            x + 16,
+            row,
+            labelW,
+            44,
+            { size: narrow ? 11 : 13 },
+          );
+          if (kind !== 'kitchen')
+            button(
+              `equipment-add-${kind}`,
+              optionText(addId, '増設'),
+              x + 16 + labelW + 4,
+              row,
+              buttonW,
+              'equipment',
+              {
+                value: addId,
+                disabled: addDisabled,
+                pressed: pending.has(addId),
+                label: optionLabel(kind, addId, '増設'),
+                size: narrow ? 10 : 12,
+              },
+            );
+          button(
+            `equipment-upgrade-${kind}`,
+            optionText(upgradeId, '改良'),
+            x + 16 + labelW + (kind === 'kitchen' ? 4 : buttonW + 8),
+            row,
+            buttonW,
+            'equipment',
+            {
+              value: upgradeId,
+              disabled: upgradeDisabled,
+              pressed: pending.has(upgradeId),
+              label: optionLabel(kind, upgradeId, '改良'),
+              size: narrow ? 10 : 12,
+            },
+          );
+        });
+        const summaryY = rowTop + visibleKinds.length * 44 + 4;
+        label(
+          'equipment-summary',
+          bill.error && short
+            ? bill.error
+            : `設備枠 ${capacity.used}/${capacity.limit}  投資 🪙${bill.equipmentCost} / 残り 🪙${bill.cash}`,
+          x + 16,
+          summaryY,
+          inside,
+          28,
+          { size: narrow ? 11 : 13, color: bill.error && short ? '#a1372f' : undefined },
+        );
+        if (bill.error && !short)
+          copy('equipment-error', bill.error, summaryY + 26 - y, 26, {
+            color: '#a1372f',
+            size: 12,
+            live: true,
+          });
+      }
     }
   }
   if (!s.menuOpen && ['ready', 'paused'].includes(s.phase)) {
@@ -700,7 +1189,7 @@ export function screen(s, view, width, height) {
     items,
     modal,
     title: items.find((i) => i.id === 'title').text,
-    status: view.error || (view.page === 2 && s.cleared ? purchase(g, view).error : ''),
+    status: view.error || (view.page >= 2 && s.cleared ? purchase(g, view).error : ''),
   };
 }
 

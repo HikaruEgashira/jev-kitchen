@@ -150,3 +150,43 @@ export function ProductPreview({ item, size = 40, order }) {
     </Layer.Provider>
   );
 }
+
+// Compact sidekick bust for hiring and roster sheets. The theme color ties the
+// portrait back to the full-size chef in the kitchen.
+export function ChefAvatar({ color = '#f0b03b', size = 48, order }) {
+  return (
+    <Layer.Provider value={order}>
+      <group scale={size / 1.6}>
+        <group position={[0, -0.78, 0]}>
+          {[-0.36, 0.36].map((x) => (
+            <Ball key={x} size={0.12} scale={[1, 1.5, 1]} color={color} position={[x, 0.5, 0]} />
+          ))}
+          <mesh position={[0, 0.42, 0]} renderOrder={order}>
+            <capsuleGeometry args={[0.3, 0.34, 6, 14]} />
+            <meshStandardMaterial transparent color={color} roughness={0.6} />
+          </mesh>
+          <Block size={[0.4, 0.44, 0.07]} position={[0, 0.4, 0.29]} color={palette.white} />
+          <Ball size={0.3} color="#f2d0aa" position={[0, 1, 0]} />
+          {[-0.11, 0.11].map((x) => (
+            <Ball key={x} size={0.028} color="#34463a" position={[x, 1.02, 0.275]} />
+          ))}
+          <Ball size={0.045} color="#e5ae87" position={[0, 0.96, 0.29]} />
+          <Cylinder
+            radii={[0.29, 0.285]}
+            height={0.2}
+            color={palette.white}
+            position={[0, 1.27, 0]}
+          />
+          {[-0.18, 0, 0.18].map((x) => (
+            <Ball
+              key={x}
+              size={0.21}
+              color={palette.white}
+              position={[x, 1.44 + (x === 0 ? 0.075 : 0), 0]}
+            />
+          ))}
+        </group>
+      </group>
+    </Layer.Provider>
+  );
+}

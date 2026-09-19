@@ -5,9 +5,9 @@ import { ScreenSpace } from '@react-three/drei/core/ScreenSpace';
 import { ScreenSizer } from '@react-three/drei/core/ScreenSizer';
 import { Text3D } from '@react-three/drei/core/Text3D';
 import { Center } from '@react-three/drei/core/Center';
-import { Lettering, Plaque, INK, PAPER, WOOD } from './Surface.jsx';
+import { Lettering, Plaque, Meter, INK, PAPER, WOOD } from './Surface.jsx';
 import { screen, preparation, purchase, compactControls } from './ui.js';
-import { ProductPreview } from './Food.jsx';
+import { ChefAvatar, ProductPreview } from './Food.jsx';
 import {
   useKitchen,
   startShift,
@@ -18,6 +18,7 @@ import {
   setMenuPage,
   setCameraMode,
   setMovementMode,
+  setPreparationPreview,
   rollbackToPreparation,
   rollbackToPreviousStage,
   toggleSound,
@@ -111,6 +112,18 @@ const Tile = memo(function Tile({ item, active, activate, hover }) {
         <group position={[0, 0, 24]}>
           <ProductPreview item={item.recipe} size={item.w * 0.9} order={item.order} />
         </group>
+      ) : item.kind === 'avatar' ? (
+        <group position={[0, 0, 24]}>
+          <ChefAvatar color={item.color} size={Math.min(item.w, item.h)} order={item.order} />
+        </group>
+      ) : item.kind === 'bar' ? (
+        <Meter
+          width={item.w}
+          height={item.h}
+          ratio={item.ratio}
+          color={item.color}
+          order={item.order}
+        />
       ) : item.kind === 'veil' ? (
         <mesh
           renderOrder={item.order}
@@ -159,15 +172,26 @@ const Tile = memo(function Tile({ item, active, activate, hover }) {
             if (control && !item.inert && !item.disabled) activate(item.id);
           }}
         >
+          {control && item.avatar && (
+            <group position={[-item.w / 2 + Math.min(item.h, 36) / 2 + 2, 0, 4]}>
+              <ChefAvatar
+                color={item.avatar}
+                size={Math.min(item.h, 36) - 8}
+                order={item.order + 2}
+              />
+            </group>
+          )}
           {control && (
-            <Lettering
-              text={item.text}
-              width={item.w - 8}
-              height={item.h - 4}
-              size={item.size ?? 16}
-              color={item.disabled ? '#63705c' : active || item.pressed ? INK : (item.ink ?? INK)}
-              order={item.order + 2}
-            />
+            <group position={[item.avatar ? Math.min(item.h, 36) / 2 : 0, 0, 0]}>
+              <Lettering
+                text={item.text}
+                width={Math.max(24, item.w - 8 - (item.avatar ? Math.min(item.h, 36) : 0))}
+                height={item.h - 4}
+                size={item.size ?? 16}
+                color={item.disabled ? '#63705c' : active || item.pressed ? INK : (item.ink ?? INK)}
+                order={item.order + 2}
+              />
+            </group>
           )}
         </Plaque>
       )}
@@ -185,6 +209,12 @@ function Screen() {
   const controls = useRef(new Map());
   const semantic = useRef();
   const ui = screen(s, view, size.width, size.height);
+  const previewBill =
+    !s.benchmark && s.phase === 'finished' && s.cleared && view.page === 3
+      ? purchase(s.game, view)
+      : null;
+  const previewEquipmentKey = JSON.stringify(previewBill?.equipment ?? null);
+  const previewLayoutKey = JSON.stringify(previewBill?.layout ?? null);
   const latest = useRef();
   const patch = (values) => {
     if (s.benchmark && s.benchPreparation)
@@ -228,6 +258,22 @@ function Screen() {
       case 'movement':
         setMovementMode(value);
         break;
+      case 'layout-mode':
+        patch({
+          layoutMode: view.layoutMode === 'layout' ? 'equipment' : 'layout',
+          layoutSelection: null,
+          layoutIndex: 0,
+        });
+        break;
+      case 'layout-select':
+        patch({ layoutSelection: value, layoutIndex: 0 });
+        break;
+      case 'layout-index':
+        patch({ layoutIndex: Math.max(0, (Number(view.layoutIndex) || 0) + value) });
+        break;
+      case 'layout-slot':
+        patch({ layout: item.layout, layoutSelection: null, layoutIndex: 0 });
+        break;
       case 'menu-page':
         setMenuPage(value);
         break;
@@ -253,6 +299,23 @@ function Screen() {
         }
         break;
       }
+      case 'equipment': {
+        const current = new Set(
+          Array.isArray(view.equipmentPurchases) ? view.equipmentPurchases : [],
+        );
+        if (current.has(value)) current.delete(value);
+        else current.add(value);
+        const equipmentPurchases = [...current];
+        const nextBill = purchase(g, { ...view, equipmentPurchases });
+        patch({
+          equipmentPurchases,
+          ...(nextBill.layout ? { layout: nextBill.layout } : {}),
+        });
+        break;
+      }
+      case 'equipment-index':
+        patch({ equipmentIndex: Math.max(0, (Number(view.equipmentIndex) || 0) + value) });
+        break;
       case 'page':
         patch({ page: value });
         break;
@@ -275,13 +338,32 @@ function Screen() {
         break;
       case 'next': {
         const bill = purchase(g, view);
-        if (!bill.error && !nextShift(view.selected, bill.quantity, bill.duty))
+        if (
+          !bill.error &&
+          !nextShift(view.selected, bill.quantity, bill.duty, bill.equipmentPurchases, bill.layout)
+        )
           patch({ error: '準備内容を確認してください。' });
         break;
       }
     }
   };
   latest.current = { ui, dispatch };
+  useEffect(() => {
+    const active =
+      previewBill && !previewBill.error && s.phase === 'finished' && s.cleared && view.page === 3;
+    if (active)
+      setPreparationPreview({ equipment: previewBill.equipment, layout: previewBill.layout });
+    else setPreparationPreview(null);
+    return () => setPreparationPreview(null);
+  }, [
+    previewEquipmentKey,
+    previewLayoutKey,
+    previewBill?.error,
+    s.cleared,
+    s.phase,
+    s.ready,
+    view.page,
+  ]);
   const activate = (id) => {
     const element = controls.current.get(id);
     element?.focus({ preventScroll: true });
@@ -402,10 +484,15 @@ function Screen() {
                     {item.text}
                   </button>
                 );
-              if (item.kind === 'text' || item.kind === 'title3d')
+              if (
+                item.kind === 'text' ||
+                item.kind === 'title3d' ||
+                item.kind === 'avatar' ||
+                item.kind === 'bar'
+              )
                 return (
                   <p key={item.id} className="sr-only">
-                    {item.text}
+                    {item.label ?? item.text}
                   </p>
                 );
               return null;

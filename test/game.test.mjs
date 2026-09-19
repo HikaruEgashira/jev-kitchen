@@ -420,7 +420,8 @@ test('opening checkpoints resume progress without farming and reject corrupt sav
 test('cleared shifts transact one applicant and stock for the next level', () => {
   startShift();
   const g = useKitchen.getState().game;
-  g.cash = 1000;
+  const cash = Math.max(...Object.values(STAFF).map((staff) => staff.cost)) + 1000;
+  g.cash = cash;
   g.served = 6;
   g.time = SHIFT_MS;
   tick(1);
@@ -433,7 +434,7 @@ test('cleared shifts transact one applicant and stock for the next level', () =>
   assert.equal(next.staffId, 'helper');
   assert.deepEqual(next.duty, ['helper']);
   assert.ok(next.hired.includes(applicant));
-  assert.equal(next.cash, 1000 - STAFF[applicant].cost - 8 * 8 - STAFF.helper.wage);
+  assert.equal(next.cash, cash - STAFF[applicant].cost - 8 * 8 - STAFF.helper.wage);
 });
 
 test('skipping keeps the active staff and failed shifts retry from their opening snapshot', () => {

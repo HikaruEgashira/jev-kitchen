@@ -12,6 +12,7 @@ const source = [
   'game.js',
   'model.js',
   'staff.js',
+  'equipment.js',
 ]
   .map((name) => readFileSync(`src/${name}`, 'utf8'))
   .join('');

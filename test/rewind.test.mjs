@@ -8,10 +8,19 @@ import {
   retryShift,
   rollbackToPreparation,
   rollbackToPreviousStage,
+  setPreparationPreview,
+  goTo,
   tick,
 } from '../src/game.js';
-import { SHIFT_MS, quotaForLevel } from '../src/model.js';
+import {
+  SHIFT_MS,
+  quotaForLevel,
+  resolveLayout,
+  stationInfo,
+  kitchenBounds,
+} from '../src/model.js';
 import { STAFF } from '../src/staff.js';
+import { equipmentState, quoteEquipment } from '../src/equipment.js';
 
 const storage = new Map();
 test.beforeEach(() => {
@@ -35,16 +44,18 @@ function economy(g) {
     hired: g.hired,
     duty: g.duty,
     staffState: g.staffState,
+    equipment: g.equipment,
+    layout: g.layout,
   });
 }
 
-function open(level = 9) {
+function open(level = 9, cash = 1200) {
   storage.set(
     CHECKPOINT_KEY,
     JSON.stringify({
       version: 2,
       level,
-      cash: 1200,
+      cash,
       stock: quotaForLevel(level) + 2,
       hired: ['helper'],
       duty: ['helper'],
@@ -83,8 +94,146 @@ test('same-condition retry restores paid opening and keeps the preparation rewin
   assert.equal(rollbackToPreparation(), true);
 });
 
-test('review refunds hiring, purchases and payroll together, with the same applicants', () => {
+test('equipment investments share the bill and survive retry, reload and preparation rewinds', async () => {
   open();
+  const preparation = finish(true);
+  const purchases = ['add_board', 'upgrade_board', 'upgrade_pot'];
+  const investment = quoteEquipment(preparation.equipment, purchases, 10);
+  assert.equal(investment.error, null);
+  assert.equal(nextShift(null, 10, ['helper'], purchases), true);
+  const opening = economy(useKitchen.getState().game);
+  assert.deepEqual(opening.equipment, investment.equipment);
+  assert.equal(opening.cash, preparation.cash - 80 - STAFF.helper.wage - investment.cost);
+  finish(false);
+  assert.equal(retryShift(), true);
+  assert.deepEqual(economy(useKitchen.getState().game), opening);
+  const reloaded = await import(`../src/game.js?equipment-reload-${Date.now()}`);
+  reloaded.useKitchen.setState({ ready: true, sound: false, mode: 'rule' });
+  reloaded.startShift();
+  assert.deepEqual(economy(reloaded.useKitchen.getState().game), opening);
+  finish(false);
+  assert.equal(rollbackToPreparation(), true);
+  assert.deepEqual(economy(useKitchen.getState().game), preparation);
+  assert.equal(nextShift(null, 10, ['helper'], []), true);
+  assert.deepEqual(useKitchen.getState().game.equipment, preparation.equipment);
+  assert.equal(useKitchen.getState().game.cash, preparation.cash - 80 - STAFF.helper.wage);
+});
+
+test('previous-stage rewind restores the original equipment and rejects invalid investments atomically', () => {
+  const previous = open();
+  finish(true);
+  const before = JSON.stringify(useKitchen.getState().game);
+  const saved = storage.get(CHECKPOINT_KEY);
+  for (const purchases of [null, {}, ['unknown'], ['add_grill'], ['add_board', 'add_board']]) {
+    assert.equal(nextShift(null, 10, ['helper'], purchases), false);
+    assert.equal(JSON.stringify(useKitchen.getState().game), before);
+    assert.equal(storage.get(CHECKPOINT_KEY), saved);
+  }
+  const g = useKitchen.getState().game;
+  const cash = g.cash;
+  g.cash = 80 + STAFF.helper.wage;
+  assert.equal(nextShift(null, 10, ['helper'], ['upgrade_board']), false);
+  assert.equal(g.equipment.board.level, 1);
+  g.cash = cash;
+  assert.equal(nextShift(null, 10, ['helper'], ['add_board']), true);
+  finish(false);
+  assert.equal(rollbackToPreviousStage(), true);
+  assert.deepEqual(economy(useKitchen.getState().game), previous);
+});
+
+test('legacy saves receive base equipment and malformed or locked equipment is rejected', () => {
+  open();
+  assert.deepEqual(useKitchen.getState().game.equipment, equipmentState());
+  const saved = JSON.parse(storage.get(CHECKPOINT_KEY));
+  for (const equipment of [null, {}, { ...equipmentState(), board: { count: 99, level: 1 } }]) {
+    storage.set(CHECKPOINT_KEY, JSON.stringify({ ...saved, equipment }));
+    useKitchen.setState({ phase: 'ready' });
+    startShift();
+    assert.equal(useKitchen.getState().game.level, 1);
+    assert.deepEqual(useKitchen.getState().game.equipment, equipmentState());
+  }
+});
+
+test('kitchen expansion, warming equipment and moved stations persist and rewind together', async () => {
+  const previous = open(19, 5000);
+  const preparation = finish(true);
+  const purchases = ['upgrade_kitchen', 'add_board', 'add_warmer'];
+  const investment = quoteEquipment(preparation.equipment, purchases, 20);
+  assert.equal(investment.error, null);
+  const layout = resolveLayout(
+    { level: 20, equipment: investment.equipment },
+    { ...preparation.layout, crate: 'board', board: 'crate' },
+  );
+  assert.ok(layout);
+  const cash = preparation.cash;
+  const saved = storage.get(CHECKPOINT_KEY);
+  setPreparationPreview({ equipment: investment.equipment, layout });
+  assert.equal(useKitchen.getState().game.cash, cash);
+  assert.deepEqual(economy(useKitchen.getState().game), preparation);
+  assert.equal(storage.get(CHECKPOINT_KEY), saved);
+  assert.deepEqual(useKitchen.getState().preparationPreview.layout, layout);
+  assert.equal(nextShift(null, 12, [], purchases, layout), true);
+  assert.equal(useKitchen.getState().preparationPreview, null);
+  const opening = economy(useKitchen.getState().game);
+  assert.equal(opening.cash, cash - 12 * 8 - investment.cost);
+  assert.deepEqual(opening.layout, layout);
+  assert.equal(kitchenBounds(useKitchen.getState().game).maxX, 1175 + 130);
+  goTo('crate');
+  for (let i = 0; i < 60 && !useKitchen.getState().game.human.carrying; i++) tick(0.05);
+  const g = useKitchen.getState().game;
+  assert.equal(g.human.carrying, 'tomato');
+  assert.ok(
+    Math.hypot(g.human.x - stationInfo(g, 'crate').x, g.human.y - stationInfo(g, 'crate').y) < 68,
+  );
+  finish(false);
+  assert.equal(retryShift(), true);
+  assert.deepEqual(economy(useKitchen.getState().game), opening);
+  const reloaded = await import(`../src/game.js?layout-reload-${Date.now()}`);
+  reloaded.useKitchen.setState({ ready: true, sound: false, mode: 'rule' });
+  reloaded.startShift();
+  assert.deepEqual(economy(reloaded.useKitchen.getState().game), opening);
+  finish(false);
+  assert.equal(rollbackToPreparation(), true);
+  assert.deepEqual(economy(useKitchen.getState().game), preparation);
+  assert.equal(nextShift(null, 12, [], purchases, layout), true);
+  finish(false);
+  assert.equal(rollbackToPreviousStage(), true);
+  assert.deepEqual(economy(useKitchen.getState().game), previous);
+});
+
+test('invalid placements never spend money or overwrite saves; legacy layouts get defaults', () => {
+  open(19);
+  finish(true);
+  const before = JSON.stringify(useKitchen.getState().game);
+  const saved = storage.get(CHECKPOINT_KEY);
+  const layout = useKitchen.getState().game.layout;
+  for (const invalid of [
+    null,
+    [],
+    { ...layout, crate: 'missing' },
+    { ...layout, crate: 'board' },
+    { ...layout, crate: 'top_extra' },
+  ]) {
+    assert.equal(nextShift(null, 12, [], [], invalid), false);
+    assert.equal(JSON.stringify(useKitchen.getState().game), before);
+    assert.equal(storage.get(CHECKPOINT_KEY), saved);
+  }
+  const checkpoint = JSON.parse(saved);
+  for (const invalid of [
+    null,
+    { ...checkpoint.layout, crate: 'board' },
+    { ...checkpoint.layout, crate: 'missing' },
+  ]) {
+    storage.set(CHECKPOINT_KEY, JSON.stringify({ ...checkpoint, layout: invalid }));
+    useKitchen.setState({ phase: 'ready' });
+    startShift();
+    assert.equal(useKitchen.getState().game.level, 1);
+    assert.deepEqual(useKitchen.getState().game.layout, resolveLayout(useKitchen.getState().game));
+  }
+});
+
+test('review refunds hiring, purchases and payroll together, with the same applicants', () => {
+  open(9, Math.max(...Object.values(STAFF).map((staff) => staff.cost)) + 1200);
   const preparation = finish(true);
   const applicants = [...useKitchen.getState().applicants];
   const selected = applicants[0];
