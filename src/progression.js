@@ -47,7 +47,8 @@ function quota(level) {
   if (level === 1) return 1;
   if (level === 2) return 7;
   if (level <= 4 || level === 7) return 6;
-  if (level <= 6) return 7;
+  if (level === 5) return 7;
+  if (level === 6) return 6;
   if (level <= 9) return 8;
   if (level <= 30) return 9 + Math.floor((level - 10) / 5);
   return 13 + Math.round(3 * Math.sqrt(progressBetween(level, 30, MAX_LEVEL)));

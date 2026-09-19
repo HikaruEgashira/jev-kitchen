@@ -692,6 +692,21 @@ test('the tutorial waits indefinitely and keeps the one dish reward', () => {
   assert.equal(g.orders.length, 0);
 });
 
+test('menu prices are paid per dish independently of score bonuses', () => {
+  const g = createGame({ level: 7, cash: 0, stock: 3 });
+  for (const [recipe, price] of [
+    ['dish', 25],
+    ['soup', 35],
+    ['roast', 45],
+  ]) {
+    const before = g.cash;
+    g.human.carrying = recipe;
+    g.orders = [{ recipe, deadline: 30000 }];
+    assert.equal(interact(g, 'human', 'serve').ok, true);
+    assert.equal(g.cash - before, price);
+  }
+});
+
 test('heated stations burn after their grace period and can be cleaned', () => {
   assert.equal(COOK_MS, 12_000);
   assert.equal(GRILL_MS, 7000);

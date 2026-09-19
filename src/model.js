@@ -58,9 +58,9 @@ export const ITEM_NAMES = {
   roast: '焼きトマト',
 };
 export const RECIPES = {
-  dish: { name: 'トマトサラダ', points: 100 },
-  soup: { name: 'トマトスープ', points: 140 },
-  roast: { name: '焼きトマト', points: 180 },
+  dish: { name: 'トマトサラダ', points: 100, price: 25 },
+  soup: { name: 'トマトスープ', points: 140, price: 35 },
+  roast: { name: '焼きトマト', points: 180, price: 45 },
 };
 
 // Estimate stock from quota and previous sales, preserving the next payroll.
@@ -811,7 +811,7 @@ export function interact(g, who, stationId) {
       }
       if (e.quality) points += 30;
       g.score += points;
-      g.cash += Math.round(RECIPES[ticket.recipe].points / 4);
+      g.cash += RECIPES[ticket.recipe].price;
       g.served++;
       e.served++;
       g.bestCombo = Math.max(g.bestCombo, g.combo);

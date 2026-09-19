@@ -204,7 +204,11 @@ export function preparationAdvice(g, plan) {
       stock: {
         instructions:
           'recommended_purchase is an estimate, not a requirement. One tomato makes one dish, unsold stock carries over, and purchases share the same cash balance with wages and upgrades. The purchase quantity is editable.',
-        hint: `推奨仕入れは${recommendedStock(g)}個（前回${g.served}皿販売・残在庫${g.stock ?? 0}個）。トマト1個で1皿、仕入れは1個${STOCK_PRICE}コイン。残りは次へ持ち越せます。仕入れ量は変更できます。`,
+        hint: `推奨仕入れは${recommendedStock(g)}個（前回${g.served}皿販売・残在庫${g.stock ?? 0}個）。トマト1個で1皿、仕入れは1個${STOCK_PRICE}コイン。残りは次へ持ち越せます。仕入れ量は変更できます。\nおしながき：${Object.values(
+          RECIPES,
+        )
+          .map((r) => `${r.name} ${r.price}コイン`)
+          .join('・')}`,
       },
       investment: {
         instructions: `Pending plan: ${bill.duty.length} staff, ${bill.equipment.board.count} boards. A station serves one actor at a time. Human training: move ${training.move}/${MAX_TRAINING}, cook ${training.cook}/${MAX_TRAINING}. Vitamins permanently improve one actor: movement +4% or cooking time -4% per level, ${VITAMINS.move.cost} coins each. Equipment additions allow parallel work; board, pot and grill upgrades reduce cooking time. Cash remaining already deducts all pending purchases, stock and wages; it carries over. Purchases become final at open_shift.`,

@@ -708,7 +708,11 @@ test('human hints share stock facts, cooking advice and bounded preparation hist
     text += ui.items.find((i) => i.id === 'advice-copy').text.replaceAll('\n', '');
     if (ui.items.find((i) => i.id === 'advice-next').disabled) break;
   }
-  assert.ok(text.includes(preparationAdvice(game, { ...view, stage: 'stock' }).hint));
+  assert.ok(
+    text.includes(preparationAdvice(game, { ...view, stage: 'stock' }).hint.replaceAll('\n', '')),
+  );
+  assert.match(text, /トマトサラダ 25コイン/);
+  assert.match(text, /トマトスープ 35コイン/);
   assert.match(text, /前回11皿/);
   assert.match(text, /次の注文/);
   assert.doesNotMatch(text, /ノルマ後も売|しよう|優先|選ぼう/);

@@ -80,7 +80,8 @@ test('legacy finite-stock transition remains at Lv2', () => {
 
 test('new recipes give breathing room, then Lv11..30 rotate production demands', () => {
   assert.ok(quotaForLevel(3) < quotaForLevel(2));
-  assert.ok(quotaForLevel(7) < quotaForLevel(6));
+  assert.ok(quotaForLevel(6) < quotaForLevel(5));
+  assert.equal(quotaForLevel(7), quotaForLevel(6));
   for (let first = 11; first <= 26; first += 5) {
     const week = Array.from({ length: 5 }, (_, i) => levelConfig(first + i));
     assert.equal(new Set(week.map((c) => JSON.stringify(c.recipeMix))).size, 5);
@@ -98,6 +99,6 @@ test('Lv5 repeats Lv4 conditions with a seven-dish quota', () => {
     quota: 7,
     unlockLabel: 'なじみの厨房',
   });
-  assert.equal(quotaForLevel(6), 7);
+  assert.equal(quotaForLevel(6), 6);
   assert.equal(quotaForLevel(7), 6);
 });

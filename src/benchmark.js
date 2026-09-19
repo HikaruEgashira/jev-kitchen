@@ -15,6 +15,7 @@ import {
   observe,
   MAX_LEVEL,
   STOCK_PRICE,
+  RECIPES,
   levelConfig,
   recommendedStock,
   repeatsActions,
@@ -314,7 +315,13 @@ export function compactDecisionState(s) {
         quantity: p.quantity,
         recommended_purchase: p.recommended_purchase,
         ...(stage === 'stock'
-          ? { previous_sales: p.previous_sales, stock_price: STOCK_PRICE }
+          ? {
+              previous_sales: p.previous_sales,
+              stock_price: STOCK_PRICE,
+              menu_prices: Object.fromEntries(
+                Object.entries(RECIPES).map(([id, r]) => [id, r.price]),
+              ),
+            }
           : {}),
         ...(stage === 'hiring' || stage === 'staffing'
           ? {
