@@ -612,6 +612,18 @@ test('bounded action feedback flags unproductive cycles, not cooking waits or sa
   });
   assert.ok(request().loop_warning, 'returning stock is not forward progress');
   cycle.forEach((d, i) => {
+    d.label = i % 2 ? 'トマトを戻す' : 'トマトを取る';
+    if (i >= 2) {
+      d.action = 'interact';
+      d.label += '（E）';
+    }
+    if (i === 3) d.label = `ダッシュして${d.label}`;
+  });
+  assert.ok(request().loop_warning, 'E and dash aliases still form the same cycle');
+  cycle.forEach((d) => {
+    delete d.label;
+  });
+  cycle.forEach((d, i) => {
     d.stock = 20 - i;
   });
   assert.equal(request().loop_warning, undefined, 'consuming stock is progress');

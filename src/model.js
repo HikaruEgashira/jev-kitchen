@@ -1094,6 +1094,7 @@ export function isFeasible(g, cand, who) {
 
 export function repeatsActions(decisions, g) {
   const cycle = decisions.slice(-4);
+  const action = (d) => (d.label ?? d.action).replace(/^ダッシュして/, '').replace(/（E）$/, '');
   return (
     cycle.length === 4 &&
     cycle.some((d) => d.stock === g.stock) &&
@@ -1102,7 +1103,7 @@ export function repeatsActions(decisions, g) {
         d.applied !== false &&
         d.stock === cycle[i % 2].stock &&
         d.served === g.served &&
-        (d.action ?? d.label) === (cycle[i % 2].action ?? cycle[i % 2].label),
+        action(d) === action(cycle[i % 2]),
     ) &&
     cycle.some(
       (d) => d.action !== 'wait' && d.action !== 'continue' && d.label !== '今は動かず、様子を見る',
