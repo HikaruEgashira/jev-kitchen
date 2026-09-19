@@ -367,8 +367,26 @@ export function compactDecisionState(s) {
 // Share the game observation, then keep only facts needed for this decision.
 // In preparation the pending bill is authoritative; old equipment and UI text
 // made the model undo purchases it had just selected.
-export function benchRequest(state, { preparing, plan, candidates }) {
+export function benchRequest(
+  state,
+  { preparing, plan, candidates, decisions = [], repeatedPlanVisits = 0 },
+) {
   const g = state.game;
+  const recent = decisions
+    .filter((d) => d.level === g.level && d.phase === (preparing ? 'preparation' : 'playing'))
+    .slice(-6);
+  const cycle = recent.slice(-4);
+  const looping = preparing
+    ? repeatedPlanVisits >= 2
+    : cycle.length === 4 &&
+      cycle.every(
+        (d, i) =>
+          d.applied &&
+          d.stock === g.stock &&
+          d.served === g.served &&
+          d.action === cycle[i % 2].action,
+      ) &&
+      cycle.some((d) => d.action !== 'wait' && d.action !== 'continue');
   const actions = new Set(candidates.map((c) => c.id));
   const bill = preparing ? purchase(g, plan) : null;
   const restedCrew = preparing
@@ -480,7 +498,24 @@ export function benchRequest(state, { preparing, plan, candidates }) {
           }
         : buildQuestions(candidates, 'human', g),
   };
-  return { ...request, state: compactDecisionState(request.state) };
+  const context = compactDecisionState(request.state);
+  // One bounded history replaces duplicate actor and preparation logs.
+  if (context.human) delete context.human.recent_actions;
+  if (context.preparation) delete context.preparation.recent_actions;
+  return {
+    ...request,
+    state: {
+      ...context,
+      recent_actions: recent.map(({ action, applied }) => ({ action, applied })),
+      ...(looping
+        ? {
+            loop_warning: preparing
+              ? 'You returned to the same purchase plan. Stop the purchase/cancel cycle. Keep useful pending purchases and open when ready.'
+              : 'Possible loop: recent actions repeat without using stock or serving food. Check current orders and crew work; choose a productive action or wait for cooking instead of repeating the cycle.',
+          }
+        : {}),
+    },
+  };
 }
 
 export function latencyStats(values) {
@@ -590,6 +625,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
     let planningGame;
     let navigating = false;
     const preparationVisits = new Map();
+    let repeatedPlanVisits = 0;
     try {
       while (true) {
         session.signal.throwIfAborted();
@@ -632,6 +668,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
           }
           if (planningGame !== g) {
             preparationVisits.clear();
+            repeatedPlanVisits = 0;
             navigating = false;
             plan = { ...preparation(g), stage: 'hiring' };
             planningGame = g;
@@ -671,9 +708,16 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
         }
         const requestGeneration = generation;
         const stage = preparing ? plan.stage : null;
+        const { stock, served } = g;
         const body = JSON.stringify({
           modelId: model.id,
-          ...benchRequest(state, { preparing, plan, candidates }),
+          ...benchRequest(state, {
+            preparing,
+            plan,
+            candidates,
+            decisions: result.decisions,
+            repeatedPlanVisits,
+          }),
         });
         const requestStart = performance.now();
         nextCallAt = requestStart + 1000 / frequency;
@@ -721,6 +765,8 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
           level: g.level,
           phase: preparing ? 'preparation' : 'playing',
           stage,
+          stock,
+          served,
           atMs: Math.round(g.time),
           action: selected.id,
           applied,
@@ -744,6 +790,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
           });
           const visits = (preparationVisits.get(signature) ?? 0) + 1;
           preparationVisits.set(signature, visits);
+          repeatedPlanVisits = visits;
           if (visits >= 3) throw new Error('Preparation cycle: same plan chosen three times');
         }
         const action = applied ? selected.label : '状況が変わったため再判断';

@@ -580,6 +580,39 @@ test('staffing recommends the rested cook while keeping every legal roster avail
   assert.match(request.questions.next_action.instructions, /Assign sous as the ONLY heat cook/);
 });
 
+test('bounded action feedback flags unproductive cycles, not cooking waits or sales', () => {
+  const g = createGame({ level: 7, stock: 20 });
+  const state = { ...useKitchen.getState(), game: g };
+  const actions = ['fetch_plate', 'return_plate', 'fetch_plate', 'return_plate'];
+  const decisions = ['fetch_tomato', 'chop', ...actions].map((action) => ({
+    level: g.level,
+    phase: 'playing',
+    action,
+    applied: true,
+    stock: g.stock,
+    served: g.served,
+  }));
+  const request = () =>
+    benchRequest(state, {
+      preparing: false,
+      candidates: playingCandidates(g),
+      decisions: [{ ...decisions[0], level: 6 }, ...decisions],
+    }).state;
+  assert.equal(request().recent_actions.length, 6);
+  assert.equal(request().human.recent_actions, undefined);
+  assert.match(request().loop_warning, /repeat without using stock or serving food/);
+  g.served++;
+  assert.equal(request().loop_warning, undefined);
+  g.served--;
+  decisions.at(-1).applied = false;
+  assert.equal(request().loop_warning, undefined);
+  for (const d of decisions) {
+    d.action = 'wait';
+    d.applied = true;
+  }
+  assert.equal(request().loop_warning, undefined);
+});
+
 test('repeated purchase reversals stop before consuming the whole call budget', async (t) => {
   const choices = [
     'wait',
@@ -597,6 +630,15 @@ test('repeated purchase reversals stop before consuming the whole call budget', 
     const request = JSON.parse(options.body);
     const choice = choices[calls++];
     assert.ok(Object.hasOwn(request.questions.next_action.criteria, choice));
+    assert.ok(request.state.recent_actions.length <= 6);
+    if (calls === 7) {
+      assert.match(request.state.loop_warning, /same purchase plan/);
+      assert.deepEqual(
+        request.state.recent_actions.slice(-2).map((d) => d.action),
+        ['equipment_add_board', 'equipment_cancel_add_board'],
+      );
+    }
+    if (calls < 7) assert.equal(request.state.loop_warning, undefined);
     if (calls === 1) {
       const g = createGame({
         level: 7,
