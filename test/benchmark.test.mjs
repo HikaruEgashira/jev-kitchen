@@ -662,3 +662,21 @@ test('repeated purchase reversals stop before consuming the whole call budget', 
   assert.equal(useKitchen.getState().game.cash, 1000);
   assert.equal(writes.length, 0);
 });
+
+test('investment exposes capacity and the expansion that unlocks another pot', () => {
+  const g = createGame({ level: 26, cash: 2500, stock: 24 });
+  g.equipment = { ...g.equipment, board: { count: 2, level: 2 } };
+  const state = { ...useKitchen.getState(), game: g };
+  const plan = { ...preparation(g), stage: 'investment', quantity: 0 };
+  let candidates = preparationCandidates(state, plan);
+  assert.ok(!candidates.some((c) => c.id === 'equipment_add_pot'));
+  const expansion = candidates.find((c) => c.id === 'equipment_upgrade_kitchen');
+  assert.match(expansion.label, /設備枠1→2/);
+  plan.equipmentPurchases = expansion.equipmentPurchases;
+  candidates = preparationCandidates(state, plan);
+  assert.ok(candidates.some((c) => c.id === 'equipment_add_pot'));
+  assert.deepEqual(
+    benchRequest(state, { preparing: true, plan, candidates }).state.preparation.equipment_capacity,
+    { used: 1, limit: 2 },
+  );
+});

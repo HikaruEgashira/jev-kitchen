@@ -18,7 +18,7 @@ import {
   recommendedStock,
 } from './model.js';
 import { STAFF, nextStaffState, payroll } from './staff.js';
-import { EQUIPMENT, quoteEquipment } from './equipment.js';
+import { EQUIPMENT, equipmentCapacity, quoteEquipment } from './equipment.js';
 import { MAX_TRAINING, VITAMINS, quoteVitamins } from './training.js';
 import { preparation, purchase } from './ui.js';
 
@@ -150,9 +150,13 @@ export function preparationCandidates(state, plan) {
       const quote = quoteEquipment(g.equipment, next, g.level + 1);
       if (quote.error) continue;
       const label = `${EQUIPMENT[kind].name}の${action === 'add' ? '増設' : '強化'}`;
+      const capacityChange =
+        kind === 'kitchen'
+          ? `設備枠${equipmentCapacity(bill.equipment).limit}→${equipmentCapacity(quote.equipment).limit}、`
+          : '';
       candidates.push({
         id: `equipment_${pending ? 'cancel_' : ''}${purchaseId}`,
-        label: `${label}${pending ? 'を取り消す' : 'を予定する'}（${quote.cost - equipmentCost}コイン）`,
+        label: `${label}${pending ? 'を取り消す' : 'を予定する'}（${capacityChange}${quote.cost - equipmentCost}コイン）`,
         equipmentPurchases: next,
       });
     }
@@ -326,6 +330,7 @@ export function compactDecisionState(s) {
         ...(stage === 'investment'
           ? {
               equipment: b.equipment,
+              equipment_capacity: equipmentCapacity(b.equipment),
               training: b.training,
               pending_equipment: p.equipmentPurchases,
               recent_actions: p.recent_actions,
