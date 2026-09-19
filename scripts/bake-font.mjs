@@ -1,9 +1,18 @@
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { TTFLoader } from 'three-stdlib';
 
-const source = readdirSync('src')
-  .filter((name) => /\.[jt]sx?$/.test(name))
+// Only Three-rendered text needs the atlas; the benchmark page uses native fonts.
+const source = [
+  'Kitchen.jsx',
+  'Surface.jsx',
+  'SceneUI.jsx',
+  'Food.jsx',
+  'ui.js',
+  'game.js',
+  'model.js',
+  'staff.js',
+]
   .map((name) => readFileSync(`src/${name}`, 'utf8'))
   .join('');
 const codepoints = [...new Set([...source].map((char) => char.codePointAt(0)))]

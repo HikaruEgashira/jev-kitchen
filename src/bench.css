@@ -1,0 +1,303 @@
+.bench-page {
+  height: 100dvh;
+  overflow: auto;
+  padding: 12px;
+  background: #000;
+  color: #fff;
+  font-family: 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
+}
+.bench-header,
+.bench-screen-title,
+.bench-results-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.bench-header {
+  margin: 0 0 10px;
+}
+.bench-header h1 {
+  margin: 0;
+  font-size: 22px;
+}
+.bench-header a {
+  color: #fff;
+  font-size: 13px;
+}
+.bench-broadcast {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-areas: 'game side' 'log side';
+  gap: 8px;
+  max-width: 1600px;
+  margin: auto;
+}
+.bench-screen,
+.bench-sidebar,
+.bench-commentary {
+  border: 3px solid #fff;
+  min-width: 0;
+}
+.bench-screen {
+  grid-area: game;
+  display: flex;
+  flex-direction: column;
+}
+.bench-screen-title {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.bench-stage {
+  position: relative;
+  flex: 1;
+  min-height: 370px;
+  aspect-ratio: 16 / 9;
+  background: #dfeadd;
+}
+.bench-stage .app-shell {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+.bench-sidebar {
+  grid-area: side;
+  padding: 16px;
+}
+.bench-clock {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #777;
+}
+.bench-clock span {
+  font-size: 12px;
+}
+.bench-clock strong {
+  font:
+    bold 42px/1.15 ui-monospace,
+    monospace;
+  color: #8fff98;
+  font-variant-numeric: tabular-nums;
+}
+.bench-stats {
+  margin: 14px 0;
+}
+.bench-stats div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+.bench-stats dt {
+  font-size: 12px;
+}
+.bench-stats dd {
+  margin: 0;
+  font:
+    bold 25px ui-monospace,
+    monospace;
+  font-variant-numeric: tabular-nums;
+}
+.bench-stats small {
+  font-size: 14px;
+  font-weight: normal;
+}
+.bench-stats .bench-staff {
+  font: inherit;
+  font-size: 13px;
+}
+.bench-controls {
+  border-top: 1px solid #777;
+  padding-top: 14px;
+}
+.bench-controls fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+.bench-controls label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+}
+.bench-controls input,
+.bench-controls select {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #aaa;
+  border-radius: 0;
+  color: #111;
+  background: #fff;
+  font:
+    16px ui-monospace,
+    monospace;
+}
+.bench-page button {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid #fff;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.bench-page button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.bench-page :focus-visible {
+  outline: 3px solid #ffde68;
+  outline-offset: 3px;
+}
+.bench-stop {
+  width: 100%;
+  margin-top: 10px;
+}
+.bench-commentary {
+  grid-area: log;
+  display: grid;
+  grid-template-columns: 145px minmax(0, 1fr);
+  min-height: 164px;
+}
+.bench-runner {
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  border-right: 2px solid #fff;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.bench-runner strong {
+  font-size: 24px;
+}
+.bench-runner span {
+  font-size: 12px;
+}
+.bench-log {
+  padding: 18px 20px;
+}
+.bench-current {
+  margin: 0 0 12px;
+  font-size: clamp(16px, 1.7vw, 24px);
+  font-weight: bold;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.bench-log ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  color: #bbb;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.bench-log li span {
+  display: inline-block;
+  min-width: 4ch;
+  font-variant-numeric: tabular-nums;
+}
+.bench-results {
+  max-width: 1600px;
+  margin: 18px auto 0;
+}
+.bench-results-heading {
+  margin-bottom: 8px;
+}
+.bench-results h2 {
+  font-size: 16px;
+  margin: 0;
+}
+.bench-table {
+  overflow-x: auto;
+}
+.bench-table table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.bench-table th,
+.bench-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #777;
+}
+.bench-table small {
+  display: block;
+  max-width: 30ch;
+  margin-top: 4px;
+  color: #bbb;
+}
+.bench-error {
+  color: #ffacac;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 850px) {
+  .bench-broadcast {
+    grid-template-columns: minmax(0, 1fr) 220px;
+  }
+  .bench-sidebar {
+    padding: 12px;
+  }
+  .bench-clock strong {
+    font-size: 32px;
+  }
+  .bench-stage {
+    min-height: 330px;
+  }
+  .bench-commentary {
+    grid-template-columns: 100px minmax(0, 1fr);
+  }
+  .bench-runner strong {
+    font-size: 20px;
+  }
+  .bench-log {
+    padding: 12px;
+  }
+}
+@media (max-width: 600px) {
+  .bench-page {
+    padding: 8px;
+  }
+  .bench-broadcast {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'game' 'log' 'side';
+  }
+  .bench-stage {
+    min-height: 300px;
+  }
+  .bench-sidebar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-content: start;
+    gap: 12px;
+  }
+  .bench-clock {
+    grid-column: 1 / -1;
+  }
+  .bench-clock strong {
+    font-size: 38px;
+  }
+  .bench-stats {
+    margin: 0;
+  }
+  .bench-controls {
+    border: 0;
+    padding: 0;
+  }
+  .bench-commentary {
+    min-height: 136px;
+  }
+}

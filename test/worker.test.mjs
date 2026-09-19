@@ -32,6 +32,80 @@ const validQuestions = {
   },
 };
 
+test('benchmark registry exposes labels only and forwards only to a server-registered endpoint', async (t) => {
+  const configured = {
+    ...env(),
+    BENCH_ENDPOINTS: JSON.stringify({
+      custom: {
+        name: 'Custom model',
+        url: 'https://model.example/decision',
+        token: 'test-secret',
+        model: 'test-model',
+      },
+    }),
+  };
+  const registry = await worker.fetch(
+    new Request('https://kitchen.test/api/bench/models'),
+    configured,
+  );
+  assert.deepEqual(await registry.json(), {
+    models: [
+      { id: 'jev', name: 'Jev' },
+      { id: 'custom', name: 'Custom model' },
+    ],
+  });
+  const fetch = t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(url, 'https://model.example/decision');
+    assert.equal(options.headers.authorization, 'Bearer test-secret');
+    assert.equal(options.redirect, 'manual');
+    assert.equal(JSON.parse(options.body).model, 'test-model');
+    return Response.json({
+      answers: { next_action: { choice: 'wait' } },
+      secret_metadata: 'private',
+    });
+  });
+  const body = {
+    modelId: 'custom',
+    state: {},
+    questions: validQuestions,
+    url: 'https://untrusted.example/',
+  };
+  const response = await worker.fetch(post('/api/bench/decide', body), configured);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).result.answers.next_action.choice, 'wait');
+  for (const modelId of ['missing', '__proto__']) {
+    assert.equal(
+      (await worker.fetch(post('/api/bench/decide', { ...body, modelId }), configured)).status,
+      400,
+    );
+  }
+  assert.equal(fetch.mock.callCount(), 1);
+  fetch.mock.mockImplementation(async () =>
+    Response.json({ answers: { next_action: { choice: 'outside' } } }),
+  );
+  assert.equal((await worker.fetch(post('/api/bench/decide', body), configured)).status, 502);
+});
+
+test('benchmark default Jev and configuration guards preserve the request boundary', async () => {
+  const body = { modelId: 'jev', state: {}, questions: validQuestions };
+  assert.equal((await worker.fetch(post('/api/bench/decide', body), env())).status, 200);
+  assert.equal(
+    (await worker.fetch(new Request('https://kitchen.test/api/bench/decide'), env())).status,
+    405,
+  );
+  for (const BENCH_ENDPOINTS of ['[]', '{', '{"bad":{"url":"http://model.example"}}']) {
+    assert.equal(
+      (await worker.fetch(post('/api/bench/decide', body), { ...env(), BENCH_ENDPOINTS })).status,
+      503,
+    );
+  }
+  const questions = { other: validQuestions.next_action };
+  assert.equal(
+    (await worker.fetch(post('/api/bench/decide', { ...body, questions }), env())).status,
+    400,
+  );
+});
+
 test('forwards a valid decision to Jev and returns the answer', async () => {
   calls.length = 0;
   const res = await worker.fetch(

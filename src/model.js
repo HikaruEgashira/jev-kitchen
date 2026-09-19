@@ -103,6 +103,7 @@ function resolveWho(g, who) {
 
 function makeActor(x, y) {
   return {
+    served: 0,
     x,
     y,
     carrying: null,
@@ -269,17 +270,7 @@ export function createGame({
       plates: {},
       serve: {},
     },
-    human: {
-      x: 310,
-      y: 300,
-      carrying: null,
-      station: null,
-      action: null,
-      quality: false,
-      lastActions: [],
-      dashUntil: 0,
-      dashReadyAt: 0,
-    },
+    human: makeActor(310, 300),
     crew: Object.fromEntries(
       initialDuty.map((id, index) => [
         id,
@@ -342,6 +333,16 @@ export function moveToward(e, x, y, step) {
   e.x += (dx / d) * step;
   e.y += (dy / d) * step;
   return false;
+}
+
+export function movePlayer(g, ax, ay, step, movementMode = 'screen') {
+  const dx = movementMode === 'grid' ? ax : ax * 0.874 + ay * 0.486;
+  const dy = movementMode === 'grid' ? ay : -ax * 0.486 + ay * 0.874;
+  const length = Math.hypot(dx, dy);
+  if (!length) return;
+  const bounds = kitchenBounds(g);
+  g.human.x = Math.max(bounds.minX, Math.min(bounds.maxX, g.human.x + (dx / length) * step));
+  g.human.y = Math.max(bounds.minY, Math.min(bounds.maxY, g.human.y + (dy / length) * step));
 }
 
 export function dash(g, who = 'human') {
@@ -627,6 +628,7 @@ export function interact(g, who, stationId) {
       g.score += points;
       g.cash += Math.round(RECIPES[ticket.recipe].points / 4);
       g.served++;
+      e.served++;
       g.bestCombo = Math.max(g.bestCombo, g.combo);
       g.lastServeAt = g.time;
       g.orders.splice(index, 1);
@@ -697,6 +699,7 @@ export function buildCandidates(g, who) {
   syncConfig(g);
   normalizeDuty(g);
   const id = resolveWho(g, who);
+  const player = id === 'human';
   const e = actor(g, id),
     b = g.stations.board,
     p = g.stations.pot,
@@ -709,12 +712,12 @@ export function buildCandidates(g, who) {
     if (station && stationReserved(g, station, id)) return;
     out.push({ id: actionId, label, station });
   };
-  const needs = (recipe) => g.orders.some((o) => o.recipe === recipe);
+  const needs = (recipe) => player || g.orders.some((o) => o.recipe === recipe);
   if (e && (g.practice || g.time < g.duration)) {
     if (RECIPES[e.carrying]) {
       if (g.orders.some((o) => o.recipe === e.carrying))
         add('serve', '完成した料理を配膳する', 'serve');
-      else add('discard', '注文のない料理を片づける', null);
+      else if (!player) add('discard', '注文のない料理を片づける', null);
     }
     if (e.carrying === 'chopped') {
       if (active.includes('pot') && p.state === 'idle' && needs('soup'))
@@ -734,13 +737,16 @@ export function buildCandidates(g, who) {
     }
     if (e.carrying === 'tomato') {
       if (b.state === 'idle') add('chop', 'トマトを切り始める', 'board');
-      else add('return_tomato', 'トマトを戻して別の仕事を手伝う', 'crate');
+      if (player || b.state !== 'idle')
+        add('return_tomato', 'トマトを戻して別の仕事を手伝う', 'crate');
     }
     if (!e.carrying) {
-      if (b.state === 'idle' && canFetchTomato(g, id)) add('fetch_tomato', 'トマトを取る', 'crate');
+      if ((player || b.state === 'idle') && canFetchTomato(g, id))
+        add('fetch_tomato', 'トマトを取る', 'crate');
       if (
         b.state === 'chopped' &&
-        ((active.includes('pot') && p.state === 'idle' && needs('soup')) ||
+        (player ||
+          (active.includes('pot') && p.state === 'idle' && needs('soup')) ||
           (active.includes('grill') && grill.state === 'idle' && needs('roast')))
       )
         add('collect', '切ったトマトを取る', 'board');
@@ -755,12 +761,49 @@ export function buildCandidates(g, who) {
       if (id === 'human' && active.includes('grill') && boostAvailable(g, grill))
         add('boost_grill', 'グリルの仕上げを早める', 'grill');
       if (
-        ((b.state === 'chopped' && needs('dish')) ||
+        player ||
+        (((b.state === 'chopped' && needs('dish')) ||
           (active.includes('pot') && p.state === 'ready' && needs('soup')) ||
           (active.includes('grill') && grill.state === 'ready' && needs('roast'))) &&
-        canFetchPlate(g, id)
+          canFetchPlate(g, id))
       )
         add('fetch_plate', 'お皿を用意する', 'plates');
+    }
+    if (player) {
+      if (e.carrying) add('discard', '手元の物を捨てる（コンボをリセット）', null);
+      const near = stationAt(g, 'human');
+      if (near.inReach && out.some((c) => c.station === near.id))
+        add('interact', '近くの作業台で作業する（E）', near.id);
+      for (const id of active) add(`move_${id}`, `${STATIONS[id].name}へ移動する`, id);
+      for (const [direction, dx, dy] of [
+        ['up', 0, -1],
+        ['down', 0, 1],
+        ['left', -1, 0],
+        ['right', 1, 0],
+        ['up_left', -1, -1],
+        ['up_right', 1, -1],
+        ['down_left', -1, 1],
+        ['down_right', 1, 1],
+      ])
+        out.push({
+          id: `move_${direction}`,
+          label: `${direction}方向へ0.25秒移動（画面基準）`,
+          station: null,
+          dx,
+          dy,
+        });
+      if (g.time >= e.dashReadyAt) {
+        for (const c of [...out].filter((c) => c.station || c.dx !== undefined))
+          out.push({
+            ...c,
+            id: `dash_${c.id}`,
+            label: `ダッシュして${c.label}`,
+            dash: true,
+            baseId: c.id,
+          });
+        add('dash', 'ダッシュする（移動を継続・再使用まで1.8秒）', null);
+      }
+      if (e.intent) add('continue', '現在の移動・作業を続ける', null);
     }
   }
   out.push({ id: 'wait', label: '今は動かず、様子を見る', station: null });
@@ -778,12 +821,15 @@ export function isFeasible(g, cand, who) {
   );
 }
 
-export function buildQuestions(cands) {
+export function buildQuestions(cands, who = 'ai') {
   return {
     next_action: {
       type: 'choice',
       instructions:
-        "You are the sous-chef sharing a kitchen with a human. Choose one feasible action that complements their work and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Clean burnt cookware before reusing it. Never duplicate the human's current task. Respect their collaboration policy, including Japanese. Avoid unnecessary returning or discarding. Work ahead while food cooks.",
+        (who === 'human'
+          ? 'You control the HUMAN player. The ai actor is your rule-based partner. You can perform every cooking role, move freely, dash, boost, return or discard items. You may change your current intent. '
+          : 'You control the AI sous-chef. The human actor is your partner. ') +
+        'Choose one feasible action that complements your partner and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Clean burnt cookware before reusing it. Respect the collaboration policy, including Japanese. Avoid unnecessary returning or discarding. Work ahead while food cooks.',
       criteria: Object.fromEntries(cands.map((c) => [c.id, c.label])),
     },
   };

@@ -389,7 +389,7 @@ export function screen(s, view, width, height) {
       ].forEach(([mode, text], index) =>
         button(`movement-${mode}`, text, x + 16 + index * (mw + 8), y + 138, mw, 'movement', {
           value: mode,
-          pressed: (s.movementMode ?? 'screen') === mode,
+          pressed: (s.movementMode ?? 'grid') === mode,
           size: 13,
           label: `移動：${text}`,
         }),
@@ -423,9 +423,11 @@ export function screen(s, view, width, height) {
         ph < 340 ? 42 : 54,
         { size: 12 },
       );
-      button('back', '設定に戻る', x + 16, footerY - 54, inside, 'menu-page', {
+      const bw = (inside - 8) / 2;
+      button('back', '設定に戻る', x + 16, footerY - 54, bw, 'menu-page', {
         value: 'settings',
       });
+      button('benchmark', 'jev-bench', x + 24 + bw, footerY - 54, bw, 'link', { href: '/bench' });
     } else {
       const bw = (inside - 8) / 2;
       button('sound', s.sound ? '音オン' : '音オフ', x + 16, y + 64, bw, 'sound', {

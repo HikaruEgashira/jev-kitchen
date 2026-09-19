@@ -8,6 +8,9 @@
 TYPESAFE_API_KEY=
 TYPESAFE_MODEL=jev-latest
 
+# 任意: jev-bench用のJev Choice互換エンドポイント。秘密はこのファイル内のみ。
+# BENCH_ENDPOINTS='{"candidate":{"name":"Candidate","url":"https://model.example/v1/decision","model":"candidate-v1","token":"SERVER_SIDE_TOKEN"}}'
+
 # 2) Workers AI の AI バインディング。AI Gateway のクレジットが必要。
 #    TYPESAFE_API_KEY を空にするとこちらに切り替わる（未購入だと 2021 エラー）。
 CLOUDFLARE_API_TOKEN=

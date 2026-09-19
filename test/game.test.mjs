@@ -42,7 +42,7 @@ test.beforeEach(() => {
     phase: 'ready',
     menuOpen: false,
     cameraMode: 'auto',
-    movementMode: 'screen',
+    movementMode: 'grid',
   });
 });
 
@@ -67,6 +67,7 @@ test('camera settings preserve the shift and do not resume a paused menu', () =>
 });
 
 test('keyboard movement keeps equal speed in screen and grid modes', () => {
+  assert.equal(useKitchen.getInitialState().movementMode, 'grid');
   const originalWindow = globalThis.window;
   const originalDocument = globalThis.document;
   const windowListeners = new Map();

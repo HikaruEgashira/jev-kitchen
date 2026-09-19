@@ -3,6 +3,7 @@ import {
   createGame,
   stationAt,
   moveToward,
+  movePlayer,
   interact,
   advance,
   buildCandidates,
@@ -14,7 +15,6 @@ import {
   dash,
   STATIONS,
   activeStationIds,
-  kitchenBounds,
   completeOnboarding,
   quotaForLevel,
   levelConfig,
@@ -156,6 +156,7 @@ function readCheckpoint() {
 }
 
 function writeCheckpoint(value, completed = false) {
+  if (state().benchmark) return null;
   const record = validateCheckpoint({ ...value, version: CHECKPOINT_VERSION, completed });
   if (!record) return null;
   try {
@@ -174,6 +175,7 @@ export const useKitchen = create(() => ({
       ? createGame(initialCheckpoint)
       : createGame(),
   phase: 'ready',
+  benchmark: false,
   revision: 0,
   mode: 'jev',
   policy: '',
@@ -181,7 +183,7 @@ export const useKitchen = create(() => ({
   ready: false,
   menuOpen: false,
   cameraMode: 'auto',
-  movementMode: 'screen',
+  movementMode: 'grid',
   sound: true,
   best: savedBest(),
   checkpoint: initialCheckpoint,
@@ -241,7 +243,9 @@ function invalidate() {
   epoch++;
   for (const decision of decisions.values()) decision.controller?.abort();
   decisions.clear();
-  for (const cook of Object.values(state().game.crew)) cook.intent = null;
+  const game = state().game;
+  if (game?.human) game.human.intent = null;
+  for (const cook of Object.values(game?.crew ?? {})) cook.intent = null;
 }
 
 function publish() {
@@ -396,7 +400,7 @@ function beginShift({
 export function startShift() {
   if (!state().ready || state().menuOpen) return;
   const saved = state().phase === 'ready' ? readCheckpoint() : null;
-  update({ checkpoint: saved });
+  update({ benchmark: false, checkpoint: saved });
   if (saved && !saved.completed) {
     beginShift(saved);
   } else {
@@ -405,6 +409,33 @@ export function startShift() {
       cash: STARTING_CASH - payroll(['helper']),
     });
   }
+}
+
+// Benchmark campaigns use normal mechanics without persistent game writes.
+export function startBenchmark() {
+  if (!state().ready) return false;
+  update({ benchmark: true, menuOpen: false, mode: 'rule', policy: '', sound: false });
+  beginShift({ cash: STARTING_CASH - payroll(['helper']) });
+  return true;
+}
+
+export function benchmarkAction(candidate) {
+  const { game, phase, benchmark } = state();
+  if (!benchmark || phase !== 'playing' || !isFeasible(game, candidate, 'human')) return false;
+  const selected = buildCandidates(game, 'human').find((c) => c.id === candidate.id);
+  if (selected.id === 'continue') return true;
+  if (selected.id === 'dash') return dash(game);
+  if (selected.dash) {
+    if (!dash(game)) return false;
+    selected.id = selected.baseId;
+  }
+  if (selected.id === 'interact') {
+    game.human.intent = null;
+    humanInteract();
+    return true;
+  }
+  game.human.intent = { ...selected, startedAt: game.time };
+  return true;
 }
 
 export function togglePause() {
@@ -608,6 +639,7 @@ function tutorialStep() {
 
 export function goTo(id) {
   const current = state();
+  if (current.benchmark) return;
   if (current.phase !== 'playing' || current.menuOpen || !STATIONS[id]) return;
   if (!activeStationIds(current.game).includes(id)) return;
   const step = tutorialStep();
@@ -688,6 +720,7 @@ export function humanDash() {
 export function installControls() {
   const typing = (e) => e.target?.closest?.('input, textarea, select, [contenteditable="true"]');
   const down = (e) => {
+    if (state().benchmark) return;
     if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
     const key = e.key.toLowerCase();
     if (key === 'escape') {
@@ -850,7 +883,7 @@ export function tick(delta) {
       ? writeCheckpoint(shiftSnapshot ?? snapshot(g), true)
       : state().checkpoint;
     try {
-      localStorage.setItem(BEST_KEY, String(best));
+      if (!state().benchmark) localStorage.setItem(BEST_KEY, String(best));
     } catch {
       /* Private browsing can disable storage. */
     }
@@ -875,15 +908,8 @@ export function tick(delta) {
   const ay =
     Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
   const step = SPEED * dt * (g.time < g.human.dashUntil ? 2.7 : 1);
-  const bounds = kitchenBounds(g);
   if (ax || ay) {
-    const movementMode = state().movementMode === 'grid' ? 'grid' : 'screen';
-    const dx = movementMode === 'grid' ? ax : ax * 0.874 + ay * 0.486;
-    const dy = movementMode === 'grid' ? ay : -ax * 0.486 + ay * 0.874;
-    const length = Math.hypot(dx, dy);
-    // Camera-relative movement: right stays right in the isometric view.
-    g.human.x = Math.max(bounds.minX, Math.min(bounds.maxX, g.human.x + (dx / length) * step));
-    g.human.y = Math.max(bounds.minY, Math.min(bounds.maxY, g.human.y + (dy / length) * step));
+    movePlayer(g, ax, ay, step, state().movementMode);
   } else if (target) {
     const station = STATIONS[target];
     if (moveToward(g.human, station.x, station.y, step)) humanInteract(true);
@@ -901,12 +927,25 @@ export function tick(delta) {
     const near = stationAt(g, who);
     actor(g, who).station = near.inReach ? near.id : null;
   }
-  for (const who of g.duty) {
-    const cook = g.crew[who];
+  const activeActors = state().benchmark ? ['human', ...g.duty] : g.duty;
+  for (const who of activeActors) {
+    const cook = actor(g, who);
+    if (!cook) continue;
     const intent = cook.intent;
     if (!intent) continue;
     if (intent.id === 'wait') {
-      if (g.time - intent.startedAt > STAFF[who].decisionMs) cook.intent = null;
+      const waitMs = who === 'human' ? 250 : (STAFF[who]?.decisionMs ?? 1800);
+      if (g.time - intent.startedAt > waitMs) cook.intent = null;
+    } else if (who === 'human' && intent.dx !== undefined) {
+      const remaining = Math.max(0, 250 - (g.time - dt * 1000 - intent.startedAt));
+      movePlayer(
+        g,
+        intent.dx,
+        intent.dy,
+        SPEED * Math.min(dt, remaining / 1000) * (g.time < cook.dashUntil ? 2.7 : 1),
+        'screen',
+      );
+      if (g.time - intent.startedAt >= 250) cook.intent = null;
     } else if (!isFeasible(g, intent, who)) {
       cook.intent = null;
     } else if (intent.id === 'discard') {
@@ -914,15 +953,20 @@ export function tick(delta) {
       cook.intent = null;
     } else {
       const station = STATIONS[intent.station];
-      const staff = STAFF[who];
-      if (staff.canDash && g.time >= cook.dashReadyAt && g.time >= cook.dashUntil) {
+      const staff = STAFF[who] ?? STAFF.helper;
+      if (
+        who !== 'human' &&
+        staff.canDash &&
+        g.time >= cook.dashReadyAt &&
+        g.time >= cook.dashUntil
+      ) {
         cook.dashUntil = g.time + 220;
         cook.dashReadyAt = g.time + 1800;
       }
-      const partnerSpeed = staff.speed;
+      const actorSpeed = who === 'human' ? 1 : 0.9 * staff.speed;
       const dashSpeed = g.time < cook.dashUntil ? 2.7 : 1;
-      if (moveToward(cook, station.x, station.y, SPEED * dt * 0.9 * partnerSpeed * dashSpeed)) {
-        if (isFeasible(g, intent, who)) {
+      if (moveToward(cook, station.x, station.y, SPEED * dt * actorSpeed * dashSpeed)) {
+        if (!intent.id.startsWith('move_') && isFeasible(g, intent, who)) {
           const result = interact(g, who, intent.station);
           if (result.ok) record(who, result);
         }
