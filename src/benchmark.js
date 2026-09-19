@@ -11,6 +11,7 @@ import {
   activeStationIds,
   buildCandidates,
   buildQuestions,
+  cookingAdvice,
   observe,
   MAX_LEVEL,
   STOCK_PRICE,
@@ -174,7 +175,7 @@ export function preparationCandidates(state, plan) {
       if (quoteVitamins(g.training, next, vitaminTargets).error) continue;
       candidates.push({
         id: `vitamin_${item}_${target}`,
-        label: `${VITAMINS[item].name}を${target === 'human' ? 'プレイヤー（全営業に出勤）' : `${STAFF[target].name}（${duty.includes(target) ? '出勤予定' : '控え'}）`}に使う（${VITAMINS[item].cost}コイン）`,
+        label: `${VITAMINS[item].name}を${target === 'human' ? 'プレイヤー（全営業に出勤）' : `${STAFF[target].name}（${duty.includes(target) ? '出勤予定' : '控え'}）`}に使う（${VITAMINS[item].cost}コイン・${VITAMINS[item].effect}）`,
         vitamins: next,
       });
     }
@@ -386,7 +387,6 @@ export function benchRequest(
     .filter((d) => d.level === g.level && d.phase === (preparing ? 'preparation' : 'playing'))
     .slice(-6);
   const looping = preparing ? repeatedPlanVisits >= 2 : repeatsActions(recent, g);
-  const actions = new Set(candidates.map((c) => c.id));
   const bill = preparing ? purchase(g, plan) : null;
   const request = {
     state: {
@@ -444,24 +444,7 @@ export function benchRequest(
           }
         : {}),
     },
-    questions: preparing
-      ? {
-          next_action: {
-            type: 'choice',
-            instructions: preparationAdvice(g, plan).instructions,
-            criteria: Object.fromEntries(candidates.map((c) => [c.id, c.label])),
-          },
-        }
-      : actions.has('back_to_work')
-        ? {
-            next_action: {
-              type: 'choice',
-              instructions:
-                'Choose where to move, or back_to_work to choose a cooking action. Station taps walk and interact on arrival.',
-              criteria: Object.fromEntries(candidates.map((c) => [c.id, c.label])),
-            },
-          }
-        : buildQuestions(candidates, 'human', g),
+    questions: buildQuestions(candidates, 'human'),
   };
   const context = compactDecisionState(request.state);
   // One bounded history replaces duplicate actor and preparation logs.
@@ -471,6 +454,9 @@ export function benchRequest(
     ...request,
     state: {
       ...context,
+      situation: preparing
+        ? preparationAdvice(g, plan).instructions
+        : cookingAdvice(g, candidates).instructions,
       recent_actions: recent.map(({ action, applied }) => ({ action, applied })),
       ...(looping
         ? {

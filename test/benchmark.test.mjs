@@ -83,7 +83,10 @@ test('player context describes food and hand state without prescribing an action
   const g = createGame({ level: 7, stock: 12, hired: ['chef'], duty: ['chef'] });
   g.orders = [{ recipe: 'soup', deadline: 30000 }];
   const instruction = () =>
-    buildQuestions(buildCandidates(g, 'human'), 'human', g).next_action.instructions;
+    benchRequest(
+      { ...useKitchen.getState(), game: g },
+      { preparing: false, candidates: playingCandidates(g) },
+    ).state.situation;
   assert.match(instruction(), /No food is ready to plate/);
   g.stations.pot.state = 'ready';
   assert.match(instruction(), /Ordered food is ready/);
@@ -545,8 +548,8 @@ test('investment facts reflect the pending board without choosing an upgrade', (
   const s = { ...useKitchen.getState(), game: g, phase: 'finished', cleared: true, applicants: [] };
   const plan = { ...preparation(g), duty: ['helper', 'chef'], stage: 'investment' };
   const instruction = () =>
-    benchRequest(s, { preparing: true, plan, candidates: preparationCandidates(s, plan) }).questions
-      .next_action.instructions;
+    benchRequest(s, { preparing: true, plan, candidates: preparationCandidates(s, plan) }).state
+      .situation;
   assert.match(instruction(), /2 staff, 1 boards/);
   plan.equipmentPurchases = ['add_board'];
   const pending = preparationCandidates(s, plan);
@@ -578,7 +581,7 @@ test('staffing describes available cooks while keeping every legal roster availa
   assert.ok(candidates.some((c) => c.id === 'crew_chef_sous'));
   assert.match(candidates.find((c) => c.id === 'crew_chef').label, /連勤2\/3/);
   const request = benchRequest(s, { preparing: true, plan, candidates });
-  assert.match(request.questions.next_action.instructions, /Available heat cooks: chef, sous/);
+  assert.match(request.state.situation, /Available heat cooks: chef, sous/);
 });
 
 test('bounded action feedback flags unproductive cycles, not cooking waits or sales', () => {

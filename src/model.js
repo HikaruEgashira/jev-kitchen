@@ -937,8 +937,13 @@ export function buildCandidates(g, who) {
     if (e.carrying === 'tomato') {
       for (const station of boards)
         if (g.stations[station].state === 'idle')
-          add('chop', `${stationName(g, station)}で切り始める`, station);
-      if (player || out.length === 0) add('return_tomato', 'トマトを戻す', 'crate');
+          add(
+            'chop',
+            `${stationName(g, station)}へ移動してトマトを切る（全料理の材料になる）`,
+            station,
+          );
+      if (player || out.length === 0)
+        add('return_tomato', 'トマトを食材置場へ返す（在庫+1、手ぶらになる）', 'crate');
     }
     if (!e.carrying) {
       if (
@@ -1119,7 +1124,7 @@ export function cookingAdvice(g, cands = buildCandidates(g, 'human')) {
     return {
       instructions:
         'Raw tomatoes can be chopped at an idle board or returned to stock. Occupied boards cannot start another task.',
-      hint: 'トマトは空いたまな板で切るか、食材置場へ戻せます。使用中のまな板では別の作業を始められません。',
+      hint: '切ったトマトはどの料理にも使えます。使用中のまな板では別の作業を始められません。トマトを食材置場へ返すと在庫が1個戻り、手ぶらになります。',
     };
   if (held === 'chopped')
     return {
@@ -1160,14 +1165,13 @@ export function cookingAdvice(g, cands = buildCandidates(g, 'human')) {
   };
 }
 
-export function buildQuestions(cands, who = 'ai', g) {
-  const objective = cookingAdvice(g, cands).instructions;
+export function buildQuestions(cands, who = 'ai') {
   return {
     next_action: {
       type: 'choice',
       instructions:
         who === 'human'
-          ? `You control the HUMAN player. ${objective} Choose one available action. Cooking actions include walking and working on arrival; dash_ increases movement speed. E transfers a held item to a nearby empty-handed partner.`
+          ? 'You control the HUMAN player. Choose one action in this cooperative cooking game. The objective is to clear each shift by serving its quota before time runs out. Coins buy ingredients, staff and permanent upgrades for later shifts.'
           : 'You control the AI sous-chef. Choose one feasible action that complements the human and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Burnt cookware is unavailable until cleaned. Respect the collaboration policy, including Japanese. Finished dishes without matching orders cannot be served; Q discards held items. Heating continues without an actor at the station.',
       criteria: Object.fromEntries(cands.map((c) => [c.id, c.label])),
     },
