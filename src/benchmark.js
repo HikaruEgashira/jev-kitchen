@@ -28,13 +28,7 @@ import { apiFetch, sessionSeed } from './api-client.js';
 import { seededRandom } from './applicants.js';
 import { EQUIPMENT, equipmentCapacity, quoteEquipment } from './equipment.js';
 import { VITAMINS, quoteVitamins } from './training.js';
-import {
-  preparation,
-  purchase,
-  preparationAdvice,
-  preparationKey,
-  equipmentEffect,
-} from './ui.js';
+import { preparation, purchase, preparationAdvice, preparationKey, equipmentEffect } from './ui.js';
 
 export const BENCH_PROTOCOL = 'jev-bench-v4';
 
