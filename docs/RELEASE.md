@@ -1,5 +1,13 @@
 # SIDEKICK kitchen 本番リリース台帳
 
+## 2026-09-19 jev-benchの画面文脈
+
+- benchのモデル入力は`observe`とbench固有の項目を個別に組み立てており、画面にだけ出る作業ヒント（例：切ったトマトを持ってこよう）や通知が文脈に含まれていなかった。描画と同じ`screen()`から`screenContext`で機械的に射影し、画面の文言・有効／選択状態・シート・通知を`state.screen`へ載せた。
+- 文脈組み立てをループ内のインラインから`benchRequest`へ抽出し、準備中に`benchPreparation`の古い値を参照し得るずれも解消した。ペイロードは約5KBで、入力64KiB・応答128KiBの既存制限内。
+- `pnpm test`は112 pass／0 fail、typecheck、check（49 files／lint31、警告なし）、buildがpass。Lv5の鍋前で`切ったトマトを持ってこよう`が`state.screen`に入ること、準備フェーズでも`screen`が付くことを回帰検証する。
+- commit `fd40326`をmainへpush。GitHub CI [35424542662](https://github.com/HikaruEgashira/jev-kitchen/actions/runs/35424542662)とWorkers Buildsがsuccess。2026-09-19 05:40:27 UTC、本番100% version `c1451a84-6dcf-41f7-84a7-dfb752848f76`を確認した。
+- 実ブラウザでのjev-bench実行（外部モデル接続）はCloudflare Accessのため未検証。既知のchunk警告は継続。復旧先は100% version `c88b6d17-e2ff-40ce-a269-d722d9738c7f`、復旧コマンドは`pnpm exec wrangler rollback c88b6d17-e2ff-40ce-a269-d722d9738c7f`。
+
 ## 2026-09-19 まな板ブーストの完了時刻
 
 - `chopping`／`cooking`の許可は既に実装済み。実際の不具合は、料理人の880msの作業を65%時点で加速すると、残り308msに350ms下限が適用され42ms遅れることだった。共通処理で元の完了時刻を上限にし、まな板・鍋・グリルのいずれもブーストで遅くならないようにした。
