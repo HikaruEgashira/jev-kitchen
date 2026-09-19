@@ -2,15 +2,16 @@
 
 ## 置き場所と唯一の正
 
-| 文書                                                  | 役割               | 唯一の正とする内容                |
-| ----------------------------------------------------- | ------------------ | --------------------------------- |
-| [`README.md`](../README.md)                           | 入口               | 現行の遊び方と開発手順            |
-| [`docs/jev-bench.md`](jev-bench.md)                   | jev-bench接続仕様  | benchの実行条件・入出力・画面構成 |
-| [`docs/adr/`](adr/)                                   | 決定の記録         | 決定時点の理由と境界              |
-| [`docs/RELEASE.md`](RELEASE.md)                       | リリース台帳       | 検証結果・証拠・復旧version       |
-| [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) | 依存と外部サービス | ライセンス本文の補足              |
-| `src/*.js` / `src/*.ts`                               | 実装               | 数値・条件・列挙                  |
-| `src/*.jsx` / `src/*.css`                             | 実装               | 見た目と配置                      |
+| 文書                                                  | 役割               | 唯一の正とする内容                     |
+| ----------------------------------------------------- | ------------------ | -------------------------------------- |
+| [`README.md`](../README.md)                           | 入口               | 現行の遊び方と開発手順                 |
+| [`docs/jev-bench.md`](jev-bench.md)                   | jev-bench接続仕様  | benchの実行条件・入出力・画面構成      |
+| [`docs/public-api.md`](public-api.md)                 | 公開API仕様        | 認証境界・エラー・ランキング基盤の設計 |
+| [`docs/adr/`](adr/)                                   | 決定の記録         | 決定時点の理由と境界                   |
+| [`docs/RELEASE.md`](RELEASE.md)                       | リリース台帳       | 検証結果・証拠・復旧version            |
+| [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) | 依存と外部サービス | ライセンス本文の補足                   |
+| `src/*.js` / `src/*.ts`                               | 実装               | 数値・条件・列挙                       |
+| `src/*.jsx` / `src/*.css`                             | 実装               | 見た目と配置                           |
 
 ## ルール
 

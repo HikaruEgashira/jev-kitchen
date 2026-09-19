@@ -111,4 +111,5 @@ Jevは`TYPESAFE_API_KEY`／`TYPESAFE_MODEL`（または既存Workers AI binding�
 `confidence`は省略可能。HTTPエラー、不正JSON、候補外IDは試行エラーとなり、代替判断は行わない。
 Workerは既存の入力64KiB／応答128KiB制限、上流8秒timeoutを共有する。
 ブラウザ側の待機上限は10秒。中断・timeoutは上流処理や課金の停止を保証しない。
-Cloudflare Accessの既存保護を維持する。
+課金ルートは`POST /api/session`（mode: `bench`）が発行するrun ticketを`x-run-ticket`で要求する。
+境界は[公開API仕様](public-api.md)を正とする。

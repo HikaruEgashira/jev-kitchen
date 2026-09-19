@@ -30,6 +30,25 @@ import {
   createGame,
 } from '../src/model.js';
 import { STAFF, nextStaffState } from '../src/staff.js';
+import { runTicket } from '../src/api-client.js';
+
+// Billed API calls now carry a run ticket from /api/session. Prime the client
+// cache once so per-test fetch stubs only ever see decision requests.
+const sessionFetch = globalThis.fetch;
+globalThis.fetch = (url, options) =>
+  String(url).endsWith('/api/session')
+    ? Promise.resolve(
+        Response.json({
+          ok: true,
+          mode: 'play',
+          seed: 1,
+          expiresAt: Date.now() + 3_600_000,
+          ticket: 'test-ticket',
+        }),
+      )
+    : sessionFetch(url, options);
+await runTicket('play');
+globalThis.fetch = sessionFetch;
 
 const storage = new Map([['sidekick-onboarded-v1', '1']]);
 const installTestStorage = () => {

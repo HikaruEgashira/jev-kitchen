@@ -1,11 +1,26 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import worker from '../src/worker.ts';
+import { signTicket } from '../src/session.ts';
 
 // Node strips the TypeScript in src/worker.ts, so the real handler runs here.
 // env.AI is a stub: this checks our validation and forwarding, not Jev itself.
 const calls = [];
+const SECRET = 'test-secret-value-1234';
+const playTicket = await signTicket(SECRET, {
+  sid: 'play-run',
+  seed: 1,
+  mode: 'play',
+  exp: Date.now() + 3_600_000,
+});
+const benchTicket = await signTicket(SECRET, {
+  sid: 'bench-run',
+  seed: 2,
+  mode: 'bench',
+  exp: Date.now() + 3_600_000,
+});
 const env = () => ({
+  TICKET_SECRET: SECRET,
   AI: {
     async run(model, input) {
       calls.push({ model, input });
@@ -17,10 +32,12 @@ const env = () => ({
   },
 });
 
-const post = (path, body) =>
+const ticketFor = (path) => (path === '/api/bench/decide' ? benchTicket : playTicket);
+
+const post = (path, body, ticket = ticketFor(path)) =>
   new Request(`https://kitchen.test${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-run-ticket': ticket },
     body: JSON.stringify(body),
   });
 
@@ -210,11 +227,12 @@ test('times out a stalled request body before billing the model', async () => {
   try {
     const request = new Request('https://kitchen.test/api/decide', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-run-ticket': playTicket },
       body: new ReadableStream({ start() {} }),
       duplex: 'half',
     });
     const response = await worker.fetch(request, {
+      TICKET_SECRET: SECRET,
       AI: {
         async run() {
           callsForTimeout++;
@@ -238,7 +256,7 @@ test('method and route guards', async () => {
   assert.equal((await worker.fetch(missing, env())).status, 404);
 });
 
-test('health is GET-only and rejects other methods before billing', async () => {
+test('health is GET-only and reports configuration without billing the model', async () => {
   calls.length = 0;
   for (const method of ['HEAD', 'POST', 'PUT']) {
     const response = await worker.fetch(
@@ -247,75 +265,24 @@ test('health is GET-only and rejects other methods before billing', async () => 
     );
     assert.equal(response.status, 405);
   }
-  assert.equal(calls.length, 0);
-});
-
-for (const direct of [false, true]) {
-  test(`GET health accepts answers.ok and returns only metadata (${direct ? 'direct' : 'binding'})`, async (t) => {
-    let seen;
-    const raw = {
-      model: 'private provider model',
-      details: 'private provider metadata',
-      usage: { input_tokens: 12 },
-      answers: { ok: { type: 'noul', noul: direct ? 0 : 0.99 } },
-    };
-    const testEnv = {
-      AI: {
-        async run(model, input) {
-          assert.equal(model, 'typesafe/jev');
-          assert.equal(direct, false, 'direct health must not use Workers AI');
-          seen = input;
-          return raw;
-        },
-      },
-    };
-    if (direct) {
-      testEnv.TYPESAFE_API_KEY = 'sk-test';
-      t.mock.method(globalThis, 'fetch', async (_url, init) => {
-        seen = JSON.parse(init.body);
-        return Response.json(raw);
-      });
-    }
+  for (const direct of [false, true]) {
+    const testEnv = direct ? { ...env(), TYPESAFE_API_KEY: 'sk-test' } : env();
     const response = await worker.fetch(new Request('https://kitchen.test/api/health'), testEnv);
     assert.equal(response.status, 200);
     const body = await response.json();
-    assert.deepEqual(Object.keys(body).sort(), ['engine', 'model', 'ok', 'upstreamMs', 'via']);
+    assert.deepEqual(Object.keys(body).sort(), ['configured', 'engine', 'model', 'ok', 'via']);
     assert.equal(body.ok, true);
     assert.equal(body.engine, 'jev');
     assert.equal(body.via, direct ? 'typesafe-api' : 'workers-ai');
     assert.equal(body.model, direct ? 'jev-latest' : 'typesafe/jev');
-    assert.ok(Number.isFinite(body.upstreamMs) && body.upstreamMs >= 0);
-    assert.deepEqual(seen.questions, {
-      ok: { type: 'noul', instructions: 'Is a cook chopping a tomato?' },
-    });
-    assert.doesNotMatch(JSON.stringify(body), /private provider|input_tokens|answers/);
-  });
+    assert.deepEqual(body.configured, { sessions: true, rateLimit: false });
+    assert.doesNotMatch(JSON.stringify(body), /answers|usage|upstreamMs/);
+  }
+  assert.equal(calls.length, 0, 'health must never reach the model');
+});
 
-  test(`health rejects malformed answers.ok (${direct ? 'direct' : 'binding'})`, async (t) => {
-    let raw;
-    const testEnv = { AI: { run: async () => raw } };
-    if (direct) {
-      testEnv.TYPESAFE_API_KEY = 'sk-test';
-      t.mock.method(globalThis, 'fetch', async () => Response.json(raw));
-    }
-    for (const answer of [
-      undefined,
-      null,
-      { type: 'choice', choice: 'wait' },
-      { type: 'noul', noul: '0.9' },
-      { type: 'noul', noul: -0.1 },
-      { type: 'noul', noul: 1.1 },
-    ]) {
-      raw = { answers: { ok: answer }, details: 'private provider metadata' };
-      const response = await worker.fetch(new Request('https://kitchen.test/api/health'), testEnv);
-      assert.equal(response.status, 502);
-      const body = await response.json();
-      assert.equal(body.error, 'upstream unavailable');
-      assert.doesNotMatch(JSON.stringify(body), /private provider|answers/);
-    }
-  });
-
-  test(`decide still validates and projects next_action (${direct ? 'direct' : 'binding'})`, async (t) => {
+for (const direct of [false, true]) {
+  test(`decide validates and projects next_action (${direct ? 'direct' : 'binding'})`, async (t) => {
     let raw = {
       answers: {
         next_action: { type: 'choice', choice: 'wait', confidence: 0.9, private: 'hidden' },
@@ -324,7 +291,7 @@ for (const direct of [false, true]) {
       usage: { input_tokens: 12 },
       details: 'private provider metadata',
     };
-    const testEnv = { AI: { run: async () => raw } };
+    const testEnv = { TICKET_SECRET: SECRET, AI: { run: async () => raw } };
     if (direct) {
       testEnv.TYPESAFE_API_KEY = 'sk-test';
       t.mock.method(globalThis, 'fetch', async () => Response.json(raw));
@@ -347,26 +314,9 @@ for (const direct of [false, true]) {
   });
 }
 
-test('health rejects a successful upstream error envelope without leaking details', async () => {
-  const original = globalThis.fetch;
-  globalThis.fetch = async () =>
-    Response.json({ error: 'secret health error', details: 'private health context' });
-  try {
-    const response = await worker.fetch(new Request('https://kitchen.test/api/health'), {
-      TYPESAFE_API_KEY: 'sk-test',
-      AI: { run: async () => ({}) },
-    });
-    assert.equal(response.status, 502);
-    const body = await response.json();
-    assert.equal(body.error, 'upstream unavailable');
-    assert.doesNotMatch(JSON.stringify(body), /secret health error|private health context/);
-  } finally {
-    globalThis.fetch = original;
-  }
-});
-
 test('the LLM baseline picks a valid id and does not confuse substrings', async () => {
   const llmEnv = {
+    TICKET_SECRET: SECRET,
     AI: {
       async run() {
         return { response: 'fetch_plate' };
@@ -389,6 +339,7 @@ test('the LLM baseline picks a valid id and does not confuse substrings', async 
 
 test('the LLM baseline rejects arbitrary models and malformed candidates', async () => {
   const llmEnv = {
+    TICKET_SECRET: SECRET,
     AI: {
       async run() {
         throw new Error('must not run');
@@ -434,6 +385,7 @@ test('a TypeSafe key switches /api/decide to the direct API', async () => {
     const res = await worker.fetch(
       post('/api/decide', { state: { policy: 'x' }, questions: validQuestions }),
       {
+        TICKET_SECRET: SECRET,
         TYPESAFE_API_KEY: 'sk-test',
         AI: {
           async run() {
@@ -461,6 +413,7 @@ test('rejects a successful upstream error envelope without forwarding details', 
     Response.json({ error: 'secret provider error', details: 'private upstream context' });
   try {
     const res = await worker.fetch(post('/api/decide', { state: 'x', questions: validQuestions }), {
+      TICKET_SECRET: SECRET,
       TYPESAFE_API_KEY: 'sk-test',
       AI: { run: async () => ({}) },
     });
@@ -478,6 +431,7 @@ test('a failed direct call returns a sanitized upstream error', async () => {
   globalThis.fetch = async () => new Response('insufficient credits', { status: 402 });
   try {
     const res = await worker.fetch(post('/api/decide', { state: 'x', questions: validQuestions }), {
+      TICKET_SECRET: SECRET,
       TYPESAFE_API_KEY: 'sk-test',
       AI: { run: async () => ({}) },
     });
@@ -490,4 +444,121 @@ test('a failed direct call returns a sanitized upstream error', async () => {
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test('session issues a mode-scoped run ticket and rejects bad input', async () => {
+  const response = await worker.fetch(
+    new Request('https://kitchen.test/api/session', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'bench' }),
+    }),
+    env(),
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.mode, 'bench');
+  assert.equal(typeof body.ticket, 'string');
+  assert.ok(Number.isSafeInteger(body.seed));
+  assert.ok(body.expiresAt > Date.now());
+
+  const wrongMethod = await worker.fetch(new Request('https://kitchen.test/api/session'), env());
+  assert.equal(wrongMethod.status, 405);
+  const badMode = await worker.fetch(
+    new Request('https://kitchen.test/api/session', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'admin' }),
+    }),
+    env(),
+  );
+  assert.equal(badMode.status, 400);
+  const unconfigured = await worker.fetch(
+    new Request('https://kitchen.test/api/session', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'play' }),
+    }),
+    { AI: { run: async () => ({}) } },
+  );
+  assert.equal(unconfigured.status, 503);
+});
+
+test('billed routes require a valid ticket before the model is touched', async () => {
+  calls.length = 0;
+  const noTicket = await worker.fetch(
+    new Request('https://kitchen.test/api/decide', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state: 'x', questions: validQuestions }),
+    }),
+    env(),
+  );
+  assert.equal(noTicket.status, 401);
+
+  const crossed = await worker.fetch(
+    post(
+      '/api/bench/decide',
+      { modelId: 'jev', state: 'x', questions: validQuestions },
+      playTicket,
+    ),
+    env(),
+  );
+  assert.equal(crossed.status, 401);
+
+  const expired = await signTicket(SECRET, {
+    sid: 'old',
+    seed: 3,
+    mode: 'play',
+    exp: Date.now() - 1000,
+  });
+  const stale = await worker.fetch(
+    post('/api/decide', { state: 'x', questions: validQuestions }, expired),
+    env(),
+  );
+  assert.equal(stale.status, 401);
+
+  const wrongType = await worker.fetch(
+    new Request('https://kitchen.test/api/decide', {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain', 'x-run-ticket': playTicket },
+      body: '{"state":"x"}',
+    }),
+    env(),
+  );
+  assert.equal(wrongType.status, 415);
+  assert.equal(calls.length, 0, 'no rejected request may reach the model');
+});
+
+test('rate limits fail closed and never reach the model', async () => {
+  calls.length = 0;
+  const denied = { limit: async () => ({ success: false }) };
+  const decideDenied = await worker.fetch(
+    post('/api/decide', { state: 'x', questions: validQuestions }),
+    { ...env(), DECIDE_LIMITER: denied },
+  );
+  assert.equal(decideDenied.status, 429);
+
+  const sessionDenied = await worker.fetch(
+    new Request('https://kitchen.test/api/session', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ mode: 'play' }),
+    }),
+    { ...env(), SESSION_LIMITER: denied },
+  );
+  assert.equal(sessionDenied.status, 429);
+
+  const broken = {
+    limit: async () => {
+      throw new Error('limiter down');
+    },
+  };
+  const brokenLimiter = await worker.fetch(
+    post('/api/decide', { state: 'x', questions: validQuestions }),
+    { ...env(), DECIDE_LIMITER: broken },
+  );
+  assert.equal(brokenLimiter.status, 429);
+  assert.equal(calls.length, 0);
 });

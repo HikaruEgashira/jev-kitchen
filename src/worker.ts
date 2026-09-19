@@ -6,6 +6,15 @@
  * Workers AI `typesafe/jev` model. No game logic here on purpose.
  */
 
+import {
+  clientKey,
+  signTicket,
+  verifyTicket,
+  withinLimit,
+  type RateLimiter,
+  type Ticket,
+} from './session.ts';
+
 interface AiBinding {
   run(model: string, input: unknown, options?: unknown): Promise<any>;
 }
@@ -17,6 +26,11 @@ export interface Env {
   TYPESAFE_MODEL?: string;
   /** Server-owned allowlist; URLs and tokens are never accepted from the browser. */
   BENCH_ENDPOINTS?: string;
+  /** HMAC secret for run tickets. Unset disables every billed route. */
+  TICKET_SECRET?: string;
+  /** Per-IP limits for starting a run and for spending a model call. */
+  SESSION_LIMITER?: RateLimiter;
+  DECIDE_LIMITER?: RateLimiter;
 }
 
 const JEV_MODEL = 'typesafe/jev';
@@ -26,6 +40,7 @@ const DEFAULT_TYPESAFE_MODEL = 'jev-latest';
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_UPSTREAM_BYTES = 128 * 1024;
 const UPSTREAM_TIMEOUT_MS = 8_000;
+const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 const ACTION_ID = /^[a-z][a-z0-9_]{0,63}$/;
 
 class BodyTooLargeError extends Error {}
@@ -232,9 +247,69 @@ async function callEndpoint(
   }
 }
 
+/**
+ * Trust boundary #2: no billed route runs without a rate-limit-passing session.
+ * `content-type` is enforced so a cross-origin `text/plain` POST cannot skip the
+ * CORS preflight and reach the model.
+ */
+async function authorize(
+  request: Request,
+  env: Env,
+  mode: Ticket['mode'],
+): Promise<{ ticket: Ticket } | { response: Response }> {
+  if (!env.TICKET_SECRET)
+    return { response: json({ ok: false, error: 'server not configured' }, 503) };
+  if (
+    (request.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase() !==
+    'application/json'
+  )
+    return { response: json({ ok: false, error: 'content-type must be application/json' }, 415) };
+  if (!(await withinLimit(env.DECIDE_LIMITER, clientKey(request))))
+    return { response: json({ ok: false, error: 'rate limited' }, 429) };
+  const ticket = await verifyTicket(
+    env.TICKET_SECRET,
+    request.headers.get('x-run-ticket'),
+    Date.now(),
+  );
+  if (!ticket || ticket.mode !== mode)
+    return { response: json({ ok: false, error: 'invalid ticket' }, 401) };
+  return { ticket };
+}
+
+/** Issue a fresh run ticket. Rate limited per IP; carries the server seed. */
+async function session(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);
+  if (!env.TICKET_SECRET) return json({ ok: false, error: 'server not configured' }, 503);
+  if (!(await withinLimit(env.SESSION_LIMITER, clientKey(request))))
+    return json({ ok: false, error: 'rate limited' }, 429);
+  const parsed = await readJson(request);
+  if (parsed.error) return json({ ok: false, error: parsed.error }, 400);
+  const mode = parsed.body?.mode;
+  if (mode !== 'play' && mode !== 'bench')
+    return json({ ok: false, error: 'mode must be play or bench' }, 400);
+  const now = Date.now();
+  const ticket: Ticket = {
+    sid: crypto.randomUUID(),
+    seed: crypto.getRandomValues(new Uint32Array(1))[0],
+    mode,
+    exp: now + SESSION_TTL_MS,
+  };
+  return json({
+    ok: true,
+    mode,
+    seed: ticket.seed,
+    expiresAt: ticket.exp,
+    ticket: await signTicket(env.TICKET_SECRET, ticket),
+  });
+}
+
 async function benchmark(request: Request, env: Env, list: boolean): Promise<Response> {
   if (request.method !== (list ? 'GET' : 'POST'))
     return json({ ok: false, error: 'method not allowed' }, 405);
+  if (!list) {
+    const auth = await authorize(request, env, 'bench');
+    if ('response' in auth) return auth.response;
+  }
   let endpoints;
   try {
     endpoints = benchEndpoints(env);
@@ -291,6 +366,8 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
     switch (pathname) {
+      case '/api/session':
+        return session(request, env);
       case '/api/bench/models':
         return benchmark(request, env, true);
       case '/api/bench/decide':
@@ -307,50 +384,29 @@ export default {
   },
 };
 
-/** One real Jev call so the venue can measure model latency before the demo. */
+/**
+ * Configuration probe only. Deliberately does not call the model: a GET must be
+ * side-effect free, and the previous version let any page burn one Jev call via
+ * a cross-origin `no-cors` request.
+ */
 async function health(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'GET') return json({ ok: false, error: 'GET only' }, 405);
-
-  const t0 = Date.now();
-  try {
-    const { result, model, via } = await runJev(env, {
-      state: 'A cook is chopping a tomato in a small kitchen.',
-      questions: {
-        ok: { type: 'noul', instructions: 'Is a cook chopping a tomato?' },
-      },
-    });
-    const answer = result?.answers?.ok;
-    if (
-      answer?.type !== 'noul' ||
-      !Number.isFinite(answer.noul) ||
-      answer.noul < 0 ||
-      answer.noul > 1
-    ) {
-      throw new UpstreamFailureError();
-    }
-    return json({
-      ok: true,
-      engine: 'jev',
-      via,
-      model,
-      upstreamMs: Date.now() - t0,
-    });
-  } catch (e) {
-    return json(
-      {
-        ok: false,
-        engine: 'jev',
-        via: jevVia(env),
-        upstreamMs: Date.now() - t0,
-        error: publicFailure(e),
-      },
-      502,
-    );
-  }
+  return json({
+    ok: true,
+    engine: 'jev',
+    via: jevVia(env),
+    model: env.TYPESAFE_API_KEY ? (env.TYPESAFE_MODEL ?? DEFAULT_TYPESAFE_MODEL) : JEV_MODEL,
+    configured: {
+      sessions: Boolean(env.TICKET_SECRET),
+      rateLimit: Boolean(env.DECIDE_LIMITER),
+    },
+  });
 }
 
 async function decide(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);
+  const auth = await authorize(request, env, 'play');
+  if ('response' in auth) return auth.response;
 
   const parsed = await readJson(request);
   if (parsed.error) return json({ ok: false, error: parsed.error }, 400);
@@ -392,6 +448,8 @@ async function decide(request: Request, env: Env): Promise<Response> {
  */
 async function decideLlm(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);
+  const auth = await authorize(request, env, 'play');
+  if ('response' in auth) return auth.response;
 
   const parsed = await readJson(request);
   if (parsed.error) return json({ ok: false, error: parsed.error }, 400);

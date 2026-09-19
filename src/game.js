@@ -28,6 +28,7 @@ import {
   handoff,
 } from './model.js';
 import { createAudio } from './audio.js';
+import { apiFetch } from './api-client.js';
 import { STAFF, nextStaffState, payroll, staffAvailable, nextDuty } from './staff.js';
 import { equipmentState, validateEquipment, quoteEquipment } from './equipment.js';
 import { quoteVitamins, trainingMultiplier, trainingState, validateTraining } from './training.js';
@@ -1010,16 +1011,14 @@ async function decide(who) {
   const started = performance.now();
   try {
     const observation = observe(g, policy, who);
-    const response = await fetch(mode === 'llm' ? '/api/decide-llm' : '/api/decide', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      signal: AbortSignal.any([requestController.signal, AbortSignal.timeout(5000)]),
-      body: JSON.stringify(
-        mode === 'llm'
-          ? { state: observation, candidates: candidates.map(({ id, label }) => ({ id, label })) }
-          : { state: observation, questions: buildQuestions(candidates) },
-      ),
-    });
+    const response = await apiFetch(
+      mode === 'llm' ? '/api/decide-llm' : '/api/decide',
+      mode === 'llm'
+        ? { state: observation, candidates: candidates.map(({ id, label }) => ({ id, label })) }
+        : { state: observation, questions: buildQuestions(candidates) },
+      'play',
+      { signal: AbortSignal.any([requestController.signal, AbortSignal.timeout(5000)]) },
+    );
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     if (!data.ok) throw new Error('No decision');

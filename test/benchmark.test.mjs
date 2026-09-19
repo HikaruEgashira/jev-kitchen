@@ -26,6 +26,25 @@ import {
   playingCandidates,
 } from '../src/benchmark.js';
 import { preparation, purchase } from '../src/ui.js';
+import { runTicket } from '../src/api-client.js';
+
+// Billed requests carry a run ticket; prime the client cache so the mocked
+// fetch in each test only sees decision calls.
+const sessionFetch = globalThis.fetch;
+globalThis.fetch = (url, options) =>
+  String(url).endsWith('/api/session')
+    ? Promise.resolve(
+        Response.json({
+          ok: true,
+          mode: 'bench',
+          seed: 2,
+          expiresAt: Date.now() + 3_600_000,
+          ticket: 'test-ticket',
+        }),
+      )
+    : sessionFetch(url, options);
+await runTicket('bench');
+globalThis.fetch = sessionFetch;
 
 const writes = [];
 const model = { id: 'jev', name: 'Jev' };

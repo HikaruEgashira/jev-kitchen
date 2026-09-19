@@ -21,6 +21,7 @@ import {
   repeatsActions,
 } from './model.js';
 import { STAFF, nextStaffState, payroll } from './staff.js';
+import { apiFetch } from './api-client.js';
 import { EQUIPMENT, equipmentCapacity, quoteEquipment } from './equipment.js';
 import { VITAMINS, quoteVitamins } from './training.js';
 import { preparation, purchase, preparationAdvice, preparationKey, equipmentEffect } from './ui.js';
@@ -710,11 +711,8 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
         useBenchmark.setState({ requests: result.requests, action: '判断中…' });
         let data;
         try {
-          const response = await fetch('/api/bench/decide', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
+          const response = await apiFetch('/api/bench/decide', body, 'bench', {
             signal: AbortSignal.any([session.signal, AbortSignal.timeout(10000)]),
-            body,
           });
           if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
           data = await response.json();

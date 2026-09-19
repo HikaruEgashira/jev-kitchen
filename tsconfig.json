@@ -6,6 +6,7 @@
     "lib": ["es2022", "webworker"],
     "strict": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "types": []
   },

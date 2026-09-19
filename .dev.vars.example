@@ -8,6 +8,10 @@
 TYPESAFE_API_KEY=
 TYPESAFE_MODEL=jev-latest
 
+# run ticket の HMAC 秘密鍵。未設定だと課金ルートはすべて503で閉じる（fail closed）。
+# 16文字以上。ローカル専用の値を書き、本番は `wrangler secret put TICKET_SECRET`。
+TICKET_SECRET=local-development-ticket-secret
+
 # 任意: jev-bench用のJev Choice互換エンドポイント。秘密はこのファイル内のみ。
 # BENCH_ENDPOINTS='{"candidate":{"name":"Candidate","url":"https://model.example/v1/decision","model":"candidate-v1","token":"SERVER_SIDE_TOKEN"}}'
 

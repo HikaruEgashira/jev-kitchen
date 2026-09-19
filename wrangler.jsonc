@@ -16,4 +16,16 @@
   "ai": {
     "binding": "AI",
   },
+  "ratelimits": [
+    {
+      "name": "SESSION_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 },
+    },
+    {
+      "name": "DECIDE_LIMITER",
+      "namespace_id": "1002",
+      "simple": { "limit": 240, "period": 60 },
+    },
+  ],
 }

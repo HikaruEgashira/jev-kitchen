@@ -26,6 +26,14 @@ MVPを短い協力料理ゲームとして本番公開するための判定台�
 - Access、秘密、課金、外部送信、他repoの権限は本台帳の対象外であり、変更しない。
 - 部門間で競合する変更は、directorがMVPの遊びやすさ・安全性・復旧性を優先して採否を決める。
 
+## 2026-09-19 一般公開向けAPI境界（run ticket・課金GET廃止。未配信）
+
+- Accessを外して一般公開する前提へ切り替え、課金ルートをサーバ発行のrun ticketで保護した。`src/session.ts`がHMAC署名のticket（`{sid, seed, mode, exp}`）を発行・検証し、`TICKET_SECRET`未設定なら課金ルートは503で閉じる。`POST /api/session`が`play`／`bench`のticketを返す。
+- `/api/decide`・`/api/decide-llm`・`/api/bench/decide`は`content-type: application/json`と`x-run-ticket`を要求する。IP単位のレート制限を`wrangler.jsonc`のRate Limiting binding（セッション10/分、課金240/分）で設定し、limiterエラーは拒否として扱う。`GET /api/health`はモデルを呼ばない設定プローブに変更し、GET副作用での課金を廃止した。クライアントは`src/api-client.js`でticketを取得・キャッシュする。
+- 公開APIの設計（脅威モデル・エラー・ランキング基盤）は[公開API仕様](public-api.md)を正とする。ランキングは未実装。改ざん不能な順位にはサーバ実行型ベンチかリプレイ検証が要るため、検証が無いリーダーボードは公開しない。
+- 出荷ゲート: 188テスト、typecheck、check、build、`wrangler deploy --dry-run`がpass。ticketの発行・mode不一致・期限切れ・content-type・レート制限のfail closed・health非課金を回帰検証する。
+- **未配信。** 配信前に`wrangler secret put TICKET_SECRET`、`ratelimits`の反映、AI Gateway／TypeSafeのspend limit設定が必要。secret未設定のまま配信すると課金ルートが503になりAIは固定ルールへ落ちる。
+
 ## 2026-09-19 採用・投資・Jev判断と一方向の受け渡し
 
 - `9019f0a`までの変更をmainから段階的に配信した。近くの手ぶらのNPCへEで手持ちを渡せる。NPCからプレイヤーへの手渡し・取り戻しは行わない。移動先の作業台クリックや自動到着では手渡しせず、その作業台を操作する。
