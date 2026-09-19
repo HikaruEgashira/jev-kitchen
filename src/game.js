@@ -30,7 +30,7 @@ import { equipmentState, validateEquipment, quoteEquipment } from './equipment.j
 
 const BEST_KEY = 'sidekick-best-v2';
 export const CHECKPOINT_KEY = 'sidekick-campaign-v1';
-const CHECKPOINT_VERSION = 4;
+const CHECKPOINT_VERSION = 5;
 const STARTING_CASH = 180;
 
 function savedBest() {
@@ -83,7 +83,8 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
   }
   const sourceVersion = value.version;
   const legacy = sourceVersion === 2;
-  if (legacy || sourceVersion === 3) value = { ...value, version: CHECKPOINT_VERSION };
+  if (legacy || sourceVersion === 3 || sourceVersion === 4)
+    value = { ...value, version: CHECKPOINT_VERSION };
   if (value.version !== CHECKPOINT_VERSION || typeof value.completed !== 'boolean') return null;
   if (!Number.isSafeInteger(value.level) || value.level < 1 || value.level > MAX_LEVEL) return null;
   if (value.equipment !== undefined && !validateEquipment(value.equipment, value.level))
@@ -110,6 +111,13 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
         veteran: { ...value.staffState.veteran, worked: 0 },
       };
   }
+  if (
+    (sourceVersion === 3 || sourceVersion === 4) &&
+    value.level >= 5 &&
+    value.level <= 7 &&
+    value.stock >= 9
+  )
+    value.stock = Math.max(value.stock, quotaForLevel(value.level));
   if ((value.level === 1) !== (value.stock === null)) return null;
   if (!allowUnreadyStock && value.level > 1 && value.stock < quotaForLevel(value.level))
     return null;

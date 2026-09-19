@@ -960,7 +960,7 @@ test('balance migration preserves old paid openings and tops up only valid legac
   assert.equal(useKitchen.getState().game.level, 3);
   assert.equal(useKitchen.getState().game.cash, 417);
   assert.equal(useKitchen.getState().game.stock, 9);
-  assert.equal(JSON.parse(storage.get(CHECKPOINT_KEY)).version, 4);
+  assert.equal(JSON.parse(storage.get(CHECKPOINT_KEY)).version, 5);
   useKitchen.setState({ phase: 'ready' });
   startShift();
   assert.equal(useKitchen.getState().game.stock, 9);
@@ -1028,7 +1028,7 @@ test('previous saves adopt the new mentor lessons without losing cash or rewinds
   assert.deepEqual(g.hired, ['helper']);
   assert.deepEqual(g.duty, ['helper']);
   const updated = JSON.parse(storage.get(CHECKPOINT_KEY));
-  assert.equal(updated.version, 4);
+  assert.equal(updated.version, 5);
   assert.deepEqual(updated.rollback.previous.snapshot.duty, ['veteran']);
   assert.equal(updated.rollback.previous.snapshot.cash, 431);
   storage.set(CHECKPOINT_KEY, JSON.stringify(legacyOpening(3)));
@@ -1039,4 +1039,44 @@ test('previous saves adopt the new mentor lessons without losing cash or rewinds
   assert.equal(g.cash, 431);
   assert.deepEqual(g.duty, ['veteran']);
   assert.deepEqual(g.staffState.veteran, { worked: 0, rest: 0 });
+});
+
+test('ten-dish migration preserves paid openings, rehired staff and rewind stock', () => {
+  for (const version of [3, 4, 5]) {
+    for (const level of [5, 6, 7]) {
+      for (const stock of [8, 9, 12]) {
+        const opening = {
+          ...createGame({
+            level,
+            stock,
+            cash: 431,
+            hired: ['helper', 'veteran'],
+            duty: ['helper'],
+          }),
+          version,
+          completed: false,
+        };
+        opening.rollback = { previous: { snapshot: { ...opening }, applicants: ['chef'] } };
+        storage.set(CHECKPOINT_KEY, JSON.stringify(opening));
+        useKitchen.setState({ phase: 'ready' });
+        startShift();
+        const g = useKitchen.getState().game;
+        if (stock < (version < 5 ? 9 : 10)) {
+          assert.equal(g.level, 1);
+          continue;
+        }
+        assert.equal(g.level, level);
+        assert.equal(g.stock, Math.max(stock, 10));
+        assert.equal(g.cash, 431);
+        assert.equal(g.hired.includes('veteran'), version >= 4);
+        const saved = JSON.parse(storage.get(CHECKPOINT_KEY));
+        assert.equal(saved.version, 5);
+        assert.equal(saved.rollback.previous.snapshot.stock, Math.max(stock, 10));
+        useKitchen.setState({ phase: 'ready' });
+        startShift();
+        assert.equal(useKitchen.getState().game.stock, saved.stock);
+        assert.equal(useKitchen.getState().game.cash, saved.cash);
+      }
+    }
+  }
 });

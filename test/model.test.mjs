@@ -130,7 +130,7 @@ test('tutorial is unlimited and ordinary kitchens use a 90-second contract', () 
   assert.ok(level1.orders.every((o) => o.recipe === 'dish'));
 
   const level2 = createGame({ level: 5, stock: 8 });
-  assert.equal(level2.quota, 9);
+  assert.equal(level2.quota, 10);
   assert.equal(level2.duration, SHIFT_MS);
   assert.equal(level2.stock, 8);
   assert.deepEqual(
@@ -162,7 +162,7 @@ test('tutorial is unlimited and ordinary kitchens use a 90-second contract', () 
   assert.equal(MAX_LEVEL, 100);
   assert.deepEqual(
     [1, 5, 10, 15, 20, 25, 30, 100].map((level) => levelConfig(level).quota),
-    [1, 9, 11, 12, 13, 13, 13, 16],
+    [1, 10, 11, 12, 13, 13, 13, 16],
   );
   assert.equal(levelConfig(0).level, 1);
   assert.equal(levelConfig(101).level, MAX_LEVEL);
@@ -880,17 +880,17 @@ test('action hints explain the next useful step for each station state', () => {
 });
 
 test('boosts, burning and the one-time rush activate only at their level milestones', () => {
-  for (const level of [4, 5]) {
+  for (const level of [5, 6]) {
     const g = createGame({ level, stock: 2 });
     interact(g, 'human', 'crate');
     interact(g, 'human', 'board');
     advance(g, CHOP_MS / 2);
     assert.equal(
       buildCandidates(g, 'human').some((c) => c.id === 'boost_board'),
-      level === 5,
+      level === 6,
     );
-    assert.equal(actionHint(g, 'board'), level === 5 ? '仕上げる' : '切り終わるまで待つ');
-    assert.equal(interact(g, 'human', 'board').ok, level === 5);
+    assert.equal(actionHint(g, 'board'), level === 6 ? '仕上げる' : '切り終わるまで待つ');
+    assert.equal(interact(g, 'human', 'board').ok, level === 6);
   }
   for (const level of [5, 6]) {
     const g = createGame({ level, stock: 2 });

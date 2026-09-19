@@ -20,7 +20,7 @@ test('levelConfig clamps input and returns the full 1..100 campaign', () => {
   }
 });
 
-test('each early level adds a distinct lesson before numeric scaling', () => {
+test('early levels introduce mechanics at their lesson milestones', () => {
   assert.equal(levelConfig(1).quota, 1);
   assert.equal(levelConfig(1).orderWindowMs, Infinity);
   assert.equal(levelConfig(1).staffSlots, 0);
@@ -30,7 +30,7 @@ test('each early level adds a distinct lesson before numeric scaling', () => {
   assert.equal(levelConfig(2).kitchenTier, 1);
   assert.equal(levelConfig(3).kitchenTier, 2);
   for (const [feature, first] of [
-    ['boostEnabled', 5],
+    ['boostEnabled', 6],
     ['burningEnabled', 6],
     ['fatigueEnabled', 9],
     ['rushEnabled', 10],
@@ -76,4 +76,15 @@ test('legacy finite-stock transition remains at Lv2', () => {
   assert.equal(levelConfig(1).stockFinite, false);
   assert.equal(levelConfig(2).stockFinite, true);
   assert.equal(levelConfig(4).stockFinite, true);
+});
+
+test('Lv5 repeats Lv4 conditions with a ten-dish quota', () => {
+  assert.deepEqual(levelConfig(5), {
+    ...levelConfig(4),
+    level: 5,
+    quota: 10,
+    unlockLabel: '同じ厨房で10皿',
+  });
+  assert.equal(quotaForLevel(6), 10);
+  assert.equal(quotaForLevel(7), 10);
 });
