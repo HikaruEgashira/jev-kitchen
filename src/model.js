@@ -58,9 +58,24 @@ export const ITEM_NAMES = {
   roast: '焼きトマト',
 };
 export const RECIPES = {
-  dish: { name: 'トマトサラダ', points: 100, price: 25 },
-  soup: { name: 'トマトスープ', points: 140, price: 35 },
-  roast: { name: '焼きトマト', points: 180, price: 45 },
+  dish: {
+    name: 'トマトサラダ',
+    points: 100,
+    price: 25,
+    steps: 'トマト → まな板で切る → 皿で盛り付け → 配膳',
+  },
+  soup: {
+    name: 'トマトスープ',
+    points: 140,
+    price: 35,
+    steps: 'トマト → まな板で切る → 切った材料を取る → 鍋で煮る → 皿で盛り付け → 配膳',
+  },
+  roast: {
+    name: '焼きトマト',
+    points: 180,
+    price: 45,
+    steps: 'トマト → まな板で切る → 切った材料を取る → グリルで焼く → 皿で盛り付け → 配膳',
+  },
 };
 
 // Estimate stock from quota and previous sales, preserving the next payroll.

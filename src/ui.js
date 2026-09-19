@@ -801,6 +801,11 @@ export function screen(s, view, width, height) {
       } else {
         text += `${cookingAdvice(g).hint}\n作業台をタップすると移動して作業します。ダッシュは移動を速めます。手持ちは近くの手ぶらの相棒へEで渡せます。\nノルマは合格に必要な皿数です。売上は次の営業資金になり、残在庫は持ち越せます。`;
         text += `\n在庫${g.stock ?? '無制限'}・配膳${g.served}/${g.quota}皿`;
+        text +=
+          '\n' +
+          [...new Set(g.orders.map((o) => o.recipe))]
+            .map((id) => `${RECIPES[id].name}：${RECIPES[id].steps}`)
+            .join('\n');
       }
       if (history.length) text += `\n最近の操作（古い順）\n${history.slice(-6).join('\n')}`;
       const size = narrow ? 12 : 14;

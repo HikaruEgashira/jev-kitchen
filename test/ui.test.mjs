@@ -49,6 +49,7 @@ test('stage picker pages all saved stages and mobile buttons have matching 3D ic
 });
 import { activeStationIds, createGame, layoutSlots, STATIONS } from '../src/model.js';
 import { useKitchen, TUTORIAL_STEPS } from '../src/game.js';
+import { benchRequest } from '../src/benchmark.js';
 import {
   compactControls,
   preparation,
@@ -58,6 +59,28 @@ import {
   preparationAdvice,
   editPreparation,
 } from '../src/ui.js';
+
+test('current order recipes are readable in the human hints and the bench context', () => {
+  const game = createGame({ level: 7, stock: 12 });
+  game.orders = ['soup', 'roast', 'soup'].map((recipe, id) => ({ recipe, id, deadline: 40000 }));
+  const state = {
+    ...useKitchen.getState(),
+    game,
+    phase: 'paused',
+    menuOpen: true,
+    menuPage: 'hints',
+    benchmark: false,
+  };
+  const recipes = benchRequest(state, { preparing: false, candidates: [] }).state.recipes;
+  assert.deepEqual(Object.keys(recipes), ['soup', 'roast']);
+  let text = '';
+  for (let advicePage = 0; advicePage < 12; advicePage++) {
+    const ui = screen(state, { ...preparation(game), advicePage }, 320, 568);
+    text += ui.items.find((i) => i.id === 'advice-copy').text.replaceAll('\n', '');
+    if (ui.items.find((i) => i.id === 'advice-next').disabled) break;
+  }
+  for (const steps of Object.values(recipes)) assert.ok(text.includes(steps));
+});
 import { STAFF } from '../src/staff.js';
 import { VITAMINS } from '../src/training.js';
 

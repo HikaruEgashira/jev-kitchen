@@ -101,7 +101,11 @@ export function preparationCandidates(state, plan) {
   const available = { ...bill.staffState };
   if (plan.selected) available[plan.selected] = { worked: 0, rest: 0 };
   if (plan.selected || plan.stage === 'hiring')
-    candidates.push({ id: 'skip_hiring', label: '採用を取り消す', selected: null });
+    candidates.push({
+      id: 'skip_hiring',
+      label: plan.selected ? '採用を取り消す' : '今回は採用しない',
+      selected: null,
+    });
   for (const id of state.applicants) {
     if (id !== plan.selected)
       candidates.push({
@@ -363,6 +367,9 @@ export function compactDecisionState(s) {
     human: s.human,
     crew: s.crew,
     orders: s.orders,
+    recipes: Object.fromEntries(
+      [...new Set(s.orders.map((o) => o.recipe))].map((id) => [id, RECIPES[id].steps]),
+    ),
     dash_ready_in_ms: s.dash_ready_in_ms,
     stations: Object.fromEntries(
       Object.entries(s.stations)
