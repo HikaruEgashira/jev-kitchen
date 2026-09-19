@@ -1,5 +1,13 @@
 # SIDEKICK kitchen 本番リリース台帳
 
+## 2026-09-19 メニューの初期化と操作設定への移動
+
+- メニューを閉じて開き直すと最後のページ（操作設定・遊び方・診断）が残っていた。メニューのページをZustand状態へ移し、`setMenuOpen`の再オープン時に初期化して、常に最初の設定画面から表示する。
+- 「裏画面で停止」トグルを設定画面から操作設定へ移し、戻るボタンと同じ行に44px以上で配置する。設定画面の音トグルは全幅にし、44px以上の操作領域と非重複を維持する。
+- commit `5aa0ac9`をmainへpush。メニュー再オープンの初期化、操作設定のトグル状態・ラベル幅、全シートの44px操作領域と非重複を回帰検証する。
+- `pnpm test`は113 pass／0 fail、typecheck、check（49 files／lint31、警告なし）、build、bake-fontがpass。GitHub CI [35424916152](https://github.com/HikaruEgashira/jev-kitchen/actions/runs/35424916152)とWorkers Buildsがsuccess。
+- 2026-09-19 05:48:39 UTC、本番100% version `531738a6-92d7-44f7-b2e1-21524f7abefa`を確認した。操作用ブラウザは未接続のため、実ブラウザでのトグル操作・メニュー再オープンは未検証。復旧先は100% version `0d9c9756-012c-4bb3-896e-2a10c44965df`、復旧コマンドは`pnpm exec wrangler rollback 0d9c9756-012c-4bb3-896e-2a10c44965df`。
+
 ## 2026-09-19 jev-benchの画面文脈
 
 - benchのモデル入力は`observe`とbench固有の項目を個別に組み立てており、画面にだけ出る作業ヒント（例：切ったトマトを持ってこよう）や通知が文脈に含まれていなかった。描画と同じ`screen()`から`screenContext`で機械的に射影し、画面の文言・有効／選択状態・シート・通知を`state.screen`へ載せた。
