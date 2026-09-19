@@ -1,7 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useKitchen } from './game.js';
-import { STAFF } from './staff.js';
-import { runBenchmark, stopBenchmark, useBenchmark } from './benchmark.js';
+import {
+  runBenchmark,
+  pauseBenchmark,
+  resumeBenchmark,
+  stopBenchmark,
+  useBenchmark,
+} from './benchmark.js';
 import './bench.css';
 
 const Kitchen = lazy(() => import('./Kitchen.jsx'));
@@ -9,22 +14,23 @@ const statusNames = {
   completed: '全レベルクリア',
   failed: 'ノルマ未達',
   error: '実行エラー',
-  stopped: '中断',
+  stopped: '終了',
   budget: 'call 上限',
 };
 const timer = (ms) => {
   const seconds = Math.floor(ms / 1000);
   return `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 };
-
-function download(results) {
+function download(result) {
   const url = URL.createObjectURL(
-    new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' }),
+    new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' }),
   );
   const link = document.createElement('a');
   link.href = url;
   link.download = `jev-bench-${new Date().toISOString().replaceAll(':', '-')}.json`;
+  document.body.append(link);
   link.click();
+  link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -46,7 +52,7 @@ export default function Bench() {
         if (!controller.signal.aborted) setError(e.message);
       });
     const hidden = () => {
-      if (document.hidden && useBenchmark.getState().running) stopBenchmark('タブ非表示で中断');
+      if (document.hidden) pauseBenchmark();
     };
     document.addEventListener('visibilitychange', hidden);
     return () => {
@@ -65,201 +71,127 @@ export default function Bench() {
       maxRequests: Number(form.get('maxRequests')),
     }).catch((e) => setError(e.message));
   };
-  const game = kitchen.game;
   const latest = bench.results.at(-1);
-  const status = bench.running
-    ? kitchen.phase === 'finished'
-      ? '開店準備'
-      : '営業中'
-    : statusNames[latest?.status] || '待機中';
+  const paused = bench.paused || kitchen.phase === 'paused' || kitchen.menuOpen;
   return (
     <main className="bench-page">
       <header className="bench-header">
         <h1>jev-bench</h1>
+        <form className="bench-controls" onSubmit={start} aria-label="実行条件">
+          <fieldset disabled={bench.running}>
+            <select
+              aria-label="モデル"
+              value={modelId}
+              onChange={(e) => setModelId(e.target.value)}
+            >
+              {models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </select>
+            <label>
+              frequency（Hz）
+              <input
+                name="frequency"
+                type="number"
+                inputMode="decimal"
+                min="0.1"
+                max="10"
+                step="any"
+                required
+                defaultValue="5"
+              />
+            </label>
+            <label>
+              最大 call 数
+              <input
+                name="maxRequests"
+                type="number"
+                inputMode="numeric"
+                min="1"
+                max="10000"
+                step="1"
+                required
+                defaultValue="1000"
+              />
+            </label>
+          </fieldset>
+          <div className="bench-actions">
+            <button
+              type={bench.running ? 'button' : 'submit'}
+              onClick={bench.running ? (paused ? resumeBenchmark : pauseBenchmark) : undefined}
+              disabled={!bench.running && (!kitchen.ready || !models.length)}
+            >
+              {bench.running ? (paused ? '再開' : '中断') : '開始'}
+            </button>
+            <button
+              type="button"
+              disabled={bench.running || !latest}
+              onClick={() => download(latest)}
+            >
+              JSON
+            </button>
+          </div>
+        </form>
         <a href="/">自分でプレイ</a>
       </header>
       <div className="bench-broadcast">
-        <section className="bench-screen" aria-label="実行中のゲーム">
-          <div className="bench-screen-title">
-            <span>SIDEKICK kitchen</span>
-            <span>{status}</span>
-          </div>
-          <div className="bench-stage" inert>
-            <div className="app-shell">
-              <Suspense fallback={<p>厨房を準備中…</p>}>
-                <Kitchen showUI={false} />
-              </Suspense>
-            </div>
+        <section className="bench-screen" aria-label="ゲーム画面">
+          <div className="app-shell">
+            <div id="ui-access" />
+            <Suspense fallback={null}>
+              <Kitchen />
+            </Suspense>
           </div>
         </section>
-        <aside className="bench-sidebar" aria-label="進行状況と設定">
-          <section className="bench-clock" aria-label="経過時間">
-            <span>TIME</span>
-            <strong>{timer(bench.running ? bench.elapsedMs : (latest?.wallMs ?? 0))}</strong>
-          </section>
-          <dl className="bench-stats">
-            <div>
-              <dt>LEVEL</dt>
-              <dd>
-                {game.level}
-                <small> / 100</small>
-              </dd>
-            </div>
-            <div>
-              <dt>配膳</dt>
-              <dd>
-                {game.served}
-                <small> / {game.quota}</small>
-              </dd>
-            </div>
-            <div>
-              <dt>営業残り</dt>
-              <dd>
-                {Math.max(0, Math.ceil((game.duration - game.time) / 1000))}
-                <small> 秒</small>
-              </dd>
-            </div>
-            <div>
-              <dt>CALLS</dt>
-              <dd>{bench.requests}</dd>
-            </div>
-            <div>
-              <dt>SCORE</dt>
-              <dd>{game.score}</dd>
-            </div>
-            <div>
-              <dt>所持金</dt>
-              <dd>{game.cash}</dd>
-            </div>
-            <div>
-              <dt>相棒</dt>
-              <dd className="bench-staff">{STAFF[game.staffId]?.name}</dd>
-            </div>
-          </dl>
-          <form className="bench-controls" onSubmit={start} aria-label="実行条件">
-            <fieldset disabled={bench.running}>
-              <label>
-                モデル
-                <select value={modelId} onChange={(e) => setModelId(e.target.value)}>
-                  {models.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                frequency（Hz）
-                <input
-                  name="frequency"
-                  type="number"
-                  inputMode="decimal"
-                  min="0.1"
-                  max="10"
-                  step="any"
-                  required
-                  defaultValue="5"
-                />
-              </label>
-              <label>
-                最大 call 数
-                <input
-                  name="maxRequests"
-                  type="number"
-                  inputMode="numeric"
-                  min="1"
-                  max="10000"
-                  step="1"
-                  required
-                  defaultValue="1000"
-                />
-              </label>
-              <button type="submit" disabled={!kitchen.ready || !models.length}>
-                {kitchen.ready ? 'START' : '準備中…'}
-              </button>
-            </fieldset>
-          </form>
-          {bench.running && (
-            <button className="bench-stop" onClick={() => stopBenchmark()}>
-              STOP
-            </button>
-          )}
-          {error && (
-            <p role="alert" className="bench-error">
-              {error}
-            </p>
-          )}
-        </aside>
-        <section className="bench-commentary" aria-label="AIの判断ログ">
-          <div className="bench-runner">
-            <strong>{models.find((model) => model.id === modelId)?.name || '—'}</strong>
-            <span>{status}</span>
-          </div>
-          <div className="bench-log">
-            <p className="bench-current" role="status">
-              {bench.running ? bench.action || '開始中…' : latest?.error || status}
-            </p>
-            <ol>
-              {bench.log
-                .slice(0, -1)
-                .reverse()
-                .map((entry) => (
-                  <li key={entry.call}>
-                    <span>#{entry.call}</span> {entry.action}
-                  </li>
-                ))}
-            </ol>
-          </div>
-        </section>
-      </div>
-      <section className="bench-results" aria-label="比較結果">
-        <div className="bench-results-heading">
-          <h2>RESULTS</h2>
-          <button disabled={!bench.results.length} onClick={() => download(bench.results)}>
-            JSON 保存
-          </button>
-        </div>
-        {bench.results.length > 0 && (
-          <div className="bench-table">
+        <aside className="bench-sidebar" aria-label="今回のクリア記録">
+          <strong className="bench-clock" aria-label="経過時間">
+            {timer(bench.running ? bench.elapsedMs : (latest?.activeMs ?? 0))}
+          </strong>
+          <span className="bench-calls">{bench.requests} calls</span>
+          <div className="bench-splits">
             <table>
               <thead>
                 <tr>
-                  <th>モデル</th>
-                  <th>frequency / 上限</th>
-                  <th>結果</th>
-                  <th>到達 / クリア</th>
-                  <th>calls</th>
-                  <th>平均 / p95</th>
+                  <th>レベル</th>
+                  <th>所持金</th>
+                  <th>スコア</th>
                 </tr>
               </thead>
               <tbody>
-                {bench.results.map((result, index) => (
-                  <tr key={`${result.startedAt}-${index}`}>
-                    <th scope="row">{result.model.name}</th>
-                    <td>
-                      {result.conditions.frequency} / {result.conditions.maxRequests}
-                    </td>
-                    <td>
-                      {statusNames[result.status]}
-                      {result.error && <small>{result.error}</small>}
-                    </td>
-                    <td>
-                      Lv.{result.reachedLevel} / {result.clearedLevels}
-                    </td>
-                    <td>
-                      {result.requests}
-                      <small>破棄 {result.staleResponses}</small>
-                    </td>
-                    <td>
-                      {result.meanMs ?? '—'} / {result.p95Ms ?? '—'} ms
-                    </td>
+                {bench.splits.map((split) => (
+                  <tr key={split.level}>
+                    <th scope="row">{split.level}</th>
+                    <td>{split.cash}</td>
+                    <td>{split.score}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
-      </section>
+        </aside>
+        <section className="bench-commentary" aria-label="AIの判断ログ">
+          <p className="bench-current" role={error ? 'alert' : 'status'}>
+            {error ||
+              (bench.running
+                ? paused
+                  ? '一時停止'
+                  : bench.action
+                : latest?.error || statusNames[latest?.status])}
+          </p>
+          <ol>
+            {bench.log
+              .slice(0, -1)
+              .reverse()
+              .map((entry) => (
+                <li key={entry.call}>
+                  <span>#{entry.call}</span> {entry.action}
+                </li>
+              ))}
+          </ol>
+        </section>
+      </div>
     </main>
   );
 }

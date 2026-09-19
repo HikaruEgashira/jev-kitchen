@@ -11,7 +11,14 @@ import {
   movePlayer,
 } from '../src/model.js';
 import { useKitchen, startBenchmark, benchmarkAction, tick, nextShift } from '../src/game.js';
-import { runBenchmark, stopBenchmark, useBenchmark, latencyStats } from '../src/benchmark.js';
+import {
+  runBenchmark,
+  stopBenchmark,
+  pauseBenchmark,
+  resumeBenchmark,
+  useBenchmark,
+  latencyStats,
+} from '../src/benchmark.js';
 
 const writes = [];
 const model = { id: 'jev', name: 'Jev' };
@@ -211,6 +218,10 @@ test('frequency spaces calls and the model hires, buys stock and assigns the nex
   const result = useBenchmark.getState().results[0];
   assert.equal(result.status, 'budget');
   assert.equal(result.clearedLevels, 1);
+  assert.deepEqual(
+    useBenchmark.getState().splits.map(({ level, cash, score }) => ({ level, cash, score })),
+    [{ level: 1, cash: 500, score: 0 }],
+  );
   assert.equal(result.requests, 5);
   assert.equal(result.conditions.frequency, 10);
   for (let i = 1; i < calls.length; i++) assert.ok(calls[i] - calls[i - 1] >= 100);
@@ -226,4 +237,41 @@ test('invalid call limits and frequencies are rejected before a request', async 
   for (const maxRequests of [0, -1, 1.5, 10001, NaN])
     await assert.rejects(runBenchmark({ model, maxRequests }));
   assert.equal(fetch.mock.callCount(), 0);
+});
+
+test('pause and resume retain the campaign and call budget without applying a pending reply', async (t) => {
+  let firstReply;
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', () => {
+    calls++;
+    if (calls === 1)
+      return new Promise((resolve) => {
+        firstReply = resolve;
+      });
+    interact(useKitchen.getState().game, 'human', 'crate');
+    return Promise.resolve(answer('fetch_tomato'));
+  });
+  const run = runBenchmark({ model, frequency: 10, maxRequests: 2 });
+  const g = useKitchen.getState().game;
+  tick(0.1);
+  pauseBenchmark();
+  const frozen = g.time;
+  firstReply(answer('fetch_tomato'));
+  await new Promise((resolve) => setTimeout(resolve, 160));
+  tick(1);
+  assert.equal(g.time, frozen);
+  assert.equal(calls, 1);
+  assert.equal(useBenchmark.getState().running, true);
+  assert.equal(useKitchen.getState().phase, 'paused');
+  assert.equal(g.human.intent, null);
+  resumeBenchmark();
+  assert.equal(useKitchen.getState().game, g);
+  assert.equal(useKitchen.getState().phase, 'playing');
+  await run;
+  const result = useBenchmark.getState().results.at(-1);
+  assert.equal(result.status, 'budget');
+  assert.equal(result.requests, 2);
+  assert.equal(result.errors, 0);
+  assert.equal(result.staleResponses, 2);
+  assert.equal(writes.length, 0);
 });

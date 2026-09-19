@@ -172,14 +172,19 @@ const Tile = memo(function Tile({ item, active, activate, hover }) {
 function Screen() {
   const s = useKitchen();
   const { size, gl } = useThree();
-  const [view, setView] = useState(() => preparation(s.game));
+  const [localView, setView] = useState(() => preparation(s.game));
+  const view = s.benchmark && s.benchPreparation ? s.benchPreparation : localView;
   const [focus, setFocus] = useState(null);
   const [hover, setHover] = useState(null);
   const controls = useRef(new Map());
   const semantic = useRef();
   const ui = screen(s, view, size.width, size.height);
   const latest = useRef();
-  const patch = (values) => setView((v) => ({ ...v, error: '', ...values }));
+  const patch = (values) => {
+    if (s.benchmark && s.benchPreparation)
+      useKitchen.setState({ benchPreparation: { ...view, error: '', ...values } });
+    else setView((v) => ({ ...v, error: '', ...values }));
+  };
   const dispatch = (item, value = item.value) => {
     if (item.disabled || item.inert) return;
     const g = useKitchen.getState().game;

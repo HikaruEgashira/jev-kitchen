@@ -34,7 +34,8 @@ the supplementary fiber and vendored reconciler notices are available at
 
 ## Fonts
 
-Three UI uses a subset of M PLUS Rounded 1c Bold, baked with Glyph into
+The benchmark DOM UI loads the same M PLUS Rounded 1c Bold font as the kitchen.
+Three UI uses a subset, baked with Glyph into
 `public/fonts/kitchen.font.glb`. The original font is stored in `assets/fonts`
 for reproducible baking; `title.typeface.json` contains only the letters used
 by Drei Text3D for the title. Copyright 2016 The Rounded M+ Project Authors;
