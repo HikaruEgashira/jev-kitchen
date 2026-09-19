@@ -33,8 +33,9 @@ export function moveCamera(camera, target, framing, delta, reducedMotion, width,
   camera.position.set(target.x + 10, target.y + 14.75, target.z + 18);
   camera.lookAt(target);
   camera.zoom = approach(camera.zoom, framing.zoom);
-  // Lower the kitchen render so the play area sits a little below the screen center.
-  if (width > 0 && height > 0)
-    camera.setViewOffset(width, height, 0, -SCENE_DROP * height, width, height);
+  // Lower the kitchen on screen by lifting the camera rig along its own up axis.
+  // The screen-space signboards copy the camera transform, so they stay put.
+  if (width > 0 && height > 0 && camera.zoom > 0)
+    camera.translateY((SCENE_DROP * height) / camera.zoom);
   camera.updateProjectionMatrix();
 }
