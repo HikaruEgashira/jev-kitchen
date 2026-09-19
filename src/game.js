@@ -15,7 +15,6 @@ import {
   dash,
   STATIONS,
   activeStationIds,
-  completeOnboarding,
   quotaForLevel,
   levelConfig,
   MAX_LEVEL,
@@ -26,14 +25,13 @@ import {
   resolveLayout,
 } from './model.js';
 import { createAudio } from './audio.js';
-import { STAFF, nextStaffState, payroll, staffAvailable } from './staff.js';
+import { STAFF, nextStaffState, payroll, staffAvailable, nextDuty } from './staff.js';
 import { equipmentState, validateEquipment, quoteEquipment } from './equipment.js';
 
 const BEST_KEY = 'sidekick-best-v2';
-const ONBOARDED_KEY = 'sidekick-onboarded-v1';
 export const CHECKPOINT_KEY = 'sidekick-campaign-v1';
-const CHECKPOINT_VERSION = 2;
-const STARTING_CASH = 120;
+const CHECKPOINT_VERSION = 3;
+const STARTING_CASH = 180;
 
 function savedBest() {
   if (typeof window === 'undefined') return 0;
@@ -53,11 +51,11 @@ function safeStock(value) {
   return value === null || (Number.isSafeInteger(value) && value >= 0);
 }
 
-function normalizeRollbackEntry(value, allowUnreadyStock = false) {
+function normalizeRollbackEntry(value, allowUnreadyStock = false, version = CHECKPOINT_VERSION) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const source = value.snapshot ?? value;
   const snapshot = validateCheckpoint(
-    { ...source, version: CHECKPOINT_VERSION, completed: false },
+    { ...source, version: source.version ?? version, completed: false },
     false,
     allowUnreadyStock,
   );
@@ -75,7 +73,7 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
   if (value.version === 1) {
     value = {
       ...value,
-      version: CHECKPOINT_VERSION,
+      version: 2,
       duty: [value.staffId],
       frozenApplicants: null,
       staffState: Object.fromEntries(
@@ -83,6 +81,8 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
       ),
     };
   }
+  const legacy = value.version === 2;
+  if (legacy) value = { ...value, version: CHECKPOINT_VERSION };
   if (value.version !== CHECKPOINT_VERSION || typeof value.completed !== 'boolean') return null;
   if (!Number.isSafeInteger(value.level) || value.level < 1 || value.level > MAX_LEVEL) return null;
   if (value.equipment !== undefined && !validateEquipment(value.equipment, value.level))
@@ -91,6 +91,24 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
   const layout = resolveLayout({ level: value.level, equipment }, value.layout);
   if (!layout) return null;
   if (!safeMoney(value.cash) || !safeStock(value.stock)) return null;
+  // Balance changes must not erase a valid paid opening or its rewind history.
+  if (legacy) {
+    const oldQuota =
+      value.level <= 30
+        ? 6 + Math.floor(value.level / 5)
+        : 12 + Math.round(2 * Math.sqrt((value.level - 30) / 70));
+    if (value.stock !== null && value.stock >= oldQuota)
+      value.stock = Math.max(value.stock, quotaForLevel(value.level));
+    if (value.level === 1) {
+      value.duty = [];
+      value.cash = Math.max(STARTING_CASH, value.cash);
+    }
+    if (value.staffState?.veteran?.worked === 1)
+      value.staffState = {
+        ...value.staffState,
+        veteran: { ...value.staffState.veteran, worked: 0 },
+      };
+  }
   if ((value.level === 1) !== (value.stock === null)) return null;
   if (!allowUnreadyStock && value.level > 1 && value.stock < quotaForLevel(value.level))
     return null;
@@ -116,7 +134,9 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
       status.rest < 0 ||
       status.rest > STAFF[id].restShifts ||
       (status.rest > 0 && status.worked !== 0) ||
-      (!levelConfig(value.level).fatigueEnabled && (status.rest !== 0 || status.worked !== 0))
+      (id !== 'veteran' &&
+        !levelConfig(value.level).fatigueEnabled &&
+        (status.rest !== 0 || status.worked !== 0))
     )
       return null;
   }
@@ -148,9 +168,11 @@ function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = f
   if (value.rollback == null) return { ...record, rollback: null };
   if (typeof value.rollback !== 'object' || Array.isArray(value.rollback)) return null;
   const preparation = value.rollback.preparation
-    ? normalizeRollbackEntry(value.rollback.preparation, true)
+    ? normalizeRollbackEntry(value.rollback.preparation, true, legacy ? 2 : CHECKPOINT_VERSION)
     : null;
-  const previous = value.rollback.previous ? normalizeRollbackEntry(value.rollback.previous) : null;
+  const previous = value.rollback.previous
+    ? normalizeRollbackEntry(value.rollback.previous, false, legacy ? 2 : CHECKPOINT_VERSION)
+    : null;
   if ((value.rollback.preparation && !preparation) || (value.rollback.previous && !previous))
     return null;
   return { ...record, rollback: { preparation, previous } };
@@ -270,22 +292,6 @@ function notify(text) {
   update({ toast: text, toastUntil: state().game.time + 2400 });
 }
 
-function onboarded() {
-  try {
-    return globalThis.localStorage?.getItem(ONBOARDED_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function saveOnboarded() {
-  try {
-    globalThis.localStorage?.setItem(ONBOARDED_KEY, '1');
-  } catch {
-    /* Storage is optional; a failed write simply repeats onboarding next visit. */
-  }
-}
-
 function snapshot(g) {
   const hired = [
     ...new Set(
@@ -317,32 +323,6 @@ function drawApplicants(hired) {
   return pool.slice(0, 3);
 }
 
-function finishOnboarding() {
-  const g = state().game;
-  keys.clear();
-  target = null;
-  retryAt = 0;
-  lastPublish = 0;
-  policyChangedAt = -Infinity;
-  completeOnboarding(g);
-  shiftSnapshot = snapshot(g);
-  saveOnboarded();
-  const checkpoint = writeCheckpoint(shiftSnapshot);
-  invalidate();
-  update({
-    tutorial: null,
-    cleared: false,
-    applicants: [],
-    campaignComplete: false,
-    checkpoint,
-    rollback: null,
-    reviewing: false,
-  });
-  notify('営業開始！');
-  playSound('start');
-  publish();
-}
-
 function record(who, result) {
   const g = state().game,
     cook = actor(g, who);
@@ -362,7 +342,6 @@ function record(who, result) {
 }
 
 function beginShift({
-  practice = false,
   level = 1,
   cash = STARTING_CASH,
   duty = ['helper'],
@@ -382,7 +361,6 @@ function beginShift({
   policyChangedAt = -Infinity;
   frozenApplicants = Array.isArray(successorApplicants) ? [...successorApplicants] : null;
   const game = createGame({
-    practice,
     level,
     cash,
     duty,
@@ -392,21 +370,19 @@ function beginShift({
     equipment,
     layout,
   });
-  const checkpoint = !practice
-    ? writeCheckpoint({ ...snapshot(game), rollback, frozenApplicants })
-    : null;
-  if (!practice) shiftSnapshot = checkpoint;
+  const checkpoint = writeCheckpoint({ ...snapshot(game), rollback, frozenApplicants });
+  shiftSnapshot = checkpoint;
   update({
     game,
     benchPreparation: null,
     preparationPreview: null,
     phase: 'playing',
-    tutorial: practice ? 0 : null,
+    tutorial: game.practice && !state().benchmark ? 0 : null,
     cleared: false,
     applicants: [],
     campaignComplete: false,
-    checkpoint: practice ? state().checkpoint : checkpoint,
-    rollback: practice ? null : (checkpoint?.rollback ?? null),
+    checkpoint,
+    rollback: checkpoint?.rollback ?? null,
     reviewing: false,
     log: [],
     toast: '',
@@ -415,7 +391,7 @@ function beginShift({
     fallback: false,
     lastPoints: 0,
     hud: {
-      action: practice ? TUTORIAL_STEPS[0].label : 'さあ、最初の注文を作ろう！',
+      action: game.practice ? TUTORIAL_STEPS[0].label : 'さあ、最初の注文を作ろう！',
       latency: null,
       via: '—',
       confidence: null,
@@ -434,10 +410,7 @@ export function startShift() {
   if (saved && !saved.completed) {
     beginShift(saved);
   } else {
-    beginShift({
-      practice: !onboarded(),
-      cash: STARTING_CASH - payroll(['helper']),
-    });
+    beginShift();
   }
 }
 
@@ -445,7 +418,7 @@ export function startShift() {
 export function startBenchmark() {
   if (!state().ready) return false;
   update({ benchmark: true, menuOpen: false, mode: 'rule', policy: '', sound: false });
-  beginShift({ cash: STARTING_CASH - payroll(['helper']) });
+  beginShift();
   return true;
 }
 
@@ -565,13 +538,13 @@ export function nextShift(
   if (stock + purchased < requiredStock) return false;
   const hiringCost = selected ? Math.max(0, Number(selected.cost) || 0) : 0;
   const cash = Number.isFinite(g.cash) ? g.cash : 0;
-  const hired = Array.isArray(g.hired) && g.hired.length ? [...g.hired] : ['helper'];
+  const staffState = nextStaffState(g);
+  const hired = Object.keys(staffState);
   if (selected && hired.includes(applicantId)) return false;
   if (selected && !hired.includes(applicantId)) hired.push(applicantId);
-  const staffState = nextStaffState(g);
   if (selected) staffState[applicantId] = { worked: 0, rest: 0 };
   const staffSlots = levelConfig(nextLevel).staffSlots;
-  const availableDuty = g.duty.filter((id) => staffAvailable(staffState, id));
+  const availableDuty = nextDuty(g);
   const duty =
     assignedDuty ??
     (selected && (!Number.isSafeInteger(staffSlots) || availableDuty.length < staffSlots)
@@ -579,6 +552,8 @@ export function nextShift(
       : availableDuty);
   if (
     !Array.isArray(duty) ||
+    (levelConfig(nextLevel).partner &&
+      (duty.length !== 1 || duty[0] !== levelConfig(nextLevel).partner)) ||
     new Set(duty).size !== duty.length ||
     (Number.isSafeInteger(staffSlots) && duty.length > staffSlots) ||
     !duty.every(
@@ -758,7 +733,8 @@ export function humanInteract(automatic = false) {
     if (step !== null && state().tutorial === step) {
       const next = step + 1;
       if (next === TUTORIAL_STEPS.length) {
-        finishOnboarding();
+        update({ tutorial: null });
+        finishShift();
         return;
       }
       update({
@@ -926,51 +902,47 @@ async function decide(who) {
   }
 }
 
+function finishShift() {
+  const g = state().game;
+  invalidate();
+  keys.clear();
+  target = null;
+  const best = Math.max(state().best, g.score);
+  const cleared = g.served >= (Number.isFinite(g.quota) ? g.quota : quotaForLevel(g.level));
+  const campaignComplete = cleared && g.level >= MAX_LEVEL;
+  const applicants =
+    cleared && !campaignComplete && g.level >= 3
+      ? frozenApplicants
+        ? [...frozenApplicants]
+        : drawApplicants(g.hired ?? [])
+      : [];
+  const checkpoint = campaignComplete
+    ? writeCheckpoint(shiftSnapshot ?? snapshot(g), true)
+    : state().checkpoint;
+  try {
+    if (!state().benchmark) localStorage.setItem(BEST_KEY, String(best));
+  } catch {
+    /* Private browsing can disable storage. */
+  }
+  if (cleared) frozenApplicants = null;
+  update({ phase: 'finished', best, cleared, applicants, campaignComplete, checkpoint });
+  playSound('finish');
+  publish();
+}
+
 export function tick(delta) {
   if (state().phase !== 'playing') return;
   const g = state().game,
     dt = Math.min(MAX_FRAME_DELTA, Math.max(0, Number.isFinite(delta) ? delta : 0));
-  const practice = state().tutorial !== null;
+  const practice = g.practice;
   const missed = g.missed;
   advance(g, dt * 1000);
   if (!practice && g.missed > missed) {
     notify('注文がタイムアウト。次のひと皿で取り返そう！');
     playSound('failure');
   }
-  if (!practice && g.time >= g.duration) {
-    invalidate();
-    keys.clear();
-    target = null;
-    const best = Math.max(state().best, g.score);
-    const cleared = g.served >= (Number.isFinite(g.quota) ? g.quota : quotaForLevel(g.level));
-    const campaignComplete = cleared && g.level >= MAX_LEVEL;
-    const applicants =
-      cleared && !campaignComplete
-        ? frozenApplicants
-          ? [...frozenApplicants]
-          : drawApplicants(g.hired ?? [])
-        : [];
-    const checkpoint = campaignComplete
-      ? writeCheckpoint(shiftSnapshot ?? snapshot(g), true)
-      : state().checkpoint;
-    try {
-      if (!state().benchmark) localStorage.setItem(BEST_KEY, String(best));
-    } catch {
-      /* Private browsing can disable storage. */
-    }
-    if (cleared) frozenApplicants = null;
-    update({ phase: 'finished', best, cleared, applicants, campaignComplete, checkpoint });
-    playSound('finish');
-    publish();
-    return;
-  }
-  if (practice && state().tutorial === TUTORIAL_STEPS.length) {
-    keys.clear();
-    target = null;
-    if (g.time - lastPublish >= 100) {
-      lastPublish = g.time;
-      publish();
-    }
+  if ((practice && g.served >= g.quota) || (!practice && g.time >= g.duration)) {
+    finishShift();
     return;
   }
   const ax =
@@ -985,15 +957,7 @@ export function tick(delta) {
     const station = stationInfo(g, target);
     if (moveToward(g.human, station.x, station.y, step)) humanInteract(true);
   }
-  if (practice && state().tutorial === TUTORIAL_STEPS.length) {
-    keys.clear();
-    target = null;
-    if (g.time - lastPublish >= 100) {
-      lastPublish = g.time;
-      publish();
-    }
-    return;
-  }
+  if (state().phase !== 'playing') return;
   for (const who of ['human', ...g.duty]) {
     const near = stationAt(g, who);
     actor(g, who).station = near.inReach ? near.id : null;

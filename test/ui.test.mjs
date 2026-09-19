@@ -89,7 +89,7 @@ test('every sheet keeps distinct, reachable 44px controls in portrait and landsc
 });
 
 test('the stock field rejects incomplete, non-integer and unaffordable purchases', () => {
-  const g = createGame({ level: 1, cash: 120 });
+  const g = createGame({ level: 1, cash: 205 });
   const view = preparation(g);
   assert.equal(purchase(g, view).error, '');
   for (const quantity of ['', '-1', '1.5', '1e1', 'Infinity', 'NaN', '100', '99', 0]) {
@@ -484,7 +484,7 @@ test('preparation hint warns only when the stock is below the next quota', () =>
   );
   const short = { ...view, page: 2, quantity: 0 };
   const shortUi = screen(state, short, 1440, 900);
-  assert.equal(shortUi.status, 'あと6個の仕入れが必要');
+  assert.equal(shortUi.status, 'あと9個の仕入れが必要');
   assert.equal(shortUi.items.find((item) => item.id === 'hint').text, shortUi.status);
   assert.equal(screenContext(state, short, 1440, 900).status, shortUi.status);
   assert.equal(screenContext(state, view, 1440, 900).status, null);

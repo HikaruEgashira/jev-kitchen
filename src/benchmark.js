@@ -14,6 +14,7 @@ import {
   observe,
   MAX_LEVEL,
   STOCK_PRICE,
+  levelConfig,
 } from './model.js';
 import { STAFF } from './staff.js';
 import { preparation, purchase, screenContext } from './ui.js';
@@ -46,8 +47,12 @@ export function preparationCandidates(state, plan) {
         selected: id,
       });
   }
-  for (const id of new Set([...g.hired, ...(plan.selected ? [plan.selected] : [])])) {
-    if (!duty.includes(id))
+  for (const id of Object.keys(purchase(g, plan).staffState)) {
+    if (
+      !levelConfig(g.level + 1).partner &&
+      !duty.includes(id) &&
+      purchase(g, plan).staffState[id].rest === 0
+    )
       candidates.push({
         id: `assign_${id}`,
         label: `${STAFF[id].name}を次の相棒にする`,
@@ -251,7 +256,10 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
         frequency,
         maxRequests,
         partner: 'rule',
-        initialStaff: 'helper',
+        initialStaff: null,
+        scriptedPartners: { 2: 'veteran', 3: 'helper' },
+        tutorialQuota: 1,
+        tutorialSeconds: null,
         shiftSeconds: 90,
         playerDash: true,
         hiring: true,

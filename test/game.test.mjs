@@ -39,6 +39,14 @@ test.beforeEach(() => {
   storage.clear();
   storage.set('sidekick-onboarded-v1', '1');
   installTestStorage();
+  storage.set(
+    CHECKPOINT_KEY,
+    JSON.stringify({
+      version: 2,
+      ...createGame({ level: 3, cash: 180, stock: 20 }),
+      completed: false,
+    }),
+  );
   useKitchen.setState({
     ready: true,
     phase: 'ready',
@@ -47,7 +55,7 @@ test.beforeEach(() => {
     backgroundMode: true,
     cameraMode: 'auto',
     movementMode: 'grid',
-    pauseWhenAway: false,
+    tutorial: null,
   });
 });
 
@@ -166,7 +174,7 @@ test('keyboard movement keeps equal speed in screen and grid modes', () => {
 test('a 90-second shift clears only after its quota and offers three applicants', () => {
   startShift();
   const g = useKitchen.getState().game;
-  g.served = 6;
+  g.served = g.quota;
   g.time = SHIFT_MS;
   tick(1);
   assert.equal(useKitchen.getState().phase, 'finished');
@@ -212,11 +220,13 @@ test('reset discards an in-flight AI answer, and pause freezes the shift', async
     });
   try {
     useKitchen.setState({ celebration: 4 });
+    useKitchen.setState({ phase: 'ready' });
     startShift();
     assert.equal(useKitchen.getState().celebration, 0);
     setMode('jev');
     tick(0.05);
     assert.equal(typeof resolve, 'function');
+    useKitchen.setState({ phase: 'ready' });
     startShift();
     resolve(
       Response.json({ ok: true, result: { answers: { next_action: { choice: 'fetch_tomato' } } } }),
@@ -245,6 +255,7 @@ test('API failure falls back without a request storm and mode changes invalidate
     throw new Error('offline');
   };
   try {
+    useKitchen.setState({ phase: 'ready' });
     startShift();
     setMode('jev');
     tick(0.05);
@@ -257,6 +268,7 @@ test('API failure falls back without a request storm and mode changes invalidate
       new Promise((done) => {
         resolve = done;
       });
+    useKitchen.setState({ phase: 'ready' });
     startShift();
     tick(0.05);
     setMode('rule');
@@ -362,7 +374,9 @@ test('staff decision intervals apply without a hidden minimum or overlapping req
     };
     for (const staffId of ['veteran', 'helper']) {
       startShift();
-      useKitchen.setState({ game: createGame({ duty: [staffId], hired: ['helper', staffId] }) });
+      useKitchen.setState({
+        game: createGame({ level: 4, stock: 20, duty: [staffId], hired: ['helper', staffId] }),
+      });
       setMode('jev');
       calls = 0;
       tick(0.01);
@@ -383,7 +397,9 @@ test('staff decision intervals apply without a hidden minimum or overlapping req
       });
     };
     startShift();
-    useKitchen.setState({ game: createGame({ duty: ['veteran'], hired: ['helper', 'veteran'] }) });
+    useKitchen.setState({
+      game: createGame({ level: 4, stock: 20, duty: ['veteran'], hired: ['helper', 'veteran'] }),
+    });
     setMode('jev');
     for (let index = 0; index < 300; index++) tick(0.01);
     assert.equal(calls, 1);
@@ -435,6 +451,7 @@ test('invalid preparation purchases are atomic and carried stock reduces the def
 });
 
 test('opening checkpoints resume progress without farming and reject corrupt saves', async () => {
+  storage.delete(CHECKPOINT_KEY);
   startShift();
   const g = useKitchen.getState().game;
   g.served = g.quota;
@@ -461,14 +478,14 @@ test('opening checkpoints resume progress without farming and reject corrupt sav
     JSON.stringify({ ...opening, level: MAX_LEVEL + 1 }),
     JSON.stringify({ ...opening, cash: -1 }),
     JSON.stringify({ ...opening, stock: 0 }),
-    JSON.stringify({ ...opening, duty: ['veteran'] }),
+    JSON.stringify({ ...opening, duty: ['unknown'] }),
     JSON.stringify({ ...opening, hired: ['helper', 'constructor'] }),
   ]) {
     storage.set(CHECKPOINT_KEY, bad);
     useKitchen.setState({ phase: 'ready' });
     startShift();
     assert.equal(useKitchen.getState().game.level, 1);
-    assert.equal(useKitchen.getState().game.cash, 120 - STAFF.helper.wage);
+    assert.equal(useKitchen.getState().game.cash, 180);
   }
 });
 
@@ -477,32 +494,41 @@ test('cleared shifts transact one applicant and stock for the next level', () =>
   const g = useKitchen.getState().game;
   const cash = Math.max(...Object.values(STAFF).map((staff) => staff.cost)) + 1000;
   g.cash = cash;
-  g.served = 6;
+  g.served = g.quota;
   g.time = SHIFT_MS;
   tick(1);
   const applicant = useKitchen.getState().applicants[0];
   assert.equal(nextShift(applicant), true);
   const next = useKitchen.getState().game;
-  assert.equal(next.level, 2);
+  assert.equal(next.level, 4);
   assert.equal(next.duration, SHIFT_MS);
-  assert.equal(next.stock, 8);
+  assert.equal(next.stock, 20);
   assert.equal(next.staffId, 'helper');
   assert.deepEqual(next.duty, ['helper']);
   assert.ok(next.hired.includes(applicant));
-  assert.equal(next.cash, cash - STAFF[applicant].cost - 8 * 8 - STAFF.helper.wage);
+  assert.equal(next.cash, cash - STAFF[applicant].cost - STAFF.helper.wage);
 });
 
 test('skipping keeps the active staff and failed shifts retry from their opening snapshot', () => {
   startShift();
   const g = useKitchen.getState().game;
   g.cash = 300;
-  g.served = 6;
+  g.served = g.quota;
   g.time = SHIFT_MS;
   tick(1);
   assert.equal(nextShift(null, 8), true);
   assert.equal(useKitchen.getState().game.staffId, 'helper');
-  assert.equal(useKitchen.getState().game.stock, 8);
+  assert.equal(useKitchen.getState().game.stock, 28);
 
+  storage.set(
+    CHECKPOINT_KEY,
+    JSON.stringify({
+      version: 2,
+      ...createGame({ level: 3, cash: 180, stock: 20 }),
+      completed: false,
+    }),
+  );
+  useKitchen.setState({ phase: 'ready' });
   startShift();
   const failed = useKitchen.getState().game;
   failed.cash = 42;
@@ -511,8 +537,8 @@ test('skipping keeps the active staff and failed shifts retry from their opening
   assert.equal(useKitchen.getState().cleared, false);
   failed.cash = 0;
   assert.equal(retryShift(), true);
-  assert.equal(useKitchen.getState().game.cash, 120 - STAFF.helper.wage);
-  assert.equal(useKitchen.getState().game.level, 1);
+  assert.equal(useKitchen.getState().game.cash, 180);
+  assert.equal(useKitchen.getState().game.level, 3);
 });
 
 test('level one hundred clear ends the campaign without another applicant screen', () => {
@@ -529,7 +555,7 @@ test('level one hundred clear ends the campaign without another applicant screen
   assert.equal(nextShift(), false);
 });
 
-test('first startShift runs onboarding once, then continues into the normal shift', async () => {
+test('Lv1 ends immediately after one tutorial dish and can restart from its checkpoint', async () => {
   const originalFetch = globalThis.fetch;
   let calls = 0;
   globalThis.fetch = async () => {
@@ -541,7 +567,7 @@ test('first startShift runs onboarding once, then continues into the normal shif
     useKitchen.getState().game.human.y = STATIONS[id].y;
   };
   try {
-    storage.delete('sidekick-onboarded-v1');
+    storage.delete(CHECKPOINT_KEY);
     startShift();
     assert.equal(useKitchen.getState().phase, 'playing');
     assert.equal(useKitchen.getState().tutorial, 0);
@@ -601,20 +627,23 @@ test('first startShift runs onboarding once, then continues into the normal shif
     moveTo('serve');
     goTo('serve');
     assert.equal(useKitchen.getState().tutorial, null);
-    assert.equal(useKitchen.getState().game.practice, false);
+    assert.equal(useKitchen.getState().game.practice, true);
     assert.equal(useKitchen.getState().game.served, 1);
-    assert.equal(useKitchen.getState().game.time, 0);
-    assert.equal(useKitchen.getState().game.duration, SHIFT_MS);
-    assert.equal(useKitchen.getState().game.orders.length, 2);
-    assert.equal(useKitchen.getState().phase, 'playing');
-    assert.equal(storage.get('sidekick-onboarded-v1'), '1');
+    assert.equal(useKitchen.getState().game.duration, Infinity);
+    assert.equal(useKitchen.getState().game.orders.length, 0);
+    assert.equal(useKitchen.getState().phase, 'finished');
+    assert.equal(useKitchen.getState().cleared, true);
+    assert.equal(useKitchen.getState().game.cash, 205);
     assert.equal(calls, 0);
+    const finishedAt = useKitchen.getState().game.time;
     tick(1);
-    assert.equal(useKitchen.getState().game.time, 1000);
-    assert.equal(useKitchen.getState().phase, 'playing');
-    assert.equal(calls, 1);
+    assert.equal(useKitchen.getState().game.time, finishedAt);
+    assert.equal(calls, 0);
+    useKitchen.setState({ phase: 'ready' });
     startShift();
-    assert.equal(useKitchen.getState().tutorial, null);
+    assert.equal(useKitchen.getState().tutorial, 0);
+    assert.equal(useKitchen.getState().game.served, 0);
+    assert.equal(useKitchen.getState().game.cash, 180);
   } finally {
     globalThis.fetch = originalFetch;
     if (useKitchen.getState().phase === 'playing') togglePause();
@@ -639,14 +668,14 @@ test('invalid AI choices fall back and low-FPS frames keep their elapsed time', 
   }
 });
 
-test('every campaign level keeps a 90-second clock and inactive stations stay locked', () => {
+test('ordinary shifts keep a 90-second clock and inactive stations stay locked', () => {
   setMode('rule');
   startShift();
   const g = useKitchen.getState().game;
-  assert.equal(g.level, 1);
+  assert.equal(g.level, 3);
   assert.equal(g.duration, SHIFT_MS);
-  assert.equal(g.quota, 6);
-  assert.equal(g.stock, null);
+  assert.equal(g.quota, 9);
+  assert.equal(g.stock, 20);
   g.human.x = 310;
   g.human.y = 300;
   goTo('pot');
@@ -671,6 +700,7 @@ test('pot and grill use their full cooking time and pause freezes heating', () =
     ['pot', 12],
     ['grill', 7],
   ]) {
+    useKitchen.setState({ phase: 'ready' });
     startShift();
     const g = useKitchen.getState().game;
     g.level = 10;
@@ -858,4 +888,78 @@ test('graphics loss invalidates the active decision and pauses the shift', async
     globalThis.fetch = originalFetch;
     if (useKitchen.getState().phase === 'playing') togglePause();
   }
+});
+
+test('the manager teaches Lv2, rests through Lv7, and retries preserve payroll and rest', () => {
+  storage.delete(CHECKPOINT_KEY);
+  startShift();
+  const tutorial = useKitchen.getState().game;
+  tutorial.served = 1;
+  tutorial.cash += 25;
+  tick(0);
+  assert.equal(nextShift(null, 11, ['helper']), false);
+  assert.equal(nextShift(), true);
+  let g = useKitchen.getState().game;
+  assert.deepEqual(g.duty, ['veteran']);
+  assert.equal(g.cash, 205 - 11 * 8 - STAFF.veteran.wage);
+  const opening = JSON.parse(storage.get(CHECKPOINT_KEY));
+  g.time = SHIFT_MS;
+  tick(0);
+  assert.equal(retryShift(), true);
+  assert.equal(useKitchen.getState().game.cash, opening.cash);
+  assert.deepEqual(useKitchen.getState().game.staffState.veteran, { worked: 0, rest: 0 });
+  for (let level = 2; level <= 7; level++) {
+    g = useKitchen.getState().game;
+    assert.equal(g.level, level);
+    g.served = g.quota;
+    g.stock -= g.served;
+    g.cash += g.served * 25;
+    g.time = SHIFT_MS;
+    tick(0);
+    const saved = storage.get(CHECKPOINT_KEY);
+    if (level < 7) {
+      assert.equal(nextShift(null, 12, ['veteran']), false);
+      assert.equal(storage.get(CHECKPOINT_KEY), saved);
+    }
+    assert.equal(nextShift(), true);
+    const next = useKitchen.getState().game;
+    assert.deepEqual(next.duty, ['helper']);
+    assert.equal(next.staffState.veteran.rest, 7 - level);
+    useKitchen.setState({ phase: 'ready' });
+    startShift();
+    assert.deepEqual(useKitchen.getState().game.staffState, next.staffState);
+    assert.equal(useKitchen.getState().game.cash, next.cash);
+  }
+});
+
+test('the manager can demonstrate service but the apprentice cannot clear Lv3 unattended', () => {
+  const results = [];
+  for (const level of [2, 3]) {
+    setMode('rule');
+    const game = createGame({ level, stock: 20 });
+    useKitchen.setState({ game, phase: 'playing', tutorial: null, sound: false });
+    for (let frame = 0; frame <= 1800; frame++) tick(0.05);
+    results.push({
+      served: game.served,
+      quota: game.quota,
+      cleared: useKitchen.getState().cleared,
+    });
+  }
+  assert.equal(results[0].cleared, true);
+  assert.equal(results[1].cleared, false);
+  assert.ok(results[0].served > results[1].served);
+});
+
+test('balance migration preserves old paid openings and tops up only valid legacy stock', () => {
+  const legacy = { version: 2, ...createGame({ level: 3, cash: 417, stock: 8 }), completed: false };
+  storage.set(CHECKPOINT_KEY, JSON.stringify(legacy));
+  startShift();
+  assert.equal(useKitchen.getState().game.level, 3);
+  assert.equal(useKitchen.getState().game.cash, 417);
+  assert.equal(useKitchen.getState().game.stock, 9);
+  assert.equal(JSON.parse(storage.get(CHECKPOINT_KEY)).version, 3);
+  useKitchen.setState({ phase: 'ready' });
+  startShift();
+  assert.equal(useKitchen.getState().game.stock, 9);
+  assert.equal(useKitchen.getState().game.cash, 417);
 });

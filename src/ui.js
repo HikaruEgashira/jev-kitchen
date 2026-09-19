@@ -12,16 +12,24 @@ import {
   resolveLayout,
   stationInfo,
 } from './model.js';
-import { STAFF, nextStaffState, payroll, staffAvailable, staffPerformance } from './staff.js';
+import {
+  STAFF,
+  nextStaffState,
+  payroll,
+  staffAvailable,
+  staffPerformance,
+  nextDuty,
+} from './staff.js';
+import { FEATURE_LEVELS } from './progression.js';
 import { TUTORIAL_STEPS } from './game.js';
 import { EQUIPMENT, equipmentCapacity, quoteEquipment } from './equipment.js';
 
 export const compactControls = (width, height) => width < 600 || height < 500;
 
 export function preparation(g, reviewing = false) {
-  const duty = [...new Set(Array.isArray(g.duty) ? g.duty : [])];
+  const duty = nextDuty(g);
   return {
-    page: reviewing ? 1 : 0,
+    page: reviewing ? (g.level < 3 ? 2 : 1) : 0,
     applicantIndex: 0,
     selected: null,
     duty,
@@ -44,7 +52,7 @@ function staffSlots(level) {
 }
 
 function forecastStaffState(g) {
-  return levelConfig(g.level + 1).fatigueEnabled ? nextStaffState(g) : g.staffState;
+  return nextStaffState(g);
 }
 
 function staffIds(g, view) {
@@ -88,17 +96,20 @@ export function purchase(g, view) {
     ? '仕入れは0〜99個で入力'
     : stock < quota
       ? `あと${quota - stock}個の仕入れが必要`
-      : duty.length > slots
-        ? `このレベルの勤務上限は${slots}人`
-        : !available
-          ? '休養中の相棒は配置できません'
-          : equipmentQuote.error
-            ? equipmentQuote.error
-            : !layout
-              ? '設備の配置を確認してください'
-              : cash < 0
-                ? `コインが${-cash}不足`
-                : '';
+      : levelConfig(g.level + 1).partner &&
+          (duty.length !== 1 || duty[0] !== levelConfig(g.level + 1).partner)
+        ? 'この営業は指定の相棒と出勤しよう'
+        : duty.length > slots
+          ? `このレベルの勤務上限は${slots}人`
+          : !available
+            ? '休養中の相棒は配置できません'
+            : equipmentQuote.error
+              ? equipmentQuote.error
+              : !layout
+                ? '設備の配置を確認してください'
+                : cash < 0
+                  ? `コインが${-cash}不足`
+                  : '';
   return {
     quantity,
     hiring,
@@ -210,7 +221,7 @@ export function screen(s, view, width, height) {
   const narrow = compactControls(width, height);
   const compactHud = width < 1060;
   const playing = s.phase === 'playing';
-  const practice = s.tutorial !== null;
+  const practice = g.practice;
   let order = 2000;
   const add = (kind, id, text, x, y, w, h, extra = {}) =>
     items.push({
@@ -231,7 +242,7 @@ export function screen(s, view, width, height) {
     add('button', id, text, x, y, w, 44, { action, ...extra });
   const seconds = Math.max(0, Math.ceil((g.duration - g.time) / 1000));
   const time = practice
-    ? '最初の一皿'
+    ? '時間無制限'
     : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   panel('shift-board', 12, 12, narrow ? width - 132 : 366, 54, { color: '#245e50' });
   label(
@@ -336,7 +347,7 @@ export function screen(s, view, width, height) {
   });
   const near = stationAt(g, 'human');
   const step = TUTORIAL_STEPS[s.tutorial];
-  const reached = near.inReach && (!practice || near.id === step?.station);
+  const reached = near.inReach && (s.tutorial === null || near.id === step?.station);
   const stations = narrow ? activeStationIds(g) : [];
   const stationGap = 4;
   const stationColumns = narrow
@@ -393,7 +404,7 @@ export function screen(s, view, width, height) {
           {
             value: id,
             label: `${STATIONS[id].name}へ移動して作業`,
-            disabled: practice && step?.station !== id,
+            disabled: s.tutorial !== null && step?.station !== id,
             pressed: practice ? step?.station === id : reached && near.id === id,
             size: 13,
           },
@@ -555,7 +566,7 @@ export function screen(s, view, width, height) {
     } else if (page === 'help') {
       copy(
         'help',
-        '作業台をタップ、または WASD で移動\nE で作業・Shift でダッシュ・Q で片づけ\n切る → お皿をとる → 盛る → 配膳\nLv.5 でスープ、Lv.10 でグリルが登場',
+        `作業台をタップ、または WASD で移動\nE で作業・Shift でダッシュ・Q で片づけ\n切る → お皿をとる → 盛る → 配膳\nLv.${FEATURE_LEVELS.pot} でスープ、Lv.${FEATURE_LEVELS.grill} でグリルが登場`,
         62,
         110,
         { size: narrow ? 12 : 16 },
@@ -668,7 +679,7 @@ export function screen(s, view, width, height) {
       copy('stars', stars, 62, 44, { size: 30, color: '#987018' });
       copy(
         'result',
-        `${g.served} / ${g.quota}皿  ・  ${g.score}点\nお財布 ${g.cash}コイン\n次は Lv.${g.level + 1}、${bill.quota}皿を届けよう`,
+        `${g.served} / ${g.quota}皿  ・  ${g.score}点\nお財布 ${g.cash}コイン\n次は Lv.${g.level + 1}、${bill.quota}皿を届けよう\n${levelConfig(g.level + 1).unlockLabel}`,
         short ? 102 : 126,
         short ? 90 : 116,
         { size: 17 },
@@ -678,7 +689,7 @@ export function screen(s, view, width, height) {
           color: '#a1372f',
           size: 12,
         });
-      primary('次のステージ', 'page', { value: 1 });
+      primary('次のステージ', 'page', { value: g.level < 3 ? 2 : 1 });
     } else if (view.page === 1) {
       title('候補者の採用');
       const id = s.applicants[view.applicantIndex % Math.max(1, s.applicants.length)];
@@ -770,7 +781,9 @@ export function screen(s, view, width, height) {
       primary('仕入れと配置へ', 'page', { value: 2 });
     } else if (view.page === 2) {
       title(`Lv.${g.level + 1} 仕入れ・勤務表`);
-      const roster = staffIds(g, view);
+      const roster = [
+        ...new Set([...Object.keys(bill.staffState), ...(view.selected ? [view.selected] : [])]),
+      ];
       const duty = [...new Set(Array.isArray(view.duty) ? view.duty : [])].filter((id) =>
         roster.includes(id),
       );
@@ -786,13 +799,14 @@ export function screen(s, view, width, height) {
         const available =
           (!g.staffState?.[id] && id === view.selected) || staffAvailable(nextState, id);
         const onDuty = duty.includes(id);
-        const availability = fatigueVisible
-          ? projected.rest > 0
-            ? `休${projected.rest}`
-            : `あと${staff.maxConsecutive - projected.worked}勤`
-          : onDuty
-            ? '出勤'
-            : '待機';
+        const availability =
+          fatigueVisible || id === 'veteran'
+            ? projected.rest > 0
+              ? `休${projected.rest}`
+              : `あと${staff.maxConsecutive - projected.worked}勤`
+            : onDuty
+              ? '出勤'
+              : '待機';
         const employment = staff.employment ?? '雇用';
         const wage = staff.wage ?? 0;
         const row = Math.floor(index / columns);
@@ -807,7 +821,10 @@ export function screen(s, view, width, height) {
           {
             value: id,
             pressed: onDuty,
-            disabled: (!available && !onDuty) || (!onDuty && duty.length >= bill.slots),
+            disabled:
+              Boolean(levelConfig(g.level + 1).partner) ||
+              (!available && !onDuty) ||
+              (!onDuty && duty.length >= bill.slots),
             avatar: cellW >= 88 ? staff.color : undefined,
             label: `${staff.name}（${employment}、給与${wage}/営業、連勤上限${staff.maxConsecutive}回、休養${staff.restShifts}営業）。現在${onDuty ? '出勤中' : '待機中'}。${
               available ? (onDuty ? '勤務から外す' : '勤務に入れる') : '休養中で配置不可'
@@ -864,7 +881,10 @@ export function screen(s, view, width, height) {
         });
       const backW = narrow ? 72 : 120;
       const equipmentW = narrow ? 68 : 100;
-      button('back', '採用', x + 16, footerY, backW, 'page', { value: 1, size: 13 });
+      button('back', g.level < 3 ? '戻る' : '採用', x + 16, footerY, backW, 'page', {
+        value: g.level < 3 ? 0 : 1,
+        size: 13,
+      });
       button('equipment', '設備', x + 24 + backW, footerY, equipmentW, 'page', {
         value: 3,
         size: 13,

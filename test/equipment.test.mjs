@@ -16,8 +16,7 @@ import { STAFF } from '../src/staff.js';
 import { RECIPES, STOCK_PRICE, levelConfig } from '../src/model.js';
 
 test('capital prices require saving while preserving affordable opening supplies', () => {
-  const surplus =
-    levelConfig(2).quota * (RECIPES.dish.points / 4 - STOCK_PRICE) - STAFF.helper.wage;
+  const surplus = 90;
   assert.equal(investmentCost(1), surplus);
   assert.equal(EQUIPMENT.board.addCost, surplus * 3);
   assert.deepEqual(EQUIPMENT.kitchen.upgradeCosts, [surplus * 8, surplus * 12]);
@@ -30,9 +29,10 @@ test('capital prices require saving while preserving affordable opening supplies
       surplus * 3,
   );
   assert.equal(STAFF.veteran.cost, surplus * 16);
-  const openingCash = 120 - STAFF.helper.wage + (levelConfig(1).quota * RECIPES.dish.points) / 4;
-  const nextOpening = (levelConfig(2).quota + 2) * STOCK_PRICE + STAFF.helper.wage;
-  assert.ok(openingCash >= nextOpening + EQUIPMENT.board.upgradeCosts[0]);
+  const openingCash = 180 + (levelConfig(1).quota * RECIPES.dish.points) / 4;
+  const nextOpening = (levelConfig(2).quota + 2) * STOCK_PRICE + STAFF.veteran.wage;
+  assert.ok(openingCash >= nextOpening);
+  assert.ok(openingCash < nextOpening + EQUIPMENT.board.upgradeCosts[0]);
   assert.ok(openingCash < nextOpening + EQUIPMENT.board.addCost);
   assert.ok(openingCash < nextOpening + STAFF.prep.cost);
 });
@@ -51,16 +51,16 @@ test('the catalog preserves the automatic station unlocks and investment gates',
     ),
     {
       board: ['まな板', 1],
-      pot: ['スープ鍋', 5],
-      grill: ['グリル', 10],
-      warmer: ['保温台', 20],
+      pot: ['スープ鍋', 4],
+      grill: ['グリル', 7],
+      warmer: ['保温台', 6],
       kitchen: ['厨房拡張', 1],
     },
   );
   assert.equal(EQUIPMENT.board.addUnlockLevel, 2);
-  assert.equal(EQUIPMENT.pot.addUnlockLevel, 10);
-  assert.equal(EQUIPMENT.grill.addUnlockLevel, 15);
-  assert.equal(EQUIPMENT.warmer.addUnlockLevel, 20);
+  assert.equal(EQUIPMENT.pot.addUnlockLevel, 8);
+  assert.equal(EQUIPMENT.grill.addUnlockLevel, 10);
+  assert.equal(EQUIPMENT.warmer.addUnlockLevel, 6);
   assert.equal(EQUIPMENT.warmer.maxCount, 1);
   assert.equal(EQUIPMENT.kitchen.upgradeUnlockLevel, 2);
   assert.ok(Object.values(EQUIPMENT).every((item) => item.unlockLevel <= 30));
@@ -108,10 +108,10 @@ test('validateEquipment is strict and optionally enforces level unlocks', () => 
     false,
   );
   assert.equal(validateEquipment({ ...DEFAULT_EQUIPMENT, board: { count: 2, level: 1 } }, 2), true);
-  assert.equal(validateEquipment({ ...DEFAULT_EQUIPMENT, pot: { count: 1, level: 2 } }, 4), false);
+  assert.equal(validateEquipment({ ...DEFAULT_EQUIPMENT, pot: { count: 1, level: 2 } }, 3), false);
   assert.equal(validateEquipment({ ...DEFAULT_EQUIPMENT, pot: { count: 1, level: 2 } }, 5), true);
   assert.equal(
-    validateEquipment({ ...DEFAULT_EQUIPMENT, grill: { count: 2, level: 1 } }, 10),
+    validateEquipment({ ...DEFAULT_EQUIPMENT, grill: { count: 2, level: 1 } }, 9),
     false,
   );
   assert.equal(
@@ -119,7 +119,7 @@ test('validateEquipment is strict and optionally enforces level unlocks', () => 
     true,
   );
   assert.equal(
-    validateEquipment({ ...DEFAULT_EQUIPMENT, warmer: { count: 1, level: 1 } }, 19),
+    validateEquipment({ ...DEFAULT_EQUIPMENT, warmer: { count: 1, level: 1 } }, 5),
     false,
   );
   assert.equal(
@@ -255,8 +255,8 @@ test('quoteEquipment rejects locked, capped, malformed, and partially valid purc
   for (const [purchases, level] of [
     [['upgrade_board'], 1],
     [['add_pot'], 5],
-    [['add_grill'], 10],
-    [['add_warmer'], 19],
+    [['add_grill'], 9],
+    [['add_warmer'], 5],
     [['upgrade_warmer'], 20],
     [['upgrade_kitchen'], 1],
     [['add_board', 'add_board'], 2],

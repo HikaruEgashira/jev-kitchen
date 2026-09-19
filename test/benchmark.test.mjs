@@ -65,6 +65,7 @@ test('the model context carries the on-screen text, including station hints', ()
   startBenchmark();
   const g = useKitchen.getState().game;
   g.level = 5;
+  g.practice = false;
   g.orders = [{ id: 0, recipe: 'soup', deadline: g.time + 30_000, duration: 30_000 }];
   g.human.x = STATIONS.pot.x;
   g.human.y = STATIONS.pot.y;
@@ -80,7 +81,7 @@ test('the model context carries the on-screen text, including station hints', ()
 test('benchmark actions use movement, reject stale work on arrival, and never save a campaign', () => {
   startBenchmark();
   const g = useKitchen.getState().game;
-  assert.equal(g.cash, 108);
+  assert.equal(g.cash, 180);
   assert.equal(useKitchen.getState().mode, 'rule');
   assert.ok(benchmarkAction(buildCandidates(g, 'human').find((c) => c.id === 'fetch_tomato')));
   tick(0.1);
@@ -97,7 +98,7 @@ test('benchmark actions use movement, reject stale work on arrival, and never sa
   tick(0);
   assert.equal(nextShift(null), true);
   assert.equal(useKitchen.getState().game.level, 2);
-  assert.deepEqual(useKitchen.getState().game.duty, ['helper']);
+  assert.deepEqual(useKitchen.getState().game.duty, ['veteran']);
   assert.equal(writes.length, 0);
 });
 
@@ -154,7 +155,8 @@ test('complete shifts are recorded and repeated attempts reset the starting cond
     const body = JSON.parse(options.body);
     starts.push(body.state);
     const g = useKitchen.getState().game;
-    g.time = SHIFT_MS;
+    useKitchen.setState({ game: createGame({ level: 2, cash: g.cash, stock: 10 }) });
+    useKitchen.getState().game.time = SHIFT_MS;
     tick(0);
     return answer('wait');
   });
@@ -162,7 +164,7 @@ test('complete shifts are recorded and repeated attempts reset the starting cond
   await runBenchmark({ model });
   assert.equal(starts.length, 2);
   assert.ok(
-    starts.every((state) => state.level === 1 && state.cash === 108 && state.orders_served === 0),
+    starts.every((state) => state.level === 1 && state.cash === 180 && state.orders_served === 0),
   );
   assert.ok(starts.every((state) => state.screen.items.length > 0));
   const results = useBenchmark.getState().results;
@@ -183,6 +185,7 @@ test('dash, directional movement, interruption and boosts use the human mechanic
   startBenchmark();
   const g = useKitchen.getState().game;
   g.level = 15;
+  g.practice = false;
   g.stock = 1;
   const act = (id) => benchmarkAction(buildCandidates(g, 'human').find((c) => c.id === id));
   const initialX = g.human.x;
@@ -221,7 +224,8 @@ test('frequency spaces calls and the model hires, buys stock and assigns the nex
     const choice = choices[calls.length - 1];
     assert.ok(choice in body.questions.next_action.criteria);
     if (calls.length === 1) {
-      const g = useKitchen.getState().game;
+      const g = createGame({ level: 3, stock: 0 });
+      useKitchen.setState({ game: g });
       g.cash = preparationCash;
       g.served = g.quota;
       g.time = SHIFT_MS;
@@ -237,7 +241,7 @@ test('frequency spaces calls and the model hires, buys stock and assigns the nex
   });
   await runBenchmark({ model, frequency: 10, maxRequests: 5 });
   const g = useKitchen.getState().game;
-  assert.equal(g.level, 2);
+  assert.equal(g.level, 4);
   assert.equal(g.cash, 236);
   assert.equal(g.stock, 9);
   assert.deepEqual(g.duty, ['helper']);
@@ -247,7 +251,7 @@ test('frequency spaces calls and the model hires, buys stock and assigns the nex
   assert.equal(result.clearedLevels, 1);
   assert.deepEqual(
     useBenchmark.getState().splits.map(({ level, cash, score }) => ({ level, cash, score })),
-    [{ level: 1, cash: preparationCash, score: 0 }],
+    [{ level: 3, cash: preparationCash, score: 0 }],
   );
   assert.equal(result.requests, 5);
   assert.equal(result.conditions.frequency, 10);

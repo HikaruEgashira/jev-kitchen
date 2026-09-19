@@ -124,7 +124,13 @@ test('previous-stage rewind restores the original equipment and rejects invalid 
   finish(true);
   const before = JSON.stringify(useKitchen.getState().game);
   const saved = storage.get(CHECKPOINT_KEY);
-  for (const purchases of [null, {}, ['unknown'], ['add_grill'], ['add_board', 'add_board']]) {
+  for (const purchases of [
+    null,
+    {},
+    ['unknown'],
+    ['add_grill', 'add_grill'],
+    ['add_board', 'add_board'],
+  ]) {
     assert.equal(nextShift(null, 10, ['helper'], purchases), false);
     assert.equal(JSON.stringify(useKitchen.getState().game), before);
     assert.equal(storage.get(CHECKPOINT_KEY), saved);
@@ -244,9 +250,9 @@ test('review refunds hiring, purchases and payroll together, with the same appli
   assert.deepEqual(useKitchen.getState().applicants, applicants);
   assert.equal(useKitchen.getState().cleared, true);
   assert.equal(useKitchen.getState().reviewing, true);
-  assert.equal(nextShift(null, 6, []), true);
+  assert.equal(nextShift(null, 9, []), true);
   assert.equal(useKitchen.getState().reviewing, false);
-  assert.equal(useKitchen.getState().game.cash, preparation.cash - 6 * 8);
+  assert.equal(useKitchen.getState().game.cash, preparation.cash - 9 * 8);
   assert.deepEqual(useKitchen.getState().game.hired, ['helper']);
   assert.deepEqual(useKitchen.getState().game.duty, []);
 });
@@ -258,7 +264,7 @@ test('review followed by previous-stage rewind restores the original opening, no
   assert.equal(nextShift(null, 10, ['helper']), true);
   finish(false);
   assert.equal(rollbackToPreparation(), true);
-  assert.equal(nextShift(null, 6, ['helper']), true);
+  assert.equal(nextShift(null, 9, ['helper']), true);
   finish(false);
   assert.equal(rollbackToPreviousStage(), true);
   assert.deepEqual(economy(useKitchen.getState().game), previous);
@@ -289,7 +295,7 @@ test('opening reload retains both rewind boundaries without charging wages twice
 });
 
 test('rewinds reject missing history and cannot replace an active shift', () => {
-  startShift();
+  open(3);
   const opening = useKitchen.getState().game;
   assert.equal(rollbackToPreparation(), false);
   assert.equal(rollbackToPreviousStage(), false);

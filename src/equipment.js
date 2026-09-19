@@ -1,8 +1,8 @@
-import { MAX_LEVEL } from './progression.js';
+import { MAX_LEVEL, FEATURE_LEVELS } from './progression.js';
 
 export const MAX_EQUIPMENT_LEVEL = 3;
 
-// Lv2 quota revenue 150 - replacement stock 48 - helper payroll 12 = 90.
+// A fixed 90-coin saving unit keeps investment prices independent of level balancing.
 // Fixed prices avoid moving the savings target whenever the player levels up.
 export function investmentCost(shifts) {
   return Math.round((90 * shifts) / 5) * 5;
@@ -25,9 +25,9 @@ export const EQUIPMENT = Object.freeze({
     name: 'スープ鍋',
     initialCount: 1,
     maxCount: 2,
-    unlockLevel: 5,
-    addUnlockLevel: 10,
-    upgradeUnlockLevel: 5,
+    unlockLevel: FEATURE_LEVELS.pot,
+    addUnlockLevel: 8,
+    upgradeUnlockLevel: FEATURE_LEVELS.pot,
     addCost: investmentCost(5),
     upgradeCosts: Object.freeze([investmentCost(2), investmentCost(3.5)]),
   }),
@@ -35,9 +35,9 @@ export const EQUIPMENT = Object.freeze({
     name: 'グリル',
     initialCount: 1,
     maxCount: 2,
-    unlockLevel: 10,
-    addUnlockLevel: 15,
-    upgradeUnlockLevel: 10,
+    unlockLevel: FEATURE_LEVELS.grill,
+    addUnlockLevel: 10,
+    upgradeUnlockLevel: FEATURE_LEVELS.grill,
     addCost: investmentCost(6),
     upgradeCosts: Object.freeze([investmentCost(2.5), investmentCost(4)]),
   }),
@@ -45,9 +45,9 @@ export const EQUIPMENT = Object.freeze({
     name: '保温台',
     initialCount: 0,
     maxCount: 1,
-    unlockLevel: 20,
-    addUnlockLevel: 20,
-    upgradeUnlockLevel: 20,
+    unlockLevel: FEATURE_LEVELS.burning,
+    addUnlockLevel: FEATURE_LEVELS.burning,
+    upgradeUnlockLevel: FEATURE_LEVELS.burning,
     addCost: investmentCost(6),
     upgradeCosts: Object.freeze([investmentCost(3), investmentCost(4)]),
   }),

@@ -308,10 +308,15 @@ export function createGame({
 } = {}) {
   const initialConfig = levelConfig(practice ? 1 : level);
   const initialLevel = initialConfig.level;
+  practice = initialLevel === 1;
   const initialCash = Number.isFinite(Number(cash)) ? Math.max(0, Math.floor(Number(cash))) : 120;
   const initialStaff = Object.hasOwn(STAFF, staffId) ? staffId : 'helper';
   const roster = Array.isArray(hired) ? hired : [];
-  const requestedDuty = Array.isArray(duty) ? duty : [initialStaff];
+  const requestedDuty = initialConfig.partner
+    ? [initialConfig.partner]
+    : Array.isArray(duty)
+      ? duty
+      : [initialStaff];
   const initialHired = [...new Set(['helper', ...roster, ...requestedDuty])].filter((id) =>
     Object.hasOwn(STAFF, id),
   );
@@ -319,7 +324,7 @@ export function createGame({
     initialHired.map((id) => {
       const profile = STAFF[id];
       const supplied = staffState?.[id] ?? {};
-      if (!initialConfig.fatigueEnabled) return [id, { worked: 0, rest: 0 }];
+      if (id !== 'veteran' && !initialConfig.fatigueEnabled) return [id, { worked: 0, rest: 0 }];
       const worked = Number.isSafeInteger(supplied.worked)
         ? Math.max(0, Math.min(profile.maxConsecutive - 1, supplied.worked))
         : 0;
@@ -382,28 +387,6 @@ export function createGame({
   g.orders = practice
     ? [order(g, Infinity, 'dish')]
     : [order(g, initialOrderDeadline(g, 0)), order(g, initialOrderDeadline(g, 1))];
-  return g;
-}
-
-export function completeOnboarding(g) {
-  if (!g?.practice) return g;
-  const served = g.served;
-  const score = g.score;
-  const humanPosition = { x: g.human.x, y: g.human.y };
-  const fresh = createGame({
-    level: 1,
-    cash: g.cash,
-    hired: g.hired,
-    duty: g.duty,
-    staffState: g.staffState,
-    equipment: g.equipment,
-    layout: g.layout,
-  });
-  Object.assign(g, fresh, {
-    served,
-    score,
-    human: { ...fresh.human, ...humanPosition },
-  });
   return g;
 }
 
@@ -550,7 +533,7 @@ function canFetchTomato(g, who) {
 function plateDemand(g) {
   return ['board', 'pot', 'grill'].reduce((demand, kind) => {
     const ready = stationIdsOfKind(g, kind).filter((id) =>
-      ['board' === kind ? 'chopped' : 'ready'].includes(g.stations[id].state),
+      (kind === 'board' ? ['chopped'] : ['cooking', 'ready']).includes(g.stations[id].state),
     ).length;
     const recipe = kind === 'board' ? 'dish' : kind === 'grill' ? 'roast' : 'soup';
     const orders = g.orders.filter((orderTicket) => orderTicket.recipe === recipe).length;
@@ -1176,7 +1159,6 @@ export function rulePick(g, cands, who) {
     if (c.station && c.station === h.station) return false;
     if (c.station && stationReserved(g, c.station, id)) return false;
     if (c.id === 'fetch_tomato' && h.carrying === 'tomato') return false;
-    if (c.id === 'fetch_plate' && h.carrying === 'plate') return false;
     return true;
   });
   const rank = (candidate) => {
