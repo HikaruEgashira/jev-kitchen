@@ -784,6 +784,23 @@ test('blocked work still exposes a safe wait and hand recovery action', () => {
   }
 });
 
+test('cooks retain useful ingredients while occupied cookware becomes available', () => {
+  for (const [station, recipe, action] of [
+    ['pot', 'soup', 'cook'],
+    ['grill', 'roast', 'grill'],
+  ]) {
+    for (const state of ['cooking', 'ready']) {
+      const g = createGame({ level: 7, stock: 0, duty: ['chef'] });
+      g.orders = g.orders.map((order) => ({ ...order, recipe }));
+      g.crew.chef.carrying = 'chopped';
+      g.stations[station].state = state;
+      assert.equal(rulePick(g, buildCandidates(g, 'chef'), 'chef').id, 'wait');
+      g.stations[station].state = 'idle';
+      assert.equal(rulePick(g, buildCandidates(g, 'chef'), 'chef').id, action);
+    }
+  }
+});
+
 test('blocked cooks can discard, clean burnt cookware and start cooking again', () => {
   for (const staffId of ['chef', 'sous']) {
     for (const station of ['pot', 'pot2', 'grill', 'grill2']) {

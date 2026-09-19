@@ -1377,7 +1377,21 @@ export function rulePick(g, cands, who) {
         ? ['plate_roast', 'grill']
         : ['plate', 'assemble'];
   const priority = [...new Set(['serve', ...urgentPriority, ...rolePriority])];
-  priority.push('fetch_tomato', 'return_plate', 'return_tomato', 'discard', 'wait');
+  const cookware = activeStationIds(g).filter((station) => {
+    const recipe = { pot: 'soup', grill: 'roast' }[stationKind(station)];
+    return recipe && g.orders.some((order) => order.recipe === recipe);
+  });
+  const waitingForCookware =
+    actor(g, id)?.carrying === 'chopped' &&
+    canOperate(g, id, 'cook') &&
+    cookware.length > 0 &&
+    cookware.every((station) => g.stations[station].state !== 'burnt');
+  priority.push(
+    'fetch_tomato',
+    'return_plate',
+    'return_tomato',
+    ...(waitingForCookware ? ['wait', 'discard'] : ['discard', 'wait']),
+  );
   const usable = cands.filter((c) => {
     if (c.station && stationReserved(g, c.station, id)) return false;
     return true;
