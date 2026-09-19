@@ -73,11 +73,11 @@ Cloudflare Access を外して一般公開する前提の、Worker API の境界
 ### 検証モデル
 
 ランキング対象は**ベンチのフルキャンペーン**。サーバが発行した意思決定IDの列を、セッションの `seed` とともに
-サーバが `runReplayCampaign`（`src/replay.js`）で再実行し、到達レベル・クリア数・合計スコアを再計算する。
+サーバが `runReplayCampaign`（`src/replay.ts`）で再実行し、到達レベル・クリア数・合計スコアを再計算する。
 クライアントはスコアも決定列も提出しない。検証は**提出時（`/api/runs/finish`）に自動**で行い、ユーザー操作を要求しない。
 
-- リプレイは本編と同じ `tickWorld`（`src/engine.js`）と、シフト遷移の `nextShiftParams`（`src/nextShift.js`）を通る。
-  応募者の抽選は `seed` から決定論的に生成する（`src/applicants.js`）。クライアントも同じ seed で抽選する。
+- リプレイは本編と同じ `tickWorld`（`src/engine.ts`）と、シフト遷移の `nextShiftParams`（`src/nextShift.ts`）を通る。
+  応募者の抽選は `seed` から決定論的に生成する（`src/applicants.ts`）。クライアントも同じ seed で抽選する。
 - パートナーは固定ルール（`rulePick`）で、モデル入力はプレイヤーの意思決定だけ。
 - 決定列はサーバが保持する（`GameStore`）。クライアントは分岐・取捨できない。
 - `frequency` は端末側の呼び出し間隔であり順位に影響しない。
