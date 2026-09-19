@@ -2,7 +2,7 @@
 
 ## 2026-09-19 Three UI移行
 
-状態: ローカル受入確認済み、mainからの配信確認待ち。本番配信はこの節の配信記録で判定する。以下の旧記録は移行前の履歴である。
+状態: mainから本番配信済み。本番配信はこの節の配信記録で判定する。以下の旧記録は移行前の履歴である。
 
 - ラベル → HUD・メニュー・採用・仕入れ → Glyph・商品モデル・立体タイトルの順に移行した。ネイティブ要素は数値編集・キーボード・読み上げを担当する。
 - タイトル画面は上部の立体ロゴと下部の開店操作だけにし、中央の厨房を隠さない。注文・Lv・スタッフ・在庫は開始後に表示する。スマホ幅では文字を20%縮小し、操作領域は44px以上を維持する。
@@ -17,10 +17,17 @@
 
 ### 統合後の品質確認
 
-- `pnpm test`は71 pass／0 fail、typecheck、check（39 files／lint23、警告なし）、build、`git diff --check`がpass。Kitchen chunkは2,046.10kB／gzip563.84kBである。
+- `pnpm test`（scriptは`node --test`、concurrency指定なし）は71 pass／0 fail、typecheck、check（39 files／lint23、警告なし）、build、`git diff --check`がpass。Kitchen chunkは2,046.10kB／gzip563.84kBである。
 - 別ブランチ`475199e`の再接続ガードを統合し、Glyphフォントのリセットも同じ排他区間に含めた。回帰テストでdispose待機中の連打、古い世代の完了、待機終了後の再試行を検証する。
 - Chrome実GPUの`device.destroy()`後に営業が停止し、再接続後も386点・経過24,349.7msを保持した。CanvasとFiber rootは各1個。意図的な切断のログ以外にConsole errorは発生していない。
 - 本番への配信と認証済みURLの確認は、下記の配信記録に記す。WebGLは受入対象外とする。
+
+### 配信記録
+
+- 統合commit `2714a6479c08e99cbc7191947227119b4f410c80`をmainへpush。GitHub CI [35419550131](https://github.com/HikaruEgashira/jev-kitchen/actions/runs/35419550131)とWorkers Buildsはsuccess。
+- 2026-09-19 03:48:05 UTC、本番100% version `b4bfb93f-8ebb-41a4-99fb-1ea24cc02ee2`を確認した。復旧先は上記の`a3a46661-5531-4325-9744-218bcb799772`。
+- Access認証済み[本番URL](https://jev-kitchen.egahika.dev)で立体タイトル、中央の厨房、開店後のHUDと初回調理を確認。配信entryはローカルbuildと同じ`index-DQFhOe7p.js`。
+- 本番`GET /api/health`はHTTP 200、`ok: true`、`via: typesafe-api`、`model: jev-latest`、`upstreamMs: 385`。公開JSONは接続metadataだけであり、未認証ページはHTTP 302を維持した。
 
 ### 視覚職能報告の証拠区分
 
@@ -98,7 +105,7 @@ MVPを短い協力料理ゲームとして本番公開するための判定台�
 
 ### 現行iterationの中間統合結果（2026-09-19）
 
-- QA提供結果: `pnpm check --fix`後の`pnpm check`は22 files／lint対象12 files、警告なし。`pnpm test`は33 pass／0 fail、`pnpm typecheck`と`pnpm build`はpass。対象commitは未提示であり、並行変更中の共有ツリー全体や配信済み版の合格証拠とは区別する。
+- QA最終提供結果: body timeout回帰追加後の`pnpm test`は38 pass／0 fail。scriptは`node --test`で、直列化オプションは指定しない。Node v26.8.1で既定実行と`node --test --test-concurrency=32`の38件passが報告された。timeout回帰は8,000msタイマーだけを即時発火させ、停滞したrequest bodyに対する400応答とAI呼出し0回を検証する。対象commitは未提示であり、冒頭の統合版71件や配信済み版の合格証拠とは区別する。
 - buildの`Kitchen` chunkは1,498.95kB、gzip405.66kBとの報告。既知のサイズ警告はビルド失敗ではなく、単独では出荷不可としない。ただし実機・低速回線での初回表示性能は未検証であり、旧MVPの受容判断を現行版の性能保証として扱わない。
 - 描画の受入条件はWebGPU専用とする。WebGL fallbackは対象外とし、WebGPU非対応時の案内と再接続を確認する。
 - rootの操作用ブラウザは未接続。現行版のWebGPU描画、320／390pxのタッチ操作、Jev実応答とoffline fallback、Escape連打・help・pause、finish／retry、実GPUの`device.destroy()`後の停止・再接続は未検証である。
@@ -112,7 +119,7 @@ MVPを短い協力料理ゲームとして本番公開するための判定台�
 
 | 職能                              | 受領した成果・証拠                                                                                                                                                                                                    | 未実施・受入境界                                                                                                           |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| debugger（QA）                    | 上記の33 tests、check、typecheck、buildのpass報告。Escape repeatの回帰テストと共有handlerの修正報告。audio.jsの不要spread警告解消、game.jsの整形済み報告。                                                            | QA時点の「P0なし」は、後から報告された描画起動失敗の解決を意味しない。実ブラウザ・本番の受入は未完了。                     |
+| debugger（QA）                    | 最終提供報告は38 tests pass。body timeoutとEscape repeatの回帰、既定実行と並列数32でのpassを報告。整形修正後のcheckもpass。                                                                                           | 対象commitは未提示。QAの「P0/P1なし」は報告対象の静的判定であり、統合版の実ブラウザ・本番受入とは別に扱う。                |
 | βテスター                         | 初回サラダ、タッチでのスープ、AI stale／fallback、誤操作／Q、pause／help／visibility、finish／retryの受入シナリオと静的レビューを受領。ヒントと実行可能操作の不一致、連続タップ、Escape repeat、低FPS時の時計を指摘。 | レビューは完了。現行版のブラウザ操作、独立した人間によるβ、複数実機・支援技術の検証は未実施。                              |
 | video creator（映像）             | 開店→協力→刻む→加熱→配膳・得点→実際の結果を見せる15秒の撮影案を受領。                                                                                                                                                 | 収録・動画作成・公開は未実施。配信commitと実Jev応答の確認後に撮影する。動画は出荷ゲートに含めない。                        |
 | cutscene designer（カットシーン） | 開始・pause・help・終了・retryのテンポを静的レビュー。紙吹雪の営業間持越しと終了時残留を指摘。                                                                                                                        | 現行版の演出と紙吹雪の停止・再挑戦は実ブラウザ未確認。厨房登場アニメーションは別作業であり、この報告の実装成果に含めない。 |
@@ -218,7 +225,7 @@ rootがブラウザでlocal現行コードを操作し、以下を確認した�
 | server engineer         | 入力・応答サイズ上限、timeout、health契約共通化、外部エラー秘匿を実装・実API確認。                                 | 採用                   |
 | web engineer            | 課金前のmethod・criteria検証と2xxエラー本文漏えいを指摘し、server担当が修正。                                      | 採用                   |
 | AI engineer             | 入力連打時の要求・古い回答・上流キャンセル限界をレビュー。デバウンスと非保証の明記へ反映。                         | 採用                   |
-| build engineer          | frozen installとCIを確認し、型検査がWorkerのみであることと整形違反を指摘。                                         | 採用                   |
+| build engineer          | frozen install・CI、Workerのみの型検査と整形違反を確認。`pnpm test`は`node --test`、直列化指定なし。               | 採用                   |
 | infrastructure engineer | main Workers Builds、既存Access、rollback version記録を確認。資格情報を新設しない。                                | 採用                   |
 | data scientist          | 固定ルールの90秒測定値を提示。新規分析基盤・trackingは追加しない。                                                 | 採用（分析のみ）       |
 | sound director          | Web Audio音源、発音上限、停止・再開を実装。通常イベントへ接続し、無音でも進行可能。                                | 採用                   |
