@@ -1,36 +1,40 @@
-import { lazy, Suspense, useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   useKitchen,
   startShift,
-  startTutorial,
+  nextShift,
+  retryShift,
   TUTORIAL_STEPS,
   togglePause,
-  setMode,
-  setPolicy,
   toggleSound,
   installControls,
   humanInteract,
   humanDash,
   clearHands,
-  goTo,
 } from './game.js';
 import {
-  SHIFT_MS,
   STAR_SCORES,
   RECIPES,
   ITEM_EMOJI,
-  ITEM_NAMES,
+  STOCK_PRICE,
   STATIONS,
-  STATION_IDS,
+  activeStationIds,
+  quotaForLevel,
   stationAt,
   actionHint,
 } from './model.js';
+import { STAFF } from './staff.js';
 import './style.css';
 
 const Kitchen = lazy(() => import('./Kitchen.jsx'));
 
-function Icon({ name, size = 20 }) {
+function Icon({ name, size = 18 }) {
   const paths = {
+    menu: (
+      <>
+        <path d="M4 7h16M4 12h16M4 17h16" />
+      </>
+    ),
     sound: (
       <>
         <path d="M11 5 6 9H3v6h3l5 4V5Z" />
@@ -49,24 +53,9 @@ function Icon({ name, size = 20 }) {
         <path d="M12 7v5l3 2" />
       </>
     ),
-    pause: (
-      <>
-        <path d="M8 5v14m8-14v14" />
-      </>
-    ),
+    pause: <path d="M8 5v14m8-14v14" />,
     play: <path d="m8 4 12 8-12 8V4Z" />,
-    arrow: (
-      <>
-        <path d="M5 12h14m-5-5 5 5-5 5" />
-      </>
-    ),
-    help: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4m0 3h.01" />
-      </>
-    ),
-    spark: <path d="m12 2 2.6 6.8L22 12l-7.4 3.2L12 22l-2.6-6.8L2 12l7.4-3.2L12 2Z" />,
+    arrow: <path d="M5 12h14m-5-5 5 5-5 5" />,
   };
   return (
     <svg
@@ -75,7 +64,7 @@ function Icon({ name, size = 20 }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.7"
+      strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -86,11 +75,12 @@ function Icon({ name, size = 20 }) {
 }
 
 function Stars({ score, large = false }) {
+  const earned = STAR_SCORES.filter((threshold) => score >= threshold).length;
   return (
     <span
       className={`stars ${large ? 'large' : ''}`}
       role="img"
-      aria-label={`3つ星中${STAR_SCORES.filter((s) => score >= s).length}つ獲得`}
+      aria-label={`3つ星中${earned}つ獲得`}
     >
       {STAR_SCORES.map((threshold) => (
         <span key={threshold} className={score >= threshold ? 'earned' : ''} aria-hidden="true">
@@ -101,50 +91,336 @@ function Stars({ score, large = false }) {
   );
 }
 
-function TutorialGuide({ step }) {
-  const complete = step === TUTORIAL_STEPS.length;
+function OrderCard({ order, index, g, practice }) {
+  const remaining = practice ? null : Math.max(0, Math.ceil((order.deadline - g.time) / 1000));
+  const duration = order.duration;
+  const ratio = remaining == null ? 1 : Math.min(1, Math.max(0, remaining / (duration / 1000)));
+  const name = RECIPES[order.recipe].name;
   return (
-    <section className="tutorial-guide" aria-label="練習の進み具合">
-      <div className="tutorial-guide-heading">
-        <span className="tutorial-kicker">練習</span>
-        <strong>
-          {complete
-            ? 'できた！'
-            : `${Math.min(step + 1, TUTORIAL_STEPS.length)} / ${TUTORIAL_STEPS.length}`}
-        </strong>
+    <article
+      className={`compact-order ${remaining != null && remaining <= 10 ? 'urgent' : ''}`}
+      aria-label={`${index + 1}番目の注文、${name}${remaining == null ? '' : `、残り${remaining}秒`}`}
+    >
+      <span className="order-emoji" aria-hidden="true">
+        {ITEM_EMOJI[order.recipe]}
+      </span>
+      <span
+        className="order-meter"
+        {...(!practice && {
+          role: 'meter',
+          'aria-label': `${name}の残り時間`,
+          'aria-valuemin': 0,
+          'aria-valuemax': duration / 1000,
+          'aria-valuenow': remaining,
+        })}
+      >
+        <i style={{ width: `${ratio * 100}%` }} />
+      </span>
+      <span className="order-seconds" aria-hidden="true">
+        {remaining == null ? '∞' : `${remaining}s`}
+      </span>
+    </article>
+  );
+}
+
+function TutorialHint({ step }) {
+  if (!step) return null;
+  return (
+    <>
+      <div className="tutorial-hint" role="status" aria-live="polite">
+        <span className="tutorial-keyboard">WASD 移動 → E 作業</span>
+        <span className="tutorial-icon" aria-hidden="true">
+          {step.icon}
+        </span>
+        <strong>{step.label}</strong>
+        <small>{STATIONS[step.station].name}</small>
       </div>
-      <ol className="tutorial-steps">
-        {TUTORIAL_STEPS.map((tutorialStep, index) => (
-          <li
-            key={tutorialStep.station + tutorialStep.label}
-            className={index < step ? 'done' : index === step && !complete ? 'current' : ''}
-          >
-            <span aria-hidden="true">{tutorialStep.icon}</span>
-            <span className="sr-only">{tutorialStep.label}</span>
-          </li>
-        ))}
-      </ol>
-      <p className="tutorial-guide-note">{complete ? 'ひと皿、できた！' : '光る台をタップ'}</p>
+    </>
+  );
+}
+
+function Diagnostics({ s }) {
+  return (
+    <details className="diagnostics">
+      <summary>診断情報</summary>
+      <dl>
+        <dt>描画</dt>
+        <dd>{s.backend}</dd>
+        <dt>接続先</dt>
+        <dd>{s.hud.via}</dd>
+        <dt>応答</dt>
+        <dd>{s.hud.latency == null ? '—' : `${s.hud.latency} ms`}</dd>
+        <dt>破棄</dt>
+        <dd>
+          {s.hud.dropped} / {s.hud.decisions}
+        </dd>
+      </dl>
+    </details>
+  );
+}
+
+function SettingsSection({ s }) {
+  return (
+    <section className="dialog-section settings-section" aria-labelledby="settings-title">
+      <div className="section-intro">
+        <div>
+          <span className="eyebrow">SETTINGS</span>
+          <h2 id="settings-title">設定</h2>
+        </div>
+        <button type="button" className="sound-toggle" onClick={toggleSound} aria-pressed={s.sound}>
+          <Icon name={s.sound ? 'sound' : 'mute'} size={16} />
+          {s.sound ? '音オン' : '音オフ'}
+        </button>
+      </div>
+      <div className="settings-details">
+        <details>
+          <summary>遊び方</summary>
+          <ul>
+            <li>作業台をタップ、またはWASDで移動してEで作業します。</li>
+            <li>料理を完成させたら配膳台へ。注文は最大2枚表示されます。</li>
+            <li>Shiftでダッシュ、Qで手元を片づけます。</li>
+          </ul>
+        </details>
+        <Diagnostics s={s} />
+      </div>
+      <p className="privacy-note">相棒の判断にゲーム状態をTypeSafeまたはCloudflareへ送信します。</p>
+      <div className="legal-links" aria-label="ライセンス">
+        <a href="/licenses.md">ライセンス</a>
+        <a href="/third-party-notices.md">追加通知</a>
+      </div>
     </section>
   );
 }
 
+const CAPABILITY_NAMES = { prep: '仕込み', cook: '加熱', serve: '配膳' };
+
+function StaffCard({ id, selected, onSelect }) {
+  const staff = STAFF[id];
+  const frequency = `${(staff.decisionMs / 1000).toFixed(1)}秒ごと`;
+  return (
+    <button
+      type="button"
+      className={`applicant-card ${selected ? 'selected' : ''}`}
+      onClick={() => onSelect(id)}
+      aria-pressed={selected}
+    >
+      <span className="applicant-icon" aria-hidden="true">
+        {staff.icon}
+      </span>
+      <span className="applicant-copy">
+        <strong>{staff.name}</strong>
+        <small>{staff.description}</small>
+        <span>
+          {staff.capabilities.map((capability) => CAPABILITY_NAMES[capability]).join('・')}
+          {staff.canDash ? '・ダッシュ' : ''}・速さ×{staff.speed}
+        </span>
+        <span>判断：{frequency}</span>
+      </span>
+      <span className="applicant-cost">🪙 {staff.cost}</span>
+    </button>
+  );
+}
+
+function PreparationPanel({ s, g }) {
+  const [selectedApplicantId, setSelectedApplicantId] = useState(null);
+  const [assignedId, setAssignedId] = useState(g.staffId);
+  const nextLevel = g.level + 1;
+  const nextQuota = quotaForLevel(nextLevel);
+  const [buyStock, setBuyStock] = useState(Math.max(0, nextQuota + 2 - (g.stock ?? 0)));
+  const [error, setError] = useState('');
+  const stock = g.stock ?? 0;
+  const hired = new Set(g.hired);
+  const selectedStaff = selectedApplicantId ? STAFF[selectedApplicantId] : null;
+  const hiringCost = selectedStaff && !hired.has(selectedApplicantId) ? selectedStaff.cost : 0;
+  const purchaseCost = buyStock * STOCK_PRICE;
+  const totalCost = hiringCost + purchaseCost;
+  const remainingCash = g.cash - totalCost;
+  const stockAfter = stock + buyStock;
+  const enoughStock = stockAfter >= nextQuota;
+  const canOpen = enoughStock && remainingCash >= 0;
+  const setQuantity = (value) => {
+    setError('');
+    setBuyStock(Math.min(99, Math.max(0, Math.floor(Number(value) || 0))));
+  };
+  const chooseStaff = (id) => {
+    setError('');
+    setSelectedApplicantId(id);
+    setAssignedId(id);
+  };
+  const skipApplicant = () => {
+    setError('');
+    setSelectedApplicantId(null);
+    if (!hired.has(assignedId)) setAssignedId(g.staffId);
+  };
+  const openNextShift = () => {
+    if (!canOpen) {
+      setError(
+        !enoughStock
+          ? `仕入れがあと${nextQuota - stockAfter}個必要です。`
+          : `資金が🪙${Math.abs(remainingCash)}不足しています。`,
+      );
+      return;
+    }
+    if (!nextShift(selectedApplicantId, buyStock, assignedId))
+      setError('この準備では開店できません。');
+  };
+  return (
+    <div className="preparation-card" role="dialog" aria-labelledby="preparation-title">
+      <div className="prep-result">
+        <Stars score={g.score} large />
+        <span className="eyebrow">営業クリア</span>
+        <h2 id="preparation-title">
+          {g.served}皿 / ノルマ {g.quota}皿
+        </h2>
+        <p>
+          スコア {g.score.toLocaleString()}点 · 残り資金 🪙{g.cash}
+        </p>
+      </div>
+      <section className="applicant-section" aria-labelledby="applicant-title">
+        <div className="prep-heading">
+          <div>
+            <span className="eyebrow">NEXT PARTNER</span>
+            <h3 id="applicant-title">{s.applicants.length ? '応募者から1名' : '相棒を配置'}</h3>
+          </div>
+          <span>{s.applicants.length}名</span>
+        </div>
+        <div className="applicant-grid">
+          {!s.applicants.length && <p>全員採用済みです。</p>}
+          {s.applicants.map((id) => (
+            <StaffCard
+              key={id}
+              id={id}
+              selected={selectedApplicantId === id}
+              onSelect={chooseStaff}
+            />
+          ))}
+        </div>
+        <button
+          type="button"
+          className="secondary-action skip-applicant"
+          onClick={skipApplicant}
+          aria-pressed={selectedApplicantId === null}
+        >
+          今回は見送る
+        </button>
+        <label className="roster-select-label" htmlFor="roster-select">
+          配置する相棒
+          <select
+            id="roster-select"
+            value={assignedId}
+            onChange={(event) => setAssignedId(event.target.value)}
+          >
+            <option value={g.staffId}>{STAFF[g.staffId].name}（現在）</option>
+            {g.hired.map(
+              (id) =>
+                id !== g.staffId && (
+                  <option key={id} value={id}>
+                    {STAFF[id].name}
+                  </option>
+                ),
+            )}
+            {selectedApplicantId && !hired.has(selectedApplicantId) && (
+              <option value={selectedApplicantId}>{STAFF[selectedApplicantId].name}（応募）</option>
+            )}
+          </select>
+        </label>
+      </section>
+      <section className="stock-section" aria-labelledby="stock-title">
+        <div className="prep-heading">
+          <div>
+            <span className="eyebrow">SUPPLY</span>
+            <h3 id="stock-title">仕入れ Lv.{nextLevel}</h3>
+          </div>
+          <span>🪙{STOCK_PRICE} / 個</span>
+        </div>
+        <p className="stock-summary">
+          在庫 {stock}個 → {stockAfter}個 / 次のノルマ {nextQuota}皿
+        </p>
+        <div className="stock-stepper">
+          <button
+            type="button"
+            onClick={() => setQuantity(buyStock - 1)}
+            aria-label="仕入れを1個減らす"
+          >
+            −
+          </button>
+          <input
+            type="number"
+            min="0"
+            max="99"
+            value={buyStock}
+            onChange={(event) => setQuantity(event.target.value)}
+            aria-label="仕入れ個数"
+          />
+          <button
+            type="button"
+            onClick={() => setQuantity(buyStock + 1)}
+            aria-label="仕入れを1個増やす"
+          >
+            ＋
+          </button>
+        </div>
+        <div className="prep-costs">
+          <span>採用・交代 {hiringCost ? `🪙${hiringCost}` : '🪙0'}</span>
+          <span>仕入れ 🪙{purchaseCost}</span>
+          <strong className={remainingCash < 0 ? 'overspend' : ''}>残り 🪙{remainingCash}</strong>
+        </div>
+        {!canOpen && <p className="overspend-note">{error || '在庫と資金を整えてください。'}</p>}
+        {canOpen && error && <p className="overspend-note">{error}</p>}
+      </section>
+      <div className="prep-actions">
+        <button className="primary" type="button" onClick={openNextShift} disabled={!canOpen}>
+          この準備で開店
+          <span aria-hidden="true">→</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MenuDialog({ dialog, s }) {
+  return (
+    <dialog ref={dialog} className="menu-dialog" aria-labelledby="menu-title">
+      <form method="dialog" className="menu-sheet">
+        <header className="dialog-header">
+          <div>
+            <span className="eyebrow">SIDEKICK</span>
+            <h2 id="menu-title">メニュー</h2>
+          </div>
+          <button className="close-dialog" type="submit" aria-label="メニューを閉じる">
+            ×
+          </button>
+        </header>
+        <SettingsSection s={s} />
+        <button className="dialog-done" type="submit">
+          閉じる
+        </button>
+      </form>
+    </dialog>
+  );
+}
+
 export default function App() {
-  const s = useKitchen(),
-    g = s.game,
-    help = useRef();
-  const near = stationAt(g, 'human'),
-    seconds = Math.ceil((SHIFT_MS - g.time) / 1000);
-  const nextStar = STAR_SCORES.find((score) => g.score < score);
+  const s = useKitchen();
+  const g = s.game;
+  const menu = useRef();
   const practice = s.tutorial !== null;
-  const tutorialComplete = practice && s.tutorial === TUTORIAL_STEPS.length;
-  const tutorialStep = practice && !tutorialComplete ? TUTORIAL_STEPS[s.tutorial] : null;
-  const tutorialTargetId = tutorialStep?.station;
-  const tutorialTargetReached =
-    practice && !tutorialComplete && near.id === tutorialTargetId && near.inReach;
-  const playing = s.phase === 'playing',
-    paused = s.phase === 'paused',
-    finished = s.phase === 'finished';
+  const rawStep = practice ? TUTORIAL_STEPS[s.tutorial] : null;
+  const tutorialStep = rawStep ? { ...rawStep, index: s.tutorial } : null;
+  const near = stationAt(g, 'human');
+  const tutorialTargetReached = Boolean(
+    practice && tutorialStep && near.id === tutorialStep.station && near.inReach,
+  );
+  const level = g.level;
+  const goal = g.quota;
+  const served = g.served;
+  const remainingMs = Math.max(0, g.duration - g.time);
+  const seconds = Math.ceil(remainingMs / 1000);
+  const playing = s.phase === 'playing';
+  const paused = s.phase === 'paused';
+  const finished = s.phase === 'finished';
+  const stationIds = activeStationIds(g);
+
   useEffect(() => {
     const media = matchMedia('(prefers-reduced-motion: reduce)');
     const motion = () => useKitchen.setState({ reducedMotion: media.matches });
@@ -156,552 +432,216 @@ export default function App() {
       media.removeEventListener('change', motion);
     };
   }, []);
-  const showHelp = () => {
+
+  const openMenu = () => {
     if (playing) togglePause();
-    help.current.showModal();
+    if (!menu.current?.open) menu.current?.showModal();
   };
+
+  const actionLabel = practice
+    ? tutorialTargetReached
+      ? tutorialStep.label
+      : `${STATIONS[tutorialStep.station].name}へ移動`
+    : near.inReach
+      ? actionHint(g, near.id)
+      : '作業台へ移動';
+
   return (
     <div className="app-shell">
-      <header className="page-header">
+      <header className="hud" aria-label="営業情報">
         <a className="brand" href="/" aria-label="SIDEKICK kitchen ホーム">
           <span className="brand-mark">
             sk<span>✦</span>
           </span>
-          <span>
-            SIDEKICK <em>kitchen</em>
-          </span>
+          <span className="brand-word">SIDEKICK</span>
         </a>
-        <span className="header-note">ふたりで、ひと皿。</span>
-        <div className="header-actions">
-          <button
-            className="icon-button"
-            onClick={toggleSound}
-            aria-label={s.sound ? '音声をオフ（現在オン）' : '音声をオン（現在オフ）'}
-            aria-pressed={s.sound}
-          >
-            <Icon name={s.sound ? 'sound' : 'mute'} />
-          </button>
-          <button className="icon-button" onClick={showHelp} aria-label="遊び方">
-            <Icon name="help" />
-          </button>
+        <div className="level-readout" aria-label={`レベル${level}、${served}皿提供`}>
+          <div>
+            <strong>LV {level}</strong>
+            <span>
+              {Math.min(served, goal)}/{goal}
+            </span>
+          </div>
+          <progress max={goal} value={Math.min(served, goal)} />
         </div>
+        <div className={`clock-readout ${!practice && seconds <= 15 ? 'urgent' : ''}`}>
+          <Icon name="clock" size={17} />
+          <strong>
+            {practice
+              ? '最初の一皿'
+              : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`}
+          </strong>
+        </div>
+        <div className="score-readout" aria-label={`スコア${g.score.toLocaleString()}点`}>
+          <span> SCORE</span>
+          <strong>{g.score.toLocaleString()}</strong>
+        </div>
+        <button
+          className="hud-button"
+          type="button"
+          onClick={togglePause}
+          disabled={!s.ready || (!playing && !paused)}
+          aria-label={paused ? 'ゲームを再開' : 'ゲームを一時停止'}
+        >
+          <Icon name={paused ? 'play' : 'pause'} size={16} />
+        </button>
+        <button
+          className="hud-button menu-button"
+          type="button"
+          onClick={openMenu}
+          aria-label="メニューを開く"
+        >
+          <Icon name="menu" size={19} />
+        </button>
       </header>
 
-      <main>
-        <div className="heading-row">
-          <div>
-            <div className="shift-label">
-              <span className="sun">☀</span> おひるの営業
-            </div>
-            <h1>今日も、おいしい連携を。</h1>
-          </div>
-          <p className="best-score">
-            ベストスコア <strong>{s.best.toLocaleString()}</strong>
-          </p>
-        </div>
-        <div className="game-layout">
-          <section
-            className={`game-panel ${practice ? 'practice-game-panel' : ''}`}
-            aria-label="キッチンゲーム"
+      <main className="playfield">
+        <section
+          className="stage"
+          data-level={level}
+          data-stations={stationIds.join(' ')}
+          role="region"
+          aria-label={`レベル${level}の3Dキッチン`}
+        >
+          <Suspense
+            fallback={
+              <div className="graphics-error" role="status" aria-live="polite">
+                キッチンを準備しています…
+              </div>
+            }
           >
-            <div className={`game-toolbar ${practice ? 'practice-toolbar' : ''}`}>
-              <div className={`time ${!practice && seconds <= 15 ? 'urgent' : ''}`}>
-                <Icon name="clock" size={23} />
-                {practice ? (
-                  <strong>練習</strong>
-                ) : (
-                  <strong>
-                    {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
-                  </strong>
-                )}
-                {!practice && <span>のこり</span>}
+            <Kitchen />
+          </Suspense>
+          <div className="hud-orders" role="region" aria-label="注文">
+            {g.orders.slice(0, 2).map((order, index) => (
+              <OrderCard key={order.id} order={order} index={index} g={g} practice={practice} />
+            ))}
+          </div>
+          <ul className="partner-roster" aria-label="相棒一覧">
+            {[g.staffId, ...g.hired.filter((id) => id !== g.staffId)].map((id) => (
+              <li key={id} className={id === g.staffId ? 'on-duty' : ''}>
+                <span aria-hidden="true">{STAFF[id].icon}</span>
+                <span>{STAFF[id].name}</span>
+                {id === g.staffId && <small>出勤中</small>}
+              </li>
+            ))}
+          </ul>
+          {g.burned > 0 && (
+            <div className="burned-badge" role="status">
+              焦げ {g.burned}
+            </div>
+          )}
+          {s.phase === 'ready' && (
+            <div className="welcome-card" role="dialog" aria-labelledby="welcome-title">
+              <span className="welcome-mark" aria-hidden="true">
+                🍅
+              </span>
+              <div>
+                <span className="eyebrow">READY?</span>
+                <h1 id="welcome-title">
+                  {g.level > 1 ? `Lv.${g.level}から、続きを始めよう` : 'ひと皿、作ってみよう'}
+                </h1>
               </div>
-              {!practice && (
-                <div className="score">
-                  <span>スコア</span>
-                  <strong>{g.score.toLocaleString()}</strong>
-                  <Stars score={g.score} />
-                </div>
-              )}
-              <button
-                className="icon-button pause-button"
-                onClick={togglePause}
-                disabled={!s.ready || (!playing && !paused)}
-                aria-label={paused ? 'ゲームを再開' : '一時停止'}
-              >
-                <Icon name={paused ? 'play' : 'pause'} size={18} />
-              </button>
-            </div>
-
-            <div
-              className={`orders ${practice ? 'practice-orders' : ''}`}
-              role="region"
-              aria-label="注文一覧"
-            >
-              {g.orders.slice(0, practice ? 1 : undefined).map((order, i) => {
-                const remaining = practice
-                  ? null
-                  : Math.max(0, Math.ceil((order.deadline - g.time) / 1000));
-                return (
-                  <article
-                    key={order.id}
-                    className={`order-ticket ${!practice && remaining < 10 ? 'hurry' : ''}`}
-                  >
-                    <div className="order-top">
-                      <span>
-                        {practice ? '練習の一皿' : `注文 ${String(order.id + 1).padStart(2, '0')}`}
-                      </span>
-                      <span>
-                        {!practice && i === 0 && <i className="order-next">先に作ろう</i>}
-                        {practice ? (
-                          '時間制限なし'
-                        ) : (
-                          <>
-                            {remaining}
-                            <small>秒</small>
-                          </>
-                        )}
-                      </span>
-                    </div>
-                    <div className="order-dish">
-                      <span className={`dish-icon ${order.recipe}`}>
-                        {ITEM_EMOJI[order.recipe]}
-                      </span>
-                      <div>
-                        <h2>{RECIPES[order.recipe].name}</h2>
-                        {!practice && (
-                          <p>
-                            {order.recipe === 'dish'
-                              ? '切る → 盛り付け → 配膳'
-                              : '切る → 煮る → 盛り付け → 配膳'}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div
-                      className={`patience ${practice ? 'practice-patience' : ''}`}
-                      {...(!practice && {
-                        role: 'meter',
-                        'aria-label': `${RECIPES[order.recipe].name}の残り時間`,
-                        'aria-valuemin': 0,
-                        'aria-valuemax': Math.ceil(order.duration / 1000),
-                        'aria-valuenow': remaining,
-                      })}
-                    >
-                      {practice ? (
-                        <span>まずは一皿</span>
-                      ) : (
-                        <i
-                          style={{
-                            width: `${Math.min(100, (remaining / (order.duration / 1000)) * 100)}%`,
-                          }}
-                        />
-                      )}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-
-            <div className="stage" role="region" aria-label="3Dキッチン">
-              <Suspense
-                fallback={
-                  <div className="graphics-error" role="status" aria-live="polite">
-                    キッチンを準備しています…
-                  </div>
-                }
-              >
-                <Kitchen />
-              </Suspense>
-              <div className="stage-caption">
-                <span className="live-dot" />
-                {practice
-                  ? tutorialComplete
-                    ? '練習完了'
-                    : '練習中'
-                  : playing
-                    ? '営業中'
-                    : paused
-                      ? 'ひと休み'
-                      : finished
-                        ? '本日の営業終了'
-                        : '開店準備中'}
-              </div>
-              {g.combo > 1 && (
-                <div className="combo" key={g.served}>
-                  <Icon name="spark" /> {g.combo}× コンボ <small>いい連携！</small>
-                </div>
-              )}
-              {s.phase === 'ready' && (
-                <div className="welcome-card" role="region" aria-labelledby="welcome-title">
-                  <div>
-                    <p className="welcome-kicker">はじめてでも大丈夫</p>
-                    <h2 id="welcome-title">まずは、ひと皿。</h2>
-                  </div>
-                  <div className="welcome-actions">
-                    <button className="primary" onClick={startTutorial} disabled={!s.ready}>
-                      ひと皿、作ってみよう
-                      <Icon name="arrow" size={18} />
-                    </button>
-                    <button className="secondary" onClick={startShift} disabled={!s.ready}>
-                      すぐに90秒チャレンジ
-                    </button>
-                  </div>
-                </div>
-              )}
-              {paused && s.ready && (
-                <div className="stage-overlay">
-                  <div className="result-card">
-                    <span className="result-illustration">☕</span>
-                    <h2>ちょっと、ひと休み。</h2>
-                    <p>注文も相棒も、待っています。</p>
-                    <button className="primary" onClick={togglePause}>
-                      営業を再開
-                      <Icon name="play" size={16} />
-                    </button>
-                  </div>
-                </div>
-              )}
-              {finished && (
-                <div className="stage-overlay">
-                  <div className="result-card">
-                    <Stars score={g.score} large />
-                    <h2>
-                      {g.score >= STAR_SCORES[2]
-                        ? '最高のコンビ！'
-                        : g.score >= STAR_SCORES[0]
-                          ? 'おいしい時間を、ありがとう。'
-                          : '次は、もうひと皿届けよう。'}
-                    </h2>
-                    <div className="final-score">
-                      {g.score.toLocaleString()}
-                      <small>点</small>
-                    </div>
-                    <p>
-                      {g.served}皿をお届け · 最大 {g.bestCombo}× コンボ
-                    </p>
-                    <p className="result-tip">
-                      {nextStar
-                        ? `次の星まで、あと${nextStar - g.score}点。`
-                        : '三つ星達成。次はベストスコアを更新しよう！'}
-                    </p>
-                    <button className="primary" onClick={startShift}>
-                      もう一度、開店する
-                      <Icon name="arrow" size={18} />
-                    </button>
-                  </div>
-                </div>
-              )}
-              {practice && !tutorialComplete && tutorialStep && (
-                <>
-                  <div className="tutorial-action" role="status" aria-live="polite">
-                    <span className="tutorial-dots" aria-hidden="true">
-                      {TUTORIAL_STEPS.map((_, index) => (
-                        <i
-                          key={index}
-                          className={
-                            index < s.tutorial ? 'done' : index === s.tutorial ? 'current' : ''
-                          }
-                        />
-                      ))}
-                    </span>
-                    <span aria-hidden="true">{tutorialStep.icon}</span>
-                    <strong>{tutorialStep.label}</strong>
-                    <small>{STATIONS[tutorialStep.station].name}</small>
-                  </div>
-                  <button className="tutorial-skip" onClick={startShift}>
-                    練習をスキップ
-                  </button>
-                </>
-              )}
-              {tutorialComplete && (
-                <div className="stage-overlay tutorial-complete-overlay">
-                  <div className="result-card tutorial-result">
-                    <span className="result-illustration">✨</span>
-                    <h2>ひと皿、できた！</h2>
-                    <button className="primary" onClick={startShift}>
-                      90秒に挑戦
-                      <Icon name="arrow" size={18} />
-                    </button>
-                  </div>
-                </div>
-              )}
-              {playing && s.toast && g.time < s.toastUntil && (
-                <div className="toast" role="status">
-                  {s.toast}
-                </div>
-              )}
-            </div>
-
-            <div className={`player-bar ${practice ? 'practice-player-bar' : ''}`}>
-              <div className="held-item">
-                <span>{g.human.carrying ? ITEM_EMOJI[g.human.carrying] : '✋'}</span>
-                <div>
-                  <small>あなたの手元</small>
-                  <strong>{ITEM_NAMES[g.human.carrying] ?? '手ぶら'}</strong>
-                </div>
-              </div>
-              <button
-                className="interact-button"
-                disabled={!playing || (practice && !tutorialTargetReached) || !near.inReach}
-                onClick={humanInteract}
-              >
-                <kbd>E</kbd>
-                {practice
-                  ? tutorialComplete
-                    ? '練習完了'
-                    : tutorialStep && tutorialTargetReached
-                      ? tutorialStep.label
-                      : tutorialStep
-                        ? `${STATIONS[tutorialStep.station].name}へ移動`
-                        : '練習中'
-                  : near.inReach
-                    ? actionHint(g, near.id)
-                    : '作業台を選んで移動'}
-              </button>
-              <button
-                className="dash-button"
-                disabled={!playing || g.time < g.human.dashReadyAt}
-                onClick={humanDash}
-              >
-                <kbd>Shift</kbd> ダッシュ
-              </button>
-              <button
-                className="clear-button"
-                disabled={!playing || !g.human.carrying}
-                onClick={clearHands}
-                title="手元のものを片づける。コンボはリセット。"
-              >
-                <kbd>Q</kbd> 片づける
-              </button>
-            </div>
-            <div className="station-shortcuts" role="group" aria-label="作業台の操作">
-              {STATION_IDS.map((id) => (
-                <button
-                  key={id}
-                  disabled={!playing || (practice && (tutorialComplete || id !== tutorialTargetId))}
-                  onClick={() => goTo(id)}
-                  aria-label={`${STATIONS[id].name}へ移動して作業する`}
-                >
-                  {STATIONS[id].name}
+              <div className="welcome-actions">
+                <button className="primary" type="button" onClick={startShift} disabled={!s.ready}>
+                  開店
+                  <Icon name="arrow" size={16} />
                 </button>
-              ))}
+              </div>
             </div>
-          </section>
-
-          <aside className="side-panel">
-            {practice ? (
-              <TutorialGuide step={s.tutorial} />
-            ) : (
-              <>
-                <section className="partner-card">
-                  <div className="partner-heading">
-                    <div className="partner-avatar">
-                      👨‍🍳
-                      <span />
-                    </div>
-                    <div>
-                      <h2>きょうの相棒</h2>
-                      <p>
-                        {s.mode === 'rule'
-                          ? '固定ルールでお手伝い'
-                          : s.fallback
-                            ? '接続できません · 固定ルールでお手伝い中'
-                            : s.mode === 'jev'
-                              ? 'Jev と一緒にクッキング'
-                              : 'LLM と一緒にクッキング'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="partner-speech" aria-live="polite">
-                    {s.hud.action}
-                  </div>
-                  <div className="mode-picker" role="group" aria-label="相棒の判断方式">
-                    {[
-                      ['jev', 'Jev'],
-                      ['rule', '固定ルール'],
-                      ['llm', 'LLM'],
-                    ].map(([value, label]) => (
-                      <button
-                        key={value}
-                        className={s.mode === value ? 'selected' : ''}
-                        onClick={() => setMode(value)}
-                        aria-pressed={s.mode === value}
-                        aria-label={value === 'llm' ? '言語モデル（LLM）' : label}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <label className="policy-label" htmlFor="policy">
-                    相棒に役割を頼む<span>いつでも変更OK</span>
-                  </label>
-                  <textarea
-                    id="policy"
-                    value={s.policy}
-                    onChange={(e) => setPolicy(e.target.value)}
-                    rows={2}
-                    maxLength={300}
-                    placeholder="例：スープは任せたよ！"
-                    aria-describedby="policy-privacy"
-                  />
-                  <p id="policy-privacy" className="policy-privacy">
-                    入力とゲーム状態は相棒の判断のためTypeSafeまたはCloudflareへ送信されます。個人情報・秘密は入力しないでください。
-                  </p>
-                  <div className="policy-presets">
-                    {['スープは任せたよ', '盛り付けは自分でやる'].map((policy) => (
-                      <button key={policy} onClick={() => setPolicy(policy)}>
-                        {policy}
-                      </button>
-                    ))}
-                  </div>
-                  {(s.mode === 'rule' || s.fallback) && (
-                    <p className="policy-note">
-                      固定ルールや接続待ちの間は、ひとことは反映されません。
-                    </p>
-                  )}
-                </section>
-
-                <section className="recipe-card">
-                  <div className="section-heading">
-                    <h2>ふたりのレシピ</h2>
-                    <span>本日のメニュー</span>
-                  </div>
-                  <div className="recipe">
-                    <span className="recipe-icon">🥗</span>
-                    <div>
-                      <h3>トマトサラダ</h3>
-                      <p>トマトを切って、お皿に盛って、配膳する。</p>
-                      <span className="recipe-flow">トマト → まな板 → お皿 → 配膳</span>
-                    </div>
-                    <b>
-                      100<small>点〜</small>
-                    </b>
-                  </div>
-                  <div className="recipe">
-                    <span className="recipe-icon">🍲</span>
-                    <div>
-                      <h3>トマトスープ</h3>
-                      <p>切ったトマトを煮て、お皿に盛って、配膳する。</p>
-                      <span className="recipe-flow">
-                        トマト → まな板 → 鍋 → お皿 → 鍋で盛る → 配膳
-                      </span>
-                    </div>
-                    <b>
-                      140<small>点〜</small>
-                    </b>
-                  </div>
-                  <div className="recipe-tip">
-                    <Icon name="spark" size={17} />
+          )}
+          {paused && s.ready && (
+            <div className="stage-overlay">
+              <div className="result-card pause-card">
+                <span className="result-illustration" aria-hidden="true">
+                  ☕
+                </span>
+                <h2>一時停止中</h2>
+                <button className="primary" type="button" onClick={togglePause}>
+                  再開する
+                  <Icon name="play" size={15} />
+                </button>
+              </div>
+            </div>
+          )}
+          {finished && (
+            <div className={`stage-overlay ${s.cleared ? 'prep-overlay' : ''}`}>
+              {s.cleared ? (
+                s.campaignComplete ? (
+                  <div className="preparation-card campaign-result" role="dialog">
+                    <Stars score={g.score} large />
+                    <span className="eyebrow">CAMPAIGN CLEAR</span>
+                    <h2>全レベルクリア！</h2>
                     <p>
-                      12秒以内に続けて配膳すると、
-                      <br />
-                      <strong>最大3倍のコンボボーナス！</strong>
+                      {g.served}皿をお届け · スコア {g.score.toLocaleString()}点
                     </p>
+                    <button className="primary" type="button" onClick={startShift}>
+                      最初から再挑戦
+                      <Icon name="arrow" size={16} />
+                    </button>
                   </div>
-                </section>
-
-                <div className="goal-card">
-                  <Stars score={g.score} />
+                ) : (
+                  <PreparationPanel s={s} g={g} />
+                )
+              ) : (
+                <div className="result-card">
+                  <span className="result-illustration" aria-hidden="true">
+                    ⏱️
+                  </span>
+                  <h2>ノルマ未達でした</h2>
+                  <div className="final-score">
+                    {g.score.toLocaleString()}
+                    <small>点</small>
+                  </div>
                   <p>
-                    {nextStar
-                      ? `あと ${Math.max(0, nextStar - g.score)} 点で、次の星。`
-                      : '三つ星、おめでとう！'}
+                    {g.served}皿 / ノルマ {g.quota}皿
                   </p>
-                  <progress max={STAR_SCORES[2]} value={g.score} aria-label="三つ星までの達成度" />
-                  <div>
-                    <span>{g.served} 皿お届け</span>
-                    <span>時間切れ：{g.missed}件</span>
-                  </div>
+                  <button className="primary" type="button" onClick={retryShift}>
+                    同じ営業をやり直す
+                    <Icon name="arrow" size={16} />
+                  </button>
                 </div>
-                <details className="diagnostics">
-                  <summary>相棒の判断ログ</summary>
-                  <dl>
-                    <dt>描画</dt>
-                    <dd>{s.backend}</dd>
-                    <dt>応答時間</dt>
-                    <dd>{s.hud.latency == null ? '—' : `${s.hud.latency} ms`}</dd>
-                    <dt>接続先</dt>
-                    <dd>{s.hud.via}</dd>
-                    <dt>確信度</dt>
-                    <dd>{Number.isFinite(s.hud.confidence) ? s.hud.confidence.toFixed(2) : '—'}</dd>
-                    <dt>古い判断の破棄</dt>
-                    <dd>
-                      {s.hud.dropped} / {s.hud.decisions}
-                    </dd>
-                  </dl>
-                  <ol>
-                    {s.log.map((entry, i) => (
-                      <li key={i}>
-                        <b>{entry.who === 'ai' ? '相棒' : 'あなた'}</b>
-                        {entry.text}
-                      </li>
-                    ))}
-                  </ol>
-                </details>
-              </>
-            )}
-          </aside>
-        </div>
-        <footer className={`controls-guide ${practice ? 'practice-controls-guide' : ''}`}>
-          <span>
-            <kbd>W</kbd>
-            <kbd>A</kbd>
-            <kbd>S</kbd>
-            <kbd>D</kbd> / 矢印で移動
-          </span>
-          <span>
-            <kbd>E</kbd> 作業
-          </span>
-          <span>
-            <kbd>Shift</kbd> ダッシュ
-          </span>
-          <span>
-            <kbd>Esc</kbd> ひと休み
-          </span>
-          <span className="click-hint">作業台のクリック・タップでも遊べます</span>
-          <a className="license-link" href="/licenses.md">
-            ライセンス
-          </a>
-          <a className="license-link" href="/third-party-notices.md">
-            追加通知
-          </a>
-        </footer>
+              )}
+            </div>
+          )}
+          {practice && <TutorialHint step={tutorialStep} />}
+          {playing && s.toast && g.time < s.toastUntil && (
+            <div className="toast" role="status">
+              {s.toast}
+            </div>
+          )}
+          <div className={`action-bar ${practice ? 'practice-action-bar' : ''}`}>
+            <button
+              className="action-button action-primary"
+              type="button"
+              disabled={!playing || (practice && !tutorialTargetReached) || !near.inReach}
+              onClick={humanInteract}
+            >
+              <kbd>E</kbd>
+              <span>{actionLabel}</span>
+            </button>
+            <button
+              className="action-button dash-action"
+              type="button"
+              disabled={!playing || g.time < g.human.dashReadyAt}
+              onClick={humanDash}
+            >
+              <kbd>Shift</kbd>
+              <span>ダッシュ</span>
+            </button>
+            <button
+              className="action-button clear-action"
+              type="button"
+              disabled={!playing || !g.human.carrying}
+              onClick={clearHands}
+            >
+              <kbd>Q</kbd>
+              <span>片づけ</span>
+            </button>
+          </div>
+        </section>
       </main>
-      <dialog
-        ref={help}
-        className="help-dialog"
-        aria-labelledby="help-title"
-        aria-describedby="help-description"
-      >
-        <form method="dialog">
-          <button className="close-dialog" aria-label="遊び方を閉じる">
-            ×
-          </button>
-          <span className="help-icon">👨‍🍳</span>
-          <h2 id="help-title">ふたりで、三つ星をめざそう。</h2>
-          <p id="help-description">
-            90秒のランチタイム。注文の残り時間を見ながら、相棒と料理を作って配膳します。
-          </p>
-          <h3>最初の一皿</h3>
-          <ol>
-            <li>
-              作業台をクリックすると、移動して作業します。キーボードなら WASD で移動、E で作業。
-            </li>
-            <li>
-              サラダは「トマト → まな板 → 切ったトマトを取る → お皿 →
-              配膳」。お皿を持ってまな板に戻っても盛れます。
-            </li>
-            <li>スープは「切ったトマト → 鍋 → お皿 → 鍋 → 配膳」。煮込む間に次の準備を。</li>
-            <li>12秒以内の連続配膳で最大3倍。Shift で短いダッシュ、Q で手元を片づけられます。</li>
-          </ol>
-          <p>
-            Jev
-            には自由な言葉で役割を頼めます。固定ルールや接続待ちの間は、ひとことは反映されません。
-          </p>
-          <button className="primary">わかった！</button>
-        </form>
-      </dialog>
+      <MenuDialog dialog={menu} s={s} />
     </div>
   );
 }

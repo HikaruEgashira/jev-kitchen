@@ -1,12 +1,36 @@
-import { Component, memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Children, Component, memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Html } from '@react-three/drei/web/Html';
+import { WorldLabel } from './Surface.jsx';
 import { RoundedBox } from '@react-three/drei/core/RoundedBox';
 import * as THREE from 'three/webgpu';
 import { graphicsLost, TUTORIAL_STEPS, useKitchen, goTo, tick } from './game.js';
-import { STATIONS, STATION_IDS, CHOP_MS, COOK_MS } from './model.js';
+import {
+  STATIONS,
+  ITEM_EMOJI,
+  BOOST_MIN,
+  BOOST_MAX,
+  POT_BURN_MS,
+  GRILL_BURN_MS,
+  activeStationIds,
+  kitchenBounds,
+  levelConfig,
+} from './model.js';
+import { STAFF } from './staff.js';
+import { ENTRANCE_DURATION, entranceHeight } from './entrance.js';
 
 const world = (x, y, height = 0) => [(x - 450) / 65, height, (y - 270) / 65];
+const STATION_ICONS = Object.freeze({
+  crate: '🍅',
+  board: '🔪',
+  pot: '🍲',
+  plates: '🍽️',
+  grill: '🔥',
+  serve: '✨',
+});
+const FLOOR_ROWS = 8;
+const FLOOR_COLUMNS = Object.freeze({ 1: 14, 2: 16, 3: 20 });
+const FLOOR_MAX_TILES = FLOOR_ROWS * FLOOR_COLUMNS[3];
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const palette = {
   mint: '#76b59b',
   green: '#245e50',
@@ -51,10 +75,10 @@ function Cylinder({ radii = [0.3, 0.3], height = 0.1, color, position, ...props 
   );
 }
 
-function Tomato({ position = [0, 0, 0], scale = 1 }) {
+function Tomato({ position = [0, 0, 0], scale = 1, color = '#e85945' }) {
   return (
     <group position={position} scale={scale}>
-      <Ball size={0.23} color="#e85945" scale={[1, 0.86, 1]} />
+      <Ball size={0.23} color={color} scale={[1, 0.86, 1]} />
       <mesh position={[0, 0.2, 0]} rotation={[0, 0.35, 0]}>
         <coneGeometry args={[0.14, 0.12, 5]} />
         <meshStandardMaterial color="#407b47" />
@@ -64,7 +88,7 @@ function Tomato({ position = [0, 0, 0], scale = 1 }) {
   );
 }
 
-function Food({ item }) {
+function Food({ item, burnt = false }) {
   if (item === 'tomato') return <Tomato />;
   if (item === 'chopped')
     return (
@@ -96,6 +120,21 @@ function Food({ item }) {
           <Ball size={0.05} color="#6e954c" position={[0.04, 0.145, 0.08]} />
         </>
       )}
+      {item === 'roast' && (
+        <>
+          <Tomato
+            position={[-0.12, 0.14, 0.07]}
+            scale={0.58}
+            color={burnt ? '#75433a' : '#e36b43'}
+          />
+          <Tomato
+            position={[0.12, 0.13, -0.05]}
+            scale={0.5}
+            color={burnt ? '#75433a' : '#e36b43'}
+          />
+          <Ball size={0.045} color={burnt ? '#3c302c' : '#e8a34d'} position={[0, 0.18, 0.02]} />
+        </>
+      )}
     </group>
   );
 }
@@ -118,17 +157,21 @@ function Plant({ position, scale = 1 }) {
   );
 }
 
-function Floor() {
+function Floor({ level }) {
   const tiles = useRef();
+  const columns = FLOOR_COLUMNS[level] ?? FLOOR_COLUMNS[1];
   useLayoutEffect(() => {
     const mesh = tiles.current;
     if (!mesh) return;
     const tile = new THREE.Object3D();
     const color = new THREE.Color();
-    for (let i = 0; i < 112; i++) {
-      const x = i % 14;
-      const z = Math.floor(i / 14);
+    const tileCount = columns * FLOOR_ROWS;
+    mesh.count = tileCount;
+    for (let i = 0; i < tileCount; i++) {
+      const x = i % columns;
+      const z = Math.floor(i / columns);
       tile.position.set(x - 6.5, -0.035, z - 3.5);
+      tile.scale.setScalar(1);
       tile.updateMatrix();
       mesh.setMatrixAt(i, tile.matrix);
       color.set((x + z) % 2 ? '#dae4cf' : '#f0f0db');
@@ -137,30 +180,66 @@ function Floor() {
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.computeBoundingSphere();
-  }, []);
+  }, [columns]);
   return (
-    <instancedMesh ref={tiles} args={[null, null, 112]} receiveShadow>
+    <instancedMesh ref={tiles} args={[null, null, FLOOR_MAX_TILES]} receiveShadow>
       <boxGeometry args={[0.986, 0.06, 0.986]} />
       <meshStandardMaterial vertexColors roughness={1} />
     </instancedMesh>
   );
 }
 
-const Room = memo(function Room() {
+function Entrance({ timeline, delay = 0, children }) {
+  const group = useRef();
+  useFrame(() => {
+    group.current.visible = timeline.current >= delay;
+    group.current.position.y = entranceHeight(timeline.current, delay);
+  });
   return (
-    <group>
-      <Block size={[14.2, 0.4, 8.8]} position={[0, -0.26, 0]} radius={0.16} color="#94b7a0" />
-      <Floor />
-      <Block size={[14, 2.45, 0.2]} position={[0, 1.2, -4.17]} color="#c4ddc4" />
+    <group
+      ref={group}
+      visible={timeline.current >= delay}
+      position={[0, entranceHeight(timeline.current, delay), 0]}
+    >
+      {children}
+    </group>
+  );
+}
+
+const Room = memo(function Room({ level, timeline }) {
+  const right = level === 1 ? 7.1 : level === 2 ? 9.1 : 13.1;
+  const width = right + 7.1;
+  const center = (right - 7.1) / 2;
+  const parts = [
+    <group key="floor">
+      <Block size={[width, 0.4, 8.8]} position={[center, -0.26, 0]} radius={0.16} color="#94b7a0" />
+      <Floor level={level} />
+    </group>,
+    <group key="back-wall">
+      <Block size={[width - 0.2, 2.45, 0.2]} position={[center, 1.2, -4.17]} color="#c4ddc4" />
+      <Block
+        size={[width - 0.05, 0.15, 0.3]}
+        position={[center, 2.45, -4.17]}
+        color={palette.green}
+      />
+    </group>,
+    <group key="left-wall">
       <Block size={[0.2, 1.35, 8.3]} position={[-7, 0.65, 0]} color="#c4ddc4" />
-      <Block size={[14.15, 0.15, 0.3]} position={[0, 2.45, -4.17]} color={palette.green} />
       <Block size={[0.3, 0.14, 8.3]} position={[-7, 1.35, 0]} color={palette.green} />
+    </group>,
+    <group key="right-wall">
+      <Block size={[0.2, 1.35, 8.3]} position={[right, 0.65, 0]} color="#c4ddc4" />
+      <Block size={[0.3, 0.14, 8.3]} position={[right, 1.35, 0]} color={palette.green} />
+    </group>,
+    <group key="window">
       <Block size={[3.3, 1.6, 0.13]} position={[-3.85, 1.49, -4.02]} color={palette.white} />
       <Block size={[3.04, 1.36, 0.08]} position={[-3.85, 1.49, -3.93]} color="#b6dcdf" />
       <Block size={[0.09, 1.5, 0.12]} position={[-3.85, 1.5, -3.85]} color={palette.white} />
       <Block size={[3.3, 0.1, 0.15]} position={[-3.85, 1.5, -3.85]} color={palette.white} />
       <Block size={[3.55, 0.1, 0.55]} position={[-3.85, 0.7, -3.8]} color={palette.wood} />
       <Plant position={[-5.05, 0.76, -3.8]} scale={0.6} />
+    </group>,
+    <group key="shelf">
       <Block size={[3.1, 0.12, 0.55]} position={[0.25, 1.96, -3.82]} color={palette.wood} />
       {[0, 1, 2].map((i) => (
         <group key={i} position={[-0.75 + i * 0.62, 2.04, -3.8]}>
@@ -178,6 +257,8 @@ const Room = memo(function Room() {
           />
         </group>
       ))}
+    </group>,
+    <group key="clock">
       <Cylinder
         radii={[0.43, 0.43]}
         height={0.08}
@@ -204,8 +285,10 @@ const Room = memo(function Room() {
         color={palette.green}
         radius={0.01}
       />
-      <Plant position={[-6.35, 0, 2.7]} scale={1.4} />
-      <Plant position={[6.35, 0, -3.05]} scale={1.3} />
+    </group>,
+    <Plant key="left-plant" position={[-6.35, 0, 2.7]} scale={1.4} />,
+    <Plant key="right-plant" position={[6.35, 0, -3.05]} scale={1.3} />,
+    <group key="rug">
       <Block size={[2.65, 0.02, 0.7]} position={[0, 0.01, 3.73]} color="#d69172" radius={0.01} />
       {[-0.9, -0.6, -0.3, 0, 0.3, 0.6, 0.9].map((x) => (
         <Block
@@ -216,8 +299,13 @@ const Room = memo(function Room() {
           radius={0.005}
         />
       ))}
-    </group>
-  );
+    </group>,
+  ];
+  return Children.map(parts, (part, index) => (
+    <Entrance timeline={timeline} delay={index * 0.085}>
+      {part}
+    </Entrance>
+  ));
 });
 
 function Steam({ active }) {
@@ -252,6 +340,7 @@ function Station({ id }) {
     st = g.stations[id];
   const phase = useKitchen((s) => s.phase);
   const tutorial = useKitchen((s) => s.tutorial);
+  const graphicsReady = useKitchen((s) => s.ready);
   const reducedMotion = useKitchen((s) => s.reducedMotion);
   const active = g.human.station === id;
   const tutorialActive =
@@ -263,9 +352,46 @@ function Station({ id }) {
   const tutorialTarget = tutorialStep?.station === id;
   const tutorialMuted = tutorialActive && !tutorialTarget;
   const tutorialComplete = tutorial === TUTORIAL_STEPS.length;
-  const ready = st.state === 'chopped' || st.state === 'ready';
-  const working = st.state === 'chopping' || st.state === 'cooking';
-  const progress = working ? 1 - (st.busyUntil - g.time) / (id === 'board' ? CHOP_MS : COOK_MS) : 1;
+  const heating = st.state === 'cooking';
+  const ready = st.state === 'ready';
+  const burnt = st.state === 'burnt';
+  const working = st.state === 'chopping' || heating;
+  const progress = working ? clamp01(1 - (st.busyUntil - g.time) / st.duration) : 1;
+  const burnDeadline = st.burnAt;
+  const burnWindow = Number.isFinite(burnDeadline)
+    ? clamp01((burnDeadline - g.time) / (id === 'grill' ? GRILL_BURN_MS : POT_BURN_MS))
+    : null;
+  const danger = burnt || (ready && burnWindow !== null && burnWindow < 0.35);
+  const stockFinite = Number.isFinite(g.stock);
+  const stockCount = stockFinite ? Math.max(0, Math.floor(g.stock)) : null;
+  const crateTomatoCount = stockCount === null ? 6 : Math.min(6, stockCount);
+  const boostWindow =
+    working &&
+    (id === 'board' || id === 'pot' || id === 'grill') &&
+    !st.boosted &&
+    !g.human.carrying &&
+    progress >= BOOST_MIN &&
+    progress <= BOOST_MAX;
+  const ringColor = tutorialTarget
+    ? '#e07c58'
+    : tutorialActive
+      ? '#95a89b'
+      : danger
+        ? '#c7594b'
+        : active
+          ? '#ed826e'
+          : ready
+            ? '#e2ae45'
+            : '#7ca18b';
+  const ringOpacity = tutorialTarget
+    ? 0.98
+    : tutorialActive
+      ? 0.12
+      : active
+        ? 0.95
+        : ready
+          ? 0.72
+          : 0.35;
   const knife = useRef();
   useFrame(() => {
     if (knife.current)
@@ -282,7 +408,7 @@ function Station({ id }) {
       <Block
         size={id === 'serve' ? [2.4, 0.93, 1.15] : [1.92, 0.93, 1.35]}
         position={[0, 0.48, 0]}
-        color={id === 'serve' ? palette.coral : palette.mint}
+        color={id === 'serve' ? palette.coral : id === 'grill' ? '#52665e' : palette.mint}
       />
       <Block
         size={id === 'serve' ? [2.56, 0.14, 1.3] : [2.08, 0.14, 1.5]}
@@ -302,11 +428,17 @@ function Station({ id }) {
           {[-0.65, 0.65].map((x) => (
             <Block key={x} size={[0.11, 0.35, 0.95]} position={[x, 1.28, 0]} color="#ba8859" />
           ))}
-          {[-0.38, 0, 0.38].flatMap((x) =>
-            [-0.2, 0.2].map((z) => (
+          {[-0.38, 0, 0.38]
+            .flatMap((x) => [-0.2, 0.2].map((z) => [x, z]))
+            .slice(0, crateTomatoCount)
+            .map(([x, z]) => (
               <Tomato key={`${x}-${z}`} position={[x, 1.38, z]} scale={0.85} />
-            )),
-          )}
+            ))}
+          <WorldLabel
+            position={[0, 2.6, 0]}
+            text={stockCount === null ? '∞' : `残り ${stockCount}`}
+            visible={graphicsReady}
+          />
         </>
       )}
       {id === 'board' && (
@@ -342,13 +474,39 @@ function Station({ id }) {
           <Cylinder
             radii={[0.43, 0.43]}
             height={0.025}
-            color={st.state === 'idle' ? '#694e45' : '#df7742'}
+            color={danger ? '#8b4338' : st.state === 'idle' ? '#694e45' : '#df7742'}
             position={[0, 1.642, 0]}
           />
           {[-0.59, 0.59].map((x) => (
             <Block key={x} size={[0.28, 0.11, 0.14]} position={[x, 1.5, 0]} color={palette.green} />
           ))}
-          <Steam active={st.state === 'cooking' || st.state === 'ready'} />
+          <Steam active={heating || ready} />
+        </>
+      )}
+      {id === 'grill' && (
+        <>
+          <Block size={[1.62, 0.08, 1.15]} position={[0, 1.12, 0]} color="#465d55" />
+          {[-0.42, -0.14, 0.14, 0.42].map((x) => (
+            <Block
+              key={x}
+              size={[0.08, 0.08, 0.92]}
+              position={[x, 1.2, 0]}
+              color="#8b9d93"
+              radius={0.02}
+            />
+          ))}
+          <Block
+            size={[1.15, 0.035, 0.74]}
+            position={[0, 1.27, 0]}
+            color={danger ? '#8b4338' : heating ? '#e98b4e' : '#566f66'}
+            radius={0.015}
+          />
+          {(heating || ready || burnt) && (
+            <group position={[0, 1.34, 0]}>
+              <Food item={ready || burnt ? 'roast' : 'chopped'} burnt={burnt} />
+            </group>
+          )}
+          <Steam active={heating || ready} />
         </>
       )}
       {id === 'plates' && (
@@ -378,50 +536,31 @@ function Station({ id }) {
           <Ball size={0.04} color={palette.green} position={[0.85, 1.4, 0]} />
         </>
       )}
-      <Html center position={[0, id === 'pot' ? 2.3 : 1.95, 0]} zIndexRange={[20, 0]}>
-        <button
-          className={`station-label ${active ? 'near' : ''} ${tutorialTarget ? 'tutorial-target' : ''} ${tutorialMuted ? 'tutorial-muted' : ''} ${tutorialTarget && reducedMotion ? 'tutorial-static' : ''}`}
-          disabled={phase !== 'playing' || tutorialMuted || tutorialComplete}
-          onClick={(event) => {
-            event.stopPropagation();
-            if (!tutorialMuted && !tutorialComplete) goTo(id);
-          }}
-          aria-label={`${station.name}へ移動して作業${tutorialTarget ? `：${tutorialStep.label}` : ''}`}
-        >
-          <span className={`station-dot ${id}`} />
-          {tutorialTarget ? `${tutorialStep.icon} ${tutorialStep.label}` : station.name}
-          {tutorialTarget && (
-            <span className="tutorial-pointer" aria-hidden="true">
-              ↗
-            </span>
-          )}
-          {working && (
-            <span className="station-meter">
-              <i style={{ width: `${progress * 100}%` }} />
-            </span>
-          )}
-          {(st.state === 'chopped' || st.state === 'ready') && <span className="ready-dot">✓</span>}
-        </button>
-      </Html>
+      <WorldLabel
+        position={[0, id === 'pot' || id === 'grill' ? 2.3 : 1.95, 0]}
+        visible={graphicsReady}
+        text={
+          tutorialTarget
+            ? `${tutorialStep.icon} ${tutorialStep.label}`
+            : `${STATION_ICONS[id]}${ready || st.state === 'chopped' ? ' ✓' : ''}${danger ? ' 焦げ注意' : ''}`
+        }
+        width={tutorialTarget ? 210 : danger ? 112 : 56}
+        color={
+          tutorialTarget
+            ? '#f4cd75'
+            : tutorialMuted
+              ? '#c4ddc4'
+              : boostWindow
+                ? '#f4cd75'
+                : palette.white
+        }
+        progress={working ? progress : ready ? burnWindow : null}
+        danger={danger}
+        onClick={pick}
+      />
       <mesh position={[-station.dx / 65, 0.012, -station.dy / 65]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[tutorialTarget ? 0.42 : 0.39, tutorialTarget ? 0.5 : 0.45, 40]} />
-        <meshBasicMaterial
-          color={
-            tutorialTarget
-              ? '#e07c58'
-              : tutorialActive
-                ? '#95a89b'
-                : active
-                  ? '#ed826e'
-                  : ready
-                    ? '#e2ae45'
-                    : '#7ca18b'
-          }
-          transparent
-          opacity={
-            tutorialTarget ? 0.98 : tutorialActive ? 0.12 : active ? 0.95 : ready ? 0.72 : 0.35
-          }
-        />
+        <meshBasicMaterial color={ringColor} transparent opacity={ringOpacity} />
       </mesh>
     </group>
   );
@@ -435,9 +574,12 @@ function Chef({ who }) {
   const previous = useRef(null);
   useKitchen((s) => s.revision);
   const reducedMotion = useKitchen((s) => s.reducedMotion);
+  const staffId = useKitchen((s) => s.game.staffId);
+  const graphicsReady = useKitchen((s) => s.ready);
   const human = who === 'human',
     color = human ? palette.coral : palette.yellow;
   const actor = useKitchen.getState().game[who];
+  const staff = STAFF[staffId] ?? STAFF.helper;
   useFrame(() => {
     const { game: g, phase } = useKitchen.getState(),
       a = g[who];
@@ -523,9 +665,13 @@ function Chef({ who }) {
           </group>
         )}
       </group>
-      <Html center position={[0, 2.08, 0]} zIndexRange={[15, 0]}>
-        <span className={`chef-label ${human ? 'human' : 'ai'}`}>{human ? 'あなた' : '相棒'}</span>
-      </Html>
+      <WorldLabel
+        position={[0, 2.08, 0]}
+        visible={graphicsReady}
+        text={`${human ? 'あなた' : staff.icon + ' 相棒'}${actor.carrying ? ` ${ITEM_EMOJI[actor.carrying] ?? '🍽️'}` : ''}`}
+        width={actor.carrying ? 112 : 84}
+        color={human ? '#f7c4af' : palette.yellow}
+      />
     </group>
   );
 }
@@ -579,14 +725,44 @@ function Confetti() {
 
 function Scene() {
   const { camera, size } = useThree();
+  useKitchen((s) => s.revision);
   const tutorial = useKitchen((s) => s.tutorial);
+  const reducedMotion = useKitchen((s) => s.reducedMotion);
+  const game = useKitchen.getState().game;
+  const level = levelConfig(game.level).kitchenTier;
+  const stationIds = activeStationIds(game);
+  const timeline = useRef(useKitchen.getState().phase === 'ready' ? 0 : ENTRANCE_DURATION);
+  const cameraTarget = useRef(new THREE.Vector3(0, 0.25, 0));
   useEffect(() => {
     camera.position.set(10, 15, 18);
-    camera.lookAt(0, 0.25, 0);
+    camera.lookAt(cameraTarget.current);
     camera.zoom = Math.min(size.width / 18.2, size.height / 13.5);
     camera.updateProjectionMatrix();
-  }, [camera, size]);
-  useFrame((_, delta) => tick(delta));
+  }, [camera]);
+  useFrame((_, delta) => {
+    timeline.current = reducedMotion
+      ? ENTRANCE_DURATION
+      : Math.min(ENTRANCE_DURATION, timeline.current + delta);
+    if (timeline.current === ENTRANCE_DURATION && !useKitchen.getState().ready)
+      useKitchen.setState({ ready: true });
+    const bounds = kitchenBounds(game);
+    const center = world((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2, 0.25);
+    const fitWidth = (bounds.maxX - bounds.minX) / 65 + 7.6;
+    const fitHeight = (bounds.maxY - bounds.minY) / 65 + 10;
+    const fitZoom = Math.min(size.width / fitWidth, size.height / fitHeight);
+    const approach = (current, goal) =>
+      reducedMotion ? goal : THREE.MathUtils.damp(current, goal, 6, delta);
+    cameraTarget.current.x = approach(cameraTarget.current.x, center[0]);
+    cameraTarget.current.y = approach(cameraTarget.current.y, center[1]);
+    cameraTarget.current.z = approach(cameraTarget.current.z, center[2]);
+    camera.position.x = approach(camera.position.x, cameraTarget.current.x + 10);
+    camera.position.y = approach(camera.position.y, cameraTarget.current.y + 14.75);
+    camera.position.z = approach(camera.position.z, cameraTarget.current.z + 18);
+    camera.lookAt(cameraTarget.current);
+    camera.zoom = approach(camera.zoom, fitZoom);
+    camera.updateProjectionMatrix();
+    tick(delta);
+  }, -1);
   return (
     <>
       <color attach="background" args={['#dfeadd']} />
@@ -597,17 +773,25 @@ function Scene() {
         castShadow
         shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-12}
-        shadow-camera-right={12}
+        shadow-camera-right={level === 3 ? 16 : 12}
         shadow-camera-top={10}
         shadow-camera-bottom={-10}
         shadow-normalBias={0.025}
       />
-      <Room />
-      {STATION_IDS.map((id) => (
-        <Station key={id} id={id} />
+      <Room level={level} timeline={timeline} />
+      {stationIds.map((id, index) => (
+        <Entrance key={id} timeline={timeline} delay={0.7 + index * 0.1}>
+          <Station id={id} />
+        </Entrance>
       ))}
-      <Chef who="human" />
-      {tutorial === null && <Chef who="ai" />}
+      <Entrance timeline={timeline} delay={1.25}>
+        <Chef who="human" />
+      </Entrance>
+      {tutorial === null && (
+        <Entrance timeline={timeline} delay={1.4}>
+          <Chef who="ai" />
+        </Entrance>
+      )}
       <Confetti />
     </>
   );
@@ -628,7 +812,7 @@ class GraphicsBoundary extends Component {
         <div className="graphics-error">
           3Dの描画を開始できませんでした。
           <br />
-          ブラウザのグラフィックアクセラレーションを有効にして、再接続してください。
+          WebGPU対応ブラウザでグラフィックアクセラレーションを有効にして、再接続してください。
           <button onClick={this.props.onRetry}>3Dを再接続</button>
           <button onClick={() => location.reload()}>再読み込み</button>
         </div>
@@ -641,6 +825,7 @@ export default function Kitchen() {
   const [error, setError] = useState(false);
   const [graphicsKey, setGraphicsKey] = useState(0);
   const initialization = useRef(null);
+  const canvasRef = useRef(null);
   const rendererRef = useRef(null);
   const rendererDisposeRef = useRef(null);
   const graphicsGeneration = useRef(0);
@@ -669,12 +854,11 @@ export default function Kitchen() {
     setError(false);
     setGraphicsKey((key) => key + 1);
   };
-  const generation = graphicsGeneration.current;
   return (
     <GraphicsBoundary key={graphicsKey} onRetry={retryGraphics}>
       {error ? (
         <div className="graphics-error">
-          3Dを表示できません。グラフィックアクセラレーションを有効にして再接続してください。
+          WebGPUを利用できません。対応ブラウザでグラフィックアクセラレーションを有効にして再接続してください。
           <button onClick={retryGraphics}>3Dを再接続</button>
           <button onClick={() => location.reload()}>再読み込み</button>
         </div>
@@ -685,6 +869,16 @@ export default function Kitchen() {
           dpr={[1, 1.5]}
           shadows={{ type: THREE.PCFShadowMap }}
           gl={(props) => {
+            // A remounted Canvas (including HMR) must not reuse a detached GPU target.
+            if (canvasRef.current !== props.canvas) {
+              canvasRef.current = props.canvas;
+              graphicsGeneration.current += 1;
+              void rendererDisposeRef.current?.();
+              rendererDisposeRef.current = null;
+              rendererRef.current = null;
+              initialization.current = null;
+            }
+            const generation = graphicsGeneration.current;
             // R3F can configure again while init awaits the GPU; share one renderer.
             initialization.current ??= (async () => {
               let renderer;
@@ -705,8 +899,9 @@ export default function Kitchen() {
                 renderer = new THREE.WebGPURenderer({
                   ...props,
                   antialias: true,
-                  forceWebGL: typeof navigator !== 'undefined' && !navigator.gpu,
                 });
+                // ponytail: Three r186 has no public WebGPU-only switch; recheck on upgrade.
+                renderer._getFallback = null;
                 rendererRef.current = renderer;
                 let deviceLost = false;
                 const defaultOnDeviceLost = renderer.onDeviceLost.bind(renderer);
@@ -745,7 +940,10 @@ export default function Kitchen() {
                 return renderer;
               } catch {
                 const current = generation === graphicsGeneration.current;
-                if (current) setError(true);
+                if (current) {
+                  graphicsLost();
+                  setError(true);
+                }
                 await disposeRenderer();
                 if (rendererRef.current === renderer) rendererRef.current = null;
                 if (rendererDisposeRef.current === disposeRenderer)
@@ -759,15 +957,15 @@ export default function Kitchen() {
             return initialization.current;
           }}
           onCreated={({ gl }) =>
-            generation === graphicsGeneration.current &&
+            gl === rendererRef.current &&
             useKitchen.setState({
-              backend: gl.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL 2',
-              ready: true,
+              backend: 'WebGPU',
+              ready: false,
             })
           }
           fallback={
             <div className="graphics-error">
-              このブラウザでは3Dを表示できません。最新のChromeで開いてください。
+              このブラウザでは3Dを表示できません。WebGPU対応ブラウザで開いてください。
             </div>
           }
         >

@@ -33,18 +33,8 @@ the supplementary fiber and vendored reconciler notices are available at
 
 ## Fonts
 
-`src/style.css` currently loads DM Sans and Noto Sans JP through the Google
-Fonts CSS service. The font projects publish these families under the SIL Open
-Font License, version 1.1:
-
-- [DM Sans OFL notice](https://github.com/google/fonts/blob/main/ofl/dmsans/OFL.txt)
-- [Noto Sans JP OFL notice](https://github.com/google/fonts/blob/main/ofl/notosansjp/OFL.txt)
-
-No font binaries are stored in this repository. Because the CSS is fetched at
-runtime from `fonts.googleapis.com`, the browser contacts Google to obtain the
-stylesheet/font files. If the game is opened outside the Access boundary, the
-site's privacy notice and any applicable consent requirements must cover this
-request; self-hosting the fonts is the smallest privacy-hardening follow-up.
+The interface uses fonts installed on the device through a system font stack.
+No font binaries are bundled and no external font service is requested.
 
 ## External services and data flow
 
