@@ -57,6 +57,7 @@ import {
   screen,
   screenContext,
   preparationAdvice,
+  staffingOutlook,
   editPreparation,
 } from '../src/ui.js';
 
@@ -86,6 +87,38 @@ test('hiring previews share the remaining stock and payroll budget with Jev', ()
   assert.ok(preview.includes(`予定残金 ${balance}`));
   assert.ok(candidate.label.includes(`予定残金${balance}コイン`));
   assert.ok(preparationCandidates(state, view).some((c) => c.id === 'skip_hiring'));
+});
+
+test('staffing forecasts show the following shift without choosing the roster', () => {
+  const game = createGame({
+    level: 20,
+    cash: 2000,
+    stock: 30,
+    hired: ['helper', 'chef', 'runner', 'prep', 'sprinter', 'sous'],
+    duty: ['chef', 'runner', 'sprinter', 'sous'],
+    staffState: { chef: { worked: 1, rest: 0 }, sous: { worked: 1, rest: 0 } },
+  });
+  const state = {
+    ...useKitchen.getState(),
+    game,
+    phase: 'finished',
+    cleared: true,
+    applicants: [],
+  };
+  const plan = { ...preparation(game), stage: 'staffing' };
+  const candidates = preparationCandidates(state, plan);
+  for (const [id, expected] of [
+    ['crew_chef_runner_prep_sprinter', '翌営業に出勤できる相棒2人・加熱担当0人'],
+    ['crew_helper_runner_prep_sprinter', '翌営業に出勤できる相棒3人・加熱担当1人'],
+  ]) {
+    const candidate = candidates.find((c) => c.id === id);
+    const selected = { ...plan, duty: candidate.duty };
+    assert.equal(staffingOutlook(game, selected), expected);
+    assert.ok(candidate.label.includes(expected));
+    assert.ok(preparationAdvice(game, selected).hint.includes(expected));
+  }
+  assert.equal(staffingOutlook({ ...game, level: 3 }, plan), '');
+  assert.equal(staffingOutlook({ ...game, level: 99 }, plan), '');
 });
 
 test('current order recipes are readable in the human hints and the bench context', () => {

@@ -10,6 +10,7 @@ import {
   STATIONS,
   activeStationIds,
   levelConfig,
+  MAX_LEVEL,
   layoutSlots,
   resolveLayout,
   stationInfo,
@@ -183,6 +184,19 @@ export function loopHint(preparing) {
     : '同じ操作が続き、仕入れ消費・配膳が進んでいません。';
 }
 
+export function staffingOutlook(g, plan) {
+  if (!levelConfig(g.level + 1).fatigueEnabled || g.level + 1 >= MAX_LEVEL) return '';
+  const forecast = nextStaffState({
+    level: g.level + 1,
+    hired: staffIds(g, plan),
+    duty: plan.duty,
+    staffState: nextStaffState(g),
+  });
+  const available = Object.keys(forecast).filter((id) => staffAvailable(forecast, id));
+  const cooks = available.filter((id) => STAFF[id].capabilities.includes('cook'));
+  return `翌営業に出勤できる相棒${available.length}人・加熱担当${cooks.length}人`;
+}
+
 export function preparationAdvice(g, plan) {
   const bill = purchase(g, plan);
   const available = Object.entries(bill.staffState)
@@ -191,6 +205,7 @@ export function preparationAdvice(g, plan) {
   if (plan.selected && !available.includes(plan.selected)) available.push(plan.selected);
   const cooks = available.filter((id) => STAFF[id].capabilities.includes('cook'));
   const training = bill.training.human ?? { move: 0, cook: 0 };
+  const outlook = staffingOutlook(g, plan);
   return (
     {
       hiring: {
@@ -199,7 +214,7 @@ export function preparationAdvice(g, plan) {
       },
       staffing: {
         instructions: `The next shift has ${bill.slots} staff slots. Available heat cooks: ${cooks.join(', ') || 'none'}. Each option is a complete roster. ${levelConfig(g.level + 1).fatigueEnabled ? 'Consecutive work leads to mandatory rest; a shift off resets the consecutive count.' : ''} Staff capabilities determine which tasks they can perform.`,
-        hint: `次の勤務枠は${bill.slots}人。出勤できる加熱担当：${cooks.map((id) => STAFF[id].name).join('・') || 'なし'}。${levelConfig(g.level + 1).fatigueEnabled ? '続けて働くと休養が必要です。休むと連勤数が戻ります。' : ''}担当できる作業は役割ごとに異なります。`,
+        hint: `次の勤務枠は${bill.slots}人。出勤できる加熱担当：${cooks.map((id) => STAFF[id].name).join('・') || 'なし'}。${levelConfig(g.level + 1).fatigueEnabled ? '続けて働くと休養が必要です。休むと連勤数が戻ります。' : ''}担当できる作業は役割ごとに異なります。${outlook ? `この勤務のあと：${outlook}。` : ''}`,
       },
       stock: {
         instructions:

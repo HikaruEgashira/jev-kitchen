@@ -28,7 +28,14 @@ import { apiFetch, sessionSeed } from './api-client.js';
 import { seededRandom } from './applicants.js';
 import { EQUIPMENT, equipmentCapacity, quoteEquipment } from './equipment.js';
 import { VITAMINS, quoteVitamins } from './training.js';
-import { preparation, purchase, preparationAdvice, preparationKey, equipmentEffect } from './ui.js';
+import {
+  preparation,
+  purchase,
+  preparationAdvice,
+  preparationKey,
+  equipmentEffect,
+  staffingOutlook,
+} from './ui.js';
 
 export const BENCH_PROTOCOL = 'jev-bench-v4';
 
@@ -225,9 +232,10 @@ export function preparationCandidates(state, plan) {
         quantity: Math.max(0, bill.quota - (g.stock ?? 0)),
       });
       if (minimum.error) continue;
+      const outlook = staffingOutlook(g, { ...plan, duty: crew });
       lineups.push({
         id: `crew_${crew.join('_') || 'solo'}`,
-        label: `${crew.map((id) => `${STAFF[id].name}（${STAFF[id].capabilities.join('/')}・連勤${available[id].worked}/${STAFF[id].maxConsecutive}）`).join(' ＋ ') || 'ひとり営業'} / 給与${payroll(crew)}コイン`,
+        label: `${crew.map((id) => `${STAFF[id].name}（${STAFF[id].capabilities.join('/')}・連勤${available[id].worked}/${STAFF[id].maxConsecutive}）`).join(' ＋ ') || 'ひとり営業'} / 給与${payroll(crew)}コイン${outlook ? ` / ${outlook}` : ''}`,
         duty: crew,
       });
     }
