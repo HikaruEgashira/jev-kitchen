@@ -13,12 +13,12 @@
 
 ## 2026-09-19 jev-bench
 
-- `/bench`にJev Choice互換モデルの挑戦画面を追加。左に厨房、右にタイマーと状態・設定、下に判断ログのRTA配置。
+- `/bench`にJev Choice互換モデルの挑戦画面を追加。中央は通常プレイと同じKitchen・SceneUI、右枠は今回のレベル別クリア時所持金・スコア。過去試行の表を除き1画面に配置。左に厨房、右にタイマーと状態・設定、下に判断ログのRTA配置。配色・丸み・ボタン・M PLUS Rounded 1cはSIDEKICKと共通。
 - 設定はfrequency（Hz、既定5）と最大call数（既定1,000）。目標レベルや試行数を指定せず、到達レベルとクリア数を測る。数値は送信時だけ変換し、空欄・小数の入力を妨げない。
 - 通常の人間と同じ調理・移動・ダッシュ・仕上げ・返却・廃棄・採用・配置・仕入れを選べる。移動中の変更、応募者抽選、支払いと在庫の検証も通常処理を使う。
-- 通常プレイの保存を抑止し、古い応答を捨てる。エラー・call上限・中断をノルマ未達と区別し、代替判断は行わない。
+- 中断とゲーム内pauseは状態・call数を保持して再開する。停止中はcallを追加せず、停止前の応答を実行しない。通常プレイの保存を抑止し、古い応答を捨てる。エラー・call上限・中断をノルマ未達と区別し、代替判断は行わない。
 - 接続先はWorkerの`BENCH_ENDPOINTS`に登録したHTTPS endpointのみ。URL・トークンをブラウザへ返さず、サイズ制限・timeout・Access保護を維持する。
-- 83 tests、typecheck、format/lint、build、Wrangler dry-runがpass。frequency間隔・call上限・遅延応答・中断・移動変更・ダッシュ・仕上げ・採用と配置・仕入れの支払い・通常保存の保全を検証。
+- 初回配信で83 testsとWrangler dry-runがpass。画面統一・中断再開の変更後は84 tests、typecheck、format/lint、buildがpass。frequency間隔・call上限・遅延応答・中断・移動変更・ダッシュ・仕上げ・採用と配置・仕入れの支払い・通常保存の保全を検証。
 - ローカルChrome/WebGPUでRTA配置、最大call初期値1,000、全選択→削除→再入力、小数0.5の入力、実Jevの3 callsでの停止と結果表示を確認。幅390指定ではページ横溢れなし。JSON保存ボタンの操作は実施したが、ブラウザのdownloadイベントは取得できず、保存完了は未確認。
 - 通常のゲーム処理を50ms刻みで動かしたローカル実Jev試行は、frequency 1・上限110で89 calls、Lv1の2/6皿、377点、ノルマ未達として終了。平均305ms／p95 464ms、APIエラー0。これは描画を伴う本番測定ではない。
 - `730dfd2`をmainへpush。GitHub CI [35422631702](https://github.com/HikaruEgashira/jev-kitchen/actions/runs/35422631702)とWorkers Buildsがsuccess。2026-09-19 04:57:38 UTC、本番100% version `7c28a849-b4df-4424-bc49-3c70d8f730d0`を確認。

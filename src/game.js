@@ -176,6 +176,7 @@ export const useKitchen = create(() => ({
       : createGame(),
   phase: 'ready',
   benchmark: false,
+  benchPreparation: null,
   revision: 0,
   mode: 'jev',
   policy: '',
@@ -370,6 +371,7 @@ function beginShift({
   if (!practice) shiftSnapshot = checkpoint;
   update({
     game,
+    benchPreparation: null,
     phase: 'playing',
     tutorial: practice ? 0 : null,
     cleared: false,
@@ -639,7 +641,6 @@ function tutorialStep() {
 
 export function goTo(id) {
   const current = state();
-  if (current.benchmark) return;
   if (current.phase !== 'playing' || current.menuOpen || !STATIONS[id]) return;
   if (!activeStationIds(current.game).includes(id)) return;
   const step = tutorialStep();
@@ -654,6 +655,7 @@ export function goTo(id) {
     if (state().tutorial === 3 && current.game.stations.board.state === 'chopping') target = id;
     return;
   }
+  current.game.human.intent = null;
   target = id;
 }
 
@@ -720,7 +722,6 @@ export function humanDash() {
 export function installControls() {
   const typing = (e) => e.target?.closest?.('input, textarea, select, [contenteditable="true"]');
   const down = (e) => {
-    if (state().benchmark) return;
     if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
     const key = e.key.toLowerCase();
     if (key === 'escape') {
@@ -735,6 +736,7 @@ export function installControls() {
     if (state().phase !== 'playing') return;
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
       e.preventDefault();
+      state().game.human.intent = null;
       keys.add(key);
       target = null;
     } else if (!e.repeat) {

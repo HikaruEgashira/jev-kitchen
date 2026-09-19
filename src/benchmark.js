@@ -1,5 +1,12 @@
 import { create } from 'zustand';
-import { useKitchen, startBenchmark, benchmarkAction, nextShift, togglePause } from './game.js';
+import {
+  useKitchen,
+  startBenchmark,
+  benchmarkAction,
+  nextShift,
+  togglePause,
+  setMenuOpen,
+} from './game.js';
 import { buildCandidates, buildQuestions, observe, MAX_LEVEL, STOCK_PRICE } from './model.js';
 import { STAFF } from './staff.js';
 import { preparation, purchase } from './ui.js';
@@ -7,6 +14,8 @@ import { preparation, purchase } from './ui.js';
 export const BENCH_PROTOCOL = 'jev-bench-v1';
 export const useBenchmark = create(() => ({
   running: false,
+  paused: false,
+  splits: [],
   action: '',
   log: [],
   elapsedMs: 0,
@@ -63,6 +72,12 @@ function prepare(candidate, plan, g) {
   }
   if ('duty' in candidate) plan.duty = [...candidate.duty];
   if ('quantity' in candidate) plan.quantity = candidate.quantity;
+  if ('selected' in candidate) {
+    plan.page = 1;
+    plan.applicantIndex = Math.max(0, useKitchen.getState().applicants.indexOf(plan.selected));
+  }
+  if ('quantity' in candidate || 'duty' in candidate) plan.page = 2;
+  useKitchen.setState({ benchPreparation: { ...plan } });
   return true;
 }
 
@@ -84,6 +99,19 @@ export function stopBenchmark(reason = '停止しました') {
   if (useKitchen.getState().phase === 'playing') togglePause();
 }
 
+export function pauseBenchmark() {
+  if (!useBenchmark.getState().running) return;
+  if (useKitchen.getState().phase === 'playing') togglePause();
+  else if (useKitchen.getState().phase === 'finished') useBenchmark.setState({ paused: true });
+}
+
+export function resumeBenchmark() {
+  if (!useBenchmark.getState().running) return;
+  if (useKitchen.getState().menuOpen) setMenuOpen(false);
+  if (useKitchen.getState().phase === 'paused') togglePause();
+  useBenchmark.setState({ paused: false });
+}
+
 export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 }) {
   if (useBenchmark.getState().running || !useKitchen.getState().ready) return;
   if (
@@ -101,14 +129,34 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
   const session = new AbortController();
   let clock;
   controller = session;
-  useBenchmark.setState({ running: true, action: '', log: [], elapsedMs: 0, requests: 0 });
+  useBenchmark.setState({
+    running: true,
+    paused: false,
+    splits: [],
+    action: '',
+    log: [],
+    elapsedMs: 0,
+    requests: 0,
+  });
+  let generation = 0;
+  const unsubscribe = useKitchen.subscribe((next, previous) => {
+    if (
+      next.phase !== previous.phase ||
+      next.game !== previous.game ||
+      next.menuOpen !== previous.menuOpen
+    )
+      generation++;
+  });
   try {
     startBenchmark();
     const started = performance.now();
-    clock = setInterval(
-      () => useBenchmark.setState({ elapsedMs: performance.now() - started }),
-      100,
-    );
+    let lastClock = started;
+    clock = setInterval(() => {
+      const now = performance.now();
+      if (!useBenchmark.getState().paused && useKitchen.getState().phase !== 'paused')
+        useBenchmark.setState((state) => ({ elapsedMs: state.elapsedMs + now - lastClock }));
+      lastClock = now;
+    }, 100);
     const result = {
       protocol: BENCH_PROTOCOL,
       revision: import.meta.env?.VITE_COMMIT_SHA ?? 'development',
@@ -139,6 +187,10 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
         session.signal.throwIfAborted();
         const state = useKitchen.getState();
         const g = state.game;
+        if (state.phase === 'paused' || state.menuOpen || useBenchmark.getState().paused) {
+          await sleep();
+          continue;
+        }
         if (state.phase === 'finished') {
           if (result.levels.at(-1)?.level !== g.level) {
             const sous = partner(g);
@@ -153,8 +205,10 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
               missed: g.missed,
               burned: g.burned,
               staffId: sous.id,
+              cash: g.cash,
               applicants: [...state.applicants],
             });
+            useBenchmark.setState({ splits: result.levels.filter((level) => level.cleared) });
           }
           if (!state.cleared || g.level >= MAX_LEVEL) {
             result.status = state.cleared ? 'completed' : 'failed';
@@ -163,7 +217,9 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
           if (planningGame !== g) {
             plan = preparation(g);
             planningGame = g;
+            useKitchen.setState({ benchPreparation: plan });
           }
+          plan = useKitchen.getState().benchPreparation;
         }
         if (!['playing', 'finished'].includes(state.phase) || !state.ready)
           throw new Error('ゲームが中断されました');
@@ -189,6 +245,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
           await sleep();
           continue;
         }
+        const requestGeneration = generation;
         const requestStart = performance.now();
         nextCallAt = requestStart + 1000 / frequency;
         result.requests++;
@@ -256,6 +313,12 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
           if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
           data = await response.json();
           if (!data.ok) throw new Error('モデルが判断を返しませんでした');
+        } catch (error) {
+          if (!session.signal.aborted && generation !== requestGeneration) {
+            result.staleResponses++;
+            continue;
+          }
+          throw error;
         } finally {
           latencies.push(performance.now() - requestStart);
         }
@@ -266,6 +329,8 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
         if (!selected) throw new Error('モデルが候補外の行動を返しました');
         const current = useKitchen.getState();
         const applied =
+          generation === requestGeneration &&
+          !useBenchmark.getState().paused &&
           current.game === g &&
           current.phase === state.phase &&
           (preparing ? prepare(selected, plan, g) : benchmarkAction(selected));
@@ -296,6 +361,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
       reachedLevel: g.level,
       clearedLevels: result.levels.filter((level) => level.cleared).length,
       wallMs: Math.round(performance.now() - started),
+      activeMs: Math.round(useBenchmark.getState().elapsedMs),
       finalShift: {
         level: g.level,
         elapsedMs: Math.round(g.time),
@@ -310,6 +376,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
     useBenchmark.setState((state) => ({ results: [...state.results, result] }));
   } finally {
     clearInterval(clock);
+    unsubscribe();
     if (controller === session) controller = null;
     useBenchmark.setState({ running: false });
   }
