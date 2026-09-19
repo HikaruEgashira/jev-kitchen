@@ -1,0 +1,66 @@
+diff --git a/build/three.webgpu.js b/build/three.webgpu.js
+index 8cbb77a7bd36c6a89d397f18f8758fc60ff8146e..1ab5cba4c3c70b3ddfdd6b98eacf57c3eda46c3f 100644
+--- a/build/three.webgpu.js
++++ b/build/three.webgpu.js
+@@ -31823,7 +31823,10 @@ class Attributes extends DataMap {
+ 	 * @param {BufferAttribute} attribute - The attribute.
+ 	 * @return {?Object} The deleted attribute data.
+ 	 */
+-	delete( attribute ) {
++	delete( attribute, owned = false ) {
++
++		// Storage buffers can be shared by live Glyph draws. Their owner disposes them.
++		if ( ! owned && ( attribute.isStorageBufferAttribute || attribute.isStorageInstancedBufferAttribute ) ) return null;
+ 
+ 		const attributeData = super.delete( attribute );
+ 
+@@ -31852,6 +31855,16 @@ class Attributes extends DataMap {
+ 
+ 		if ( data.version === undefined ) {
+ 
++			if ( attribute.isStorageBufferAttribute || attribute.isStorageInstancedBufferAttribute ) {
++
++				const onDispose = () => {
++					this.delete( attribute, true );
++					attribute.removeEventListener( 'dispose', onDispose );
++				};
++				attribute.addEventListener( 'dispose', onDispose );
++
++			}
++
+ 			if ( type === AttributeType.VERTEX ) {
+ 
+ 				this.backend.createAttribute( attribute );
+diff --git a/src/renderers/common/Attributes.js b/src/renderers/common/Attributes.js
+index 5be5dc85b66f68156981da50903de212b334351f..e535ff2efc820c22640efbe29bc2ada2bbbfbb14 100644
+--- a/src/renderers/common/Attributes.js
++++ b/src/renderers/common/Attributes.js
+@@ -43,7 +43,10 @@ class Attributes extends DataMap {
+ 	 * @param {BufferAttribute} attribute - The attribute.
+ 	 * @return {?Object} The deleted attribute data.
+ 	 */
+-	delete( attribute ) {
++	delete( attribute, owned = false ) {
++
++		// Storage buffers can be shared by live Glyph draws. Their owner disposes them.
++		if ( ! owned && ( attribute.isStorageBufferAttribute || attribute.isStorageInstancedBufferAttribute ) ) return null;
+ 
+ 		const attributeData = super.delete( attribute );
+ 
+@@ -72,6 +75,16 @@ class Attributes extends DataMap {
+ 
+ 		if ( data.version === undefined ) {
+ 
++			if ( attribute.isStorageBufferAttribute || attribute.isStorageInstancedBufferAttribute ) {
++
++				const onDispose = () => {
++					this.delete( attribute, true );
++					attribute.removeEventListener( 'dispose', onDispose );
++				};
++				attribute.addEventListener( 'dispose', onDispose );
++
++			}
++
+ 			if ( type === AttributeType.VERTEX ) {
+ 
+ 				this.backend.createAttribute( attribute );

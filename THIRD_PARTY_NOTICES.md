@@ -14,6 +14,7 @@ the deployed application. Direct dependency ranges are declared in
 | `@react-three/drei`  |  10.7.8 | MIT     | [pmndrs/drei](https://github.com/pmndrs/drei/blob/master/LICENSE)                           |
 | Three.js             | 0.186.0 | MIT     | [three.js LICENSE](https://github.com/mrdoob/three.js/blob/dev/LICENSE)                     |
 | Zustand              |  5.0.15 | MIT     | [pmndrs/zustand](https://github.com/pmndrs/zustand/blob/main/LICENSE)                       |
+| `@pmndrs/glyph`      |   0.1.0 | MIT     | [pmndrs/glyph](https://github.com/pmndrs/glyph/blob/main/LICENSE)                           |
 
 The source tree does not copy third-party source files into `src/`. The
 production build can bundle direct and transitive dependencies, so this table
@@ -33,8 +34,14 @@ the supplementary fiber and vendored reconciler notices are available at
 
 ## Fonts
 
-The interface uses fonts installed on the device through a system font stack.
-No font binaries are bundled and no external font service is requested.
+Three UI uses a subset of M PLUS Rounded 1c Bold, baked with Glyph into
+`public/fonts/kitchen.font.glb`. The original font is stored in `assets/fonts`
+for reproducible baking; `title.typeface.json` contains only the letters used
+by Drei Text3D for the title. Copyright 2016 The Rounded M+ Project Authors;
+licensed under SIL Open Font License 1.1, reproduced at [`/fonts/OFL.txt`](/fonts/OFL.txt).
+Source: [Google Fonts](https://github.com/google/fonts/blob/cedcdd46c387ee243991abd07b7d2007fd683baf/ofl/mplusrounded1c/MPLUSRounded1c-Bold.ttf).
+Fonts and the Glyph shaping WASM are served from the application's origin.
+Only the graphics recovery screen uses the device's system font.
 
 ## External services and data flow
 

@@ -5,15 +5,17 @@
   "scripts": {
     "dev": "vp dev --host 127.0.0.1",
     "dev:api": "wrangler dev",
-    "build": "vp build",
+    "build": "node scripts/bake-font.mjs --check && vp build",
     "check": "vp check",
     "preview": "vp preview --host 127.0.0.1",
     "dev:remote": "wrangler dev --remote",
     "deploy": "wrangler deploy",
     "test": "node --test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "fonts": "node scripts/bake-font.mjs"
   },
   "dependencies": {
+    "@pmndrs/glyph": "0.1.0",
     "@react-three/drei": "10.7.8",
     "@react-three/fiber": "9.7.0",
     "react": "19.2.8",
@@ -23,6 +25,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "6.1.1",
+    "three-stdlib": "2.36.1",
     "typescript": "^5.6.0",
     "vite": "npm:@voidzero-dev/vite-plus-core@0.3.2",
     "vite-plus": "0.3.2",

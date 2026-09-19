@@ -1,59 +1,46 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { Billboard } from '@react-three/drei/core/Billboard';
+import { ScreenSizer } from '@react-three/drei/core/ScreenSizer';
 import { RoundedBox } from '@react-three/drei/core/RoundedBox';
-import * as THREE from 'three/webgpu';
+import { createContext, useContext } from 'react';
+import { useThree } from '@react-three/fiber';
+import { Text, useMsdf } from '@pmndrs/glyph/react';
+import { defineTextMaterial } from '@pmndrs/glyph/three';
 
 export const INK = '#245e50';
 export const PAPER = '#fff9e8';
 export const WOOD = '#b68050';
-export const FONT = '"Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif';
+export const prepareFont = () => useMsdf.preload('/fonts/kitchen.font.glb', { emSize: 32 });
+export const resetFont = () => useMsdf.clear('/fonts/kitchen.font.glb', { emSize: 32 });
+const Font = createContext(null);
+export function Typography({ children }) {
+  const font = useMsdf('/fonts/kitchen.font.glb', { emSize: 32 });
+  return <Font value={font}>{children}</Font>;
+}
+const letteringMaterial = defineTextMaterial((context) => {
+  const material = context.createDefaultMaterial();
+  material.depthTest = false;
+  material.depthWrite = false;
+  material.toneMapped = false;
+  return material;
+});
 
-// Rasterize only glyphs. Panels, controls, hit targets and their depth live in Three.
 export function Lettering({ text, width, height = 32, size = 16, color = INK, order = 1002 }) {
-  const texture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(width * 2);
-    canvas.height = Math.ceil(height * 2);
-    const result = new THREE.CanvasTexture(canvas);
-    result.colorSpace = THREE.SRGBColorSpace;
-    result.generateMipmaps = false;
-    result.minFilter = THREE.LinearFilter;
-    return result;
-  }, [width, height]);
-  useLayoutEffect(() => {
-    const canvas = texture.image;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.scale(2, 2);
-    ctx.fillStyle = color;
-    ctx.font = `700 ${size}px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const lines = String(text).split('\n');
-    lines.forEach((line, index) => {
-      ctx.fillText(
-        line,
-        width / 2,
-        height / 2 + (index - (lines.length - 1) / 2) * size * 1.5,
-        width - 8,
-      );
-    });
-    ctx.restore();
-    texture.needsUpdate = true;
-  }, [texture, text, size, color, width, height]);
-  useEffect(() => () => texture.dispose(), [texture]);
+  const font = useContext(Font);
+  const lines = String(text).split('\n').length;
+  const lineHeight = Math.min(1.5, height / (size * lines));
   return (
-    <mesh renderOrder={order} raycast={() => null}>
-      <planeGeometry args={[width, height]} />
-      <meshBasicMaterial
-        map={texture}
-        transparent
-        depthTest={false}
-        depthWrite={false}
-        toneMapped={false}
-      />
-    </mesh>
+    <Text
+      font={font}
+      material={letteringMaterial}
+      renderOrder={order}
+      position={[-width / 2, (size * lines * lineHeight) / 2, 0]}
+      constraints={{ width: { mode: 'exact', size: width } }}
+      layout={{ align: 'center', wrap: 'none', overflow: 'ellipsis' }}
+      style={{ fontSize: size, lineHeight, color }}
+      raycast={() => null}
+    >
+      {text}
+    </Text>
   );
 }
 
@@ -112,38 +99,43 @@ export function WorldLabel({
   visible = true,
   onClick,
 }) {
-  const group = useRef();
-  useFrame(({ camera }) => {
-    group.current.quaternion.copy(camera.quaternion);
-    group.current.scale.setScalar(1 / camera.zoom);
-  });
+  const narrow = useThree((s) => s.size.width < 600);
+  const labelWidth = narrow ? width * 0.8 : width;
+  const labelHeight = narrow ? 28 : 36;
   return (
-    <group ref={group} position={position} visible={visible}>
-      <Plaque
-        width={width}
-        height={36}
-        color={color}
-        edge={danger ? '#ba443c' : WOOD}
-        onClick={onClick}
-      >
-        <Lettering text={text} width={width - 6} size={14} />
-        {progress != null && (
-          <mesh
-            position={[(-(width - 12) * (1 - progress)) / 2, -13, 1]}
-            renderOrder={1003}
-            raycast={() => null}
-          >
-            <planeGeometry args={[Math.max(0.1, (width - 12) * progress), 4]} />
-            <meshBasicMaterial
-              color={danger ? '#ba443c' : INK}
-              transparent
-              depthTest={false}
-              depthWrite={false}
-              toneMapped={false}
-            />
-          </mesh>
-        )}
-      </Plaque>
-    </group>
+    <Billboard position={position} visible={visible}>
+      <ScreenSizer>
+        <Plaque
+          width={labelWidth}
+          height={labelHeight}
+          color={color}
+          edge={danger ? '#ba443c' : WOOD}
+          onClick={onClick}
+        >
+          <Lettering
+            text={text}
+            width={labelWidth - 6}
+            height={labelHeight - 4}
+            size={narrow ? 11 : 14}
+          />
+          {progress != null && (
+            <mesh
+              position={[(-(labelWidth - 12) * (1 - progress)) / 2, -labelHeight / 2 + 5, 1]}
+              renderOrder={1003}
+              raycast={() => null}
+            >
+              <planeGeometry args={[Math.max(0.1, (labelWidth - 12) * progress), 4]} />
+              <meshBasicMaterial
+                color={danger ? '#ba443c' : INK}
+                transparent
+                depthTest={false}
+                depthWrite={false}
+                toneMapped={false}
+              />
+            </mesh>
+          )}
+        </Plaque>
+      </ScreenSizer>
+    </Billboard>
   );
 }

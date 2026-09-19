@@ -108,6 +108,7 @@ export const useKitchen = create(() => ({
   policy: '',
   backend: '準備中',
   ready: false,
+  menuOpen: false,
   sound: true,
   best: savedBest(),
   checkpoint: initialCheckpoint,
@@ -304,7 +305,7 @@ function beginShift({
 }
 
 export function startShift() {
-  if (!state().ready) return;
+  if (!state().ready || state().menuOpen) return;
   const saved = state().phase === 'ready' ? readCheckpoint() : null;
   update({ checkpoint: saved });
   if (saved?.completed) {
@@ -338,13 +339,20 @@ export function startShift() {
 
 export function togglePause() {
   const phase = state().phase;
-  if ((phase !== 'playing' && phase !== 'paused') || !state().ready) return;
+  if ((phase !== 'playing' && phase !== 'paused') || !state().ready || state().menuOpen) return;
   invalidate();
   keys.clear();
   target = null;
   const nextPhase = phase === 'playing' ? 'paused' : 'playing';
   update({ phase: nextPhase });
   if (nextPhase === 'paused') audio?.stop();
+}
+
+export function setMenuOpen(open) {
+  if (open && state().phase === 'playing') togglePause();
+  keys.clear();
+  target = null;
+  update({ menuOpen: Boolean(open) });
 }
 
 export function graphicsLost() {
@@ -429,7 +437,7 @@ function tutorialStep() {
 
 export function goTo(id) {
   const current = state();
-  if (current.phase !== 'playing' || !STATIONS[id]) return;
+  if (current.phase !== 'playing' || current.menuOpen || !STATIONS[id]) return;
   if (!activeStationIds(current.game).includes(id)) return;
   const step = tutorialStep();
   if (state().tutorial === TUTORIAL_STEPS.length) return;
@@ -512,7 +520,11 @@ export function installControls() {
     if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
     const key = e.key.toLowerCase();
     if (key === 'escape') {
-      if (e.repeat || document.querySelector?.('dialog[open]')) return;
+      if (e.repeat) return;
+      if (state().menuOpen) {
+        setMenuOpen(false);
+        return;
+      }
       togglePause();
       return;
     }

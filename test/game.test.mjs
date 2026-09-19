@@ -6,6 +6,7 @@ import {
   setMode,
   setPolicy,
   togglePause,
+  setMenuOpen,
   tick,
   installControls,
   graphicsLost,
@@ -34,7 +35,7 @@ test.beforeEach(() => {
   storage.clear();
   storage.set('sidekick-onboarded-v1', '1');
   installTestStorage();
-  useKitchen.setState({ ready: true, phase: 'ready' });
+  useKitchen.setState({ ready: true, phase: 'ready', menuOpen: false });
 });
 
 test('a 90-second shift clears only after its quota and offers three applicants', () => {
@@ -501,15 +502,11 @@ test('blur pauses and Escape leaves an open help dialog paused', () => {
   };
   const fakeDocument = {
     hidden: false,
-    dialogOpen: false,
     addEventListener(type, listener) {
       documentListeners.set(type, listener);
     },
     removeEventListener(type) {
       documentListeners.delete(type);
-    },
-    querySelector() {
-      return this.dialogOpen ? {} : null;
     },
   };
   globalThis.window = fakeWindow;
@@ -549,7 +546,9 @@ test('blur pauses and Escape leaves an open help dialog paused', () => {
     assert.equal(useKitchen.getState().game.time, 0);
     windowListeners.get('blur')();
     assert.equal(useKitchen.getState().phase, 'paused');
-    fakeDocument.dialogOpen = true;
+    setMenuOpen(true);
+    togglePause();
+    assert.equal(useKitchen.getState().phase, 'paused');
     windowListeners.get('keydown')({
       key: 'Escape',
       repeat: false,
@@ -559,7 +558,7 @@ test('blur pauses and Escape leaves an open help dialog paused', () => {
       altKey: false,
     });
     assert.equal(useKitchen.getState().phase, 'paused');
-    fakeDocument.dialogOpen = false;
+    assert.equal(useKitchen.getState().menuOpen, false);
     windowListeners.get('keydown')({
       key: 'Escape',
       repeat: false,

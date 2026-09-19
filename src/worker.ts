@@ -169,7 +169,7 @@ async function runJev(
       const raw = JSON.parse(text);
       assertUpstreamResult(raw);
       return {
-        result: projectDecision(raw),
+        result: raw,
         model,
         via: 'typesafe-api',
       };
@@ -183,7 +183,7 @@ async function runJev(
   );
   assertUpstreamResult(raw);
   return {
-    result: projectDecision(raw),
+    result: raw,
     model: JEV_MODEL,
     via: 'workers-ai',
   };
@@ -214,16 +214,21 @@ async function health(request: Request, env: Env): Promise<Response> {
 
   const t0 = Date.now();
   try {
-    const { model, via } = await runJev(env, {
+    const { result, model, via } = await runJev(env, {
       state: 'A cook is chopping a tomato in a small kitchen.',
       questions: {
-        next_action: {
-          type: 'choice',
-          instructions: 'Choose the next safe kitchen action.',
-          criteria: { wait: 'wait and watch', serve: 'serve the dish' },
-        },
+        ok: { type: 'noul', instructions: 'Is a cook chopping a tomato?' },
       },
     });
+    const answer = result?.answers?.ok;
+    if (
+      answer?.type !== 'noul' ||
+      !Number.isFinite(answer.noul) ||
+      answer.noul < 0 ||
+      answer.noul > 1
+    ) {
+      throw new UpstreamFailureError();
+    }
     return json({
       ok: true,
       engine: 'jev',
@@ -261,7 +266,13 @@ async function decide(request: Request, env: Env): Promise<Response> {
       state: body.state,
       questions: body.questions,
     });
-    return json({ ok: true, engine: 'jev', via, upstreamMs: Date.now() - t0, result });
+    return json({
+      ok: true,
+      engine: 'jev',
+      via,
+      upstreamMs: Date.now() - t0,
+      result: projectDecision(result),
+    });
   } catch (e) {
     return json(
       {

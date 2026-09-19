@@ -2,8 +2,9 @@
 
 AIの相棒とLv100を目指す、3D協力キッチンゲーム。配膳、仕入れ、採用で厨房を広げる。
 
-React Three Fiber・Drei・Zustand（pmndrs）、Three.js の WebGPURenderer、Vite+ を使用する。
+React Three Fiber・Drei・Glyph・Zustand（pmndrs）、Three.js の WebGPURenderer、Vite+ を使用する。
 WebGPUを必須とし、非対応環境では起動案内を表示する。音の切替と描画・AIの診断はメニューにまとめる。
+HUD・ダイアログ・仕入れ欄はThreeで描き、文字には看板を敷く。立体タイトルの下に厨房を見せ、プレイ情報は開店後に表示する。スマホでは文字を縮小し、操作領域は44px以上を保つ。
 
 ## 遊び方
 
@@ -37,6 +38,7 @@ pnpm test                    # 純粋ロジック、非同期判断、Workerの�
 pnpm typecheck               # WorkerのTypeScript検査
 pnpm check                   # Vite+ format / lint
 pnpm build                   # 本番アセットと検出済み依存ライセンス → dist/
+pnpm fonts                   # UI文言変更時に日本語MSDFと立体タイトル用フォントを再生成
 pnpm exec wrangler deploy --dry-run
 ```
 
@@ -45,14 +47,16 @@ pnpm exec wrangler deploy --dry-run
 
 ## 構成
 
-| ファイル                        | 責務                                              |
-| ------------------------------- | ------------------------------------------------- |
-| `src/model.js`                  | DOM・通信に依存しない調理、営業、在庫、得点、候補 |
-| `src/staff.js`                  | 相棒候補の能力と役割                              |
-| `src/game.js`                   | Zustand状態、入力、移動、営業、採用、AI判断、音   |
-| `src/Kitchen.jsx`               | WebGPU描画、3D厨房・商品・オンボーディング演出    |
-| `src/App.jsx` / `src/style.css` | 設定、HUD、操作、結果、レスポンシブ表示           |
-| `src/worker.ts`                 | Jev・比較用LLMへのAPIプロキシ、ヘルスチェック     |
+| ファイル                           | 責務                                              |
+| ---------------------------------- | ------------------------------------------------- |
+| `src/model.js`                     | DOM・通信に依存しない調理、営業、在庫、得点、候補 |
+| `src/staff.js`                     | 相棒候補の能力と役割                              |
+| `src/game.js`                      | Zustand状態、入力、移動、営業、採用、AI判断、音   |
+| `src/Kitchen.jsx`                  | WebGPU描画、3D厨房・商品・オンボーディング演出    |
+| `src/ui.js` / `src/SceneUI.jsx`    | ThreeのHUD・設定・結果・フォームと操作用DOM       |
+| `src/Surface.jsx` / `src/Food.jsx` | Glyphの文字、看板、共有商品モデル                 |
+| `src/App.jsx` / `src/style.css`    | Canvasの起動、不可視の操作要素、描画障害時の案内  |
+| `src/worker.ts`                    | Jev・比較用LLMへのAPIプロキシ、ヘルスチェック     |
 
 ブラウザのゲーム状態が唯一の正。コードが合法な行動を列挙し、Jevはその中から次の一手だけを選ぶ。
 移動先に到着した時点で再検証する。リセット・一時停止では通信を中止し、古い回答を破棄する。
@@ -105,4 +109,4 @@ WorkerではAPI入力の型・サイズ・候補数を検証してから有料�
 
 ## 現在の状態
 
-この仕様は実装直後の新iterationで、rootによる自動検査・認証済みブラウザQA・本番配信確認が完了するまで未配信・未検証として扱う。
+検証・配信の状態は [リリース台帳](docs/RELEASE.md) に記録する。

@@ -1,5 +1,11 @@
 # Additional third-party notices
 
+## M PLUS Rounded 1c Bold
+
+Copyright 2016 The Rounded M+ Project Authors. Licensed under the
+[SIL Open Font License 1.1](/fonts/OFL.txt). The bundled Glyph atlas is a
+subset of this font; the original font and baking script are in the source repository.
+
 This file supplements [`/licenses.md`](/licenses.md), which Vite generates
 from the dependencies it detects in the production bundle. The fiber package
 contains its renderer and a vendored React reconciler implementation; those

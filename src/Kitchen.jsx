@@ -1,12 +1,12 @@
 import { Children, Component, memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { WorldLabel } from './Surface.jsx';
-import { RoundedBox } from '@react-three/drei/core/RoundedBox';
+import { Canvas, events, useFrame, useThree } from '@react-three/fiber';
+import { WorldLabel, Typography, prepareFont, resetFont } from './Surface.jsx';
+import SceneUI from './SceneUI.jsx';
+import { Block, Ball, Cylinder, Tomato, Food } from './Food.jsx';
 import * as THREE from 'three/webgpu';
 import { graphicsLost, TUTORIAL_STEPS, useKitchen, goTo, tick } from './game.js';
 import {
   STATIONS,
-  ITEM_EMOJI,
   BOOST_MIN,
   BOOST_MAX,
   POT_BURN_MS,
@@ -15,18 +15,9 @@ import {
   kitchenBounds,
   levelConfig,
 } from './model.js';
-import { STAFF } from './staff.js';
 import { ENTRANCE_DURATION, entranceHeight } from './entrance.js';
 
 const world = (x, y, height = 0) => [(x - 450) / 65, height, (y - 270) / 65];
-const STATION_ICONS = Object.freeze({
-  crate: '🍅',
-  board: '🔪',
-  pot: '🍲',
-  plates: '🍽️',
-  grill: '🔥',
-  serve: '✨',
-});
 const FLOOR_ROWS = 8;
 const FLOOR_COLUMNS = Object.freeze({ 1: 14, 2: 16, 3: 20 });
 const FLOOR_MAX_TILES = FLOOR_ROWS * FLOOR_COLUMNS[3];
@@ -40,104 +31,6 @@ const palette = {
   wood: '#c89969',
   steel: '#a5bbb3',
 };
-
-function Block({ size, color, position, radius = 0.06, ...props }) {
-  return (
-    <RoundedBox
-      args={size}
-      radius={radius}
-      smoothness={2}
-      position={position}
-      castShadow
-      receiveShadow
-      {...props}
-    >
-      <meshStandardMaterial color={color} roughness={0.8} />
-    </RoundedBox>
-  );
-}
-
-function Ball({ size = 0.2, color, position, scale, ...props }) {
-  return (
-    <mesh position={position} scale={scale} castShadow {...props}>
-      <sphereGeometry args={[size, 16, 12]} />
-      <meshStandardMaterial color={color} roughness={0.65} />
-    </mesh>
-  );
-}
-
-function Cylinder({ radii = [0.3, 0.3], height = 0.1, color, position, ...props }) {
-  return (
-    <mesh position={position} castShadow receiveShadow {...props}>
-      <cylinderGeometry args={[...radii, height, 24]} />
-      <meshStandardMaterial color={color} roughness={0.55} />
-    </mesh>
-  );
-}
-
-function Tomato({ position = [0, 0, 0], scale = 1, color = '#e85945' }) {
-  return (
-    <group position={position} scale={scale}>
-      <Ball size={0.23} color={color} scale={[1, 0.86, 1]} />
-      <mesh position={[0, 0.2, 0]} rotation={[0, 0.35, 0]}>
-        <coneGeometry args={[0.14, 0.12, 5]} />
-        <meshStandardMaterial color="#407b47" />
-      </mesh>
-      <Ball size={0.055} color="#ffae8a" position={[-0.1, 0.1, 0.16]} />
-    </group>
-  );
-}
-
-function Food({ item, burnt = false }) {
-  if (item === 'tomato') return <Tomato />;
-  if (item === 'chopped')
-    return (
-      <group>
-        {[-0.15, 0, 0.15].map((x) => (
-          <Block
-            key={x}
-            size={[0.13, 0.12, 0.24]}
-            color="#e85945"
-            position={[x, 0, 0]}
-            radius={0.025}
-          />
-        ))}
-      </group>
-    );
-  return (
-    <group>
-      <Cylinder radii={[0.38, 0.3]} height={item === 'soup' ? 0.22 : 0.06} color={palette.white} />
-      {item === 'dish' && (
-        <>
-          <Ball color="#72a744" size={0.26} scale={[1, 0.38, 1]} position={[0, 0.08, 0]} />
-          <Tomato position={[-0.12, 0.14, 0.07]} scale={0.52} />
-          <Tomato position={[0.12, 0.13, -0.05]} scale={0.48} />
-        </>
-      )}
-      {item === 'soup' && (
-        <>
-          <Cylinder radii={[0.32, 0.32]} height={0.02} color="#df7440" position={[0, 0.115, 0]} />
-          <Ball size={0.05} color="#6e954c" position={[0.04, 0.145, 0.08]} />
-        </>
-      )}
-      {item === 'roast' && (
-        <>
-          <Tomato
-            position={[-0.12, 0.14, 0.07]}
-            scale={0.58}
-            color={burnt ? '#75433a' : '#e36b43'}
-          />
-          <Tomato
-            position={[0.12, 0.13, -0.05]}
-            scale={0.5}
-            color={burnt ? '#75433a' : '#e36b43'}
-          />
-          <Ball size={0.045} color={burnt ? '#3c302c' : '#e8a34d'} position={[0, 0.18, 0.02]} />
-        </>
-      )}
-    </group>
-  );
-}
 
 function Plant({ position, scale = 1 }) {
   return (
@@ -342,6 +235,7 @@ function Station({ id }) {
   const tutorial = useKitchen((s) => s.tutorial);
   const graphicsReady = useKitchen((s) => s.ready);
   const reducedMotion = useKitchen((s) => s.reducedMotion);
+  const focused = useKitchen((s) => s.focusedStation === id);
   const active = g.human.station === id;
   const tutorialActive =
     phase === 'playing' &&
@@ -437,7 +331,7 @@ function Station({ id }) {
           <WorldLabel
             position={[0, 2.6, 0]}
             text={stockCount === null ? '∞' : `残り ${stockCount}`}
-            visible={graphicsReady}
+            visible={graphicsReady && phase !== 'ready'}
           />
         </>
       )}
@@ -538,21 +432,23 @@ function Station({ id }) {
       )}
       <WorldLabel
         position={[0, id === 'pot' || id === 'grill' ? 2.3 : 1.95, 0]}
-        visible={graphicsReady}
+        visible={graphicsReady && phase !== 'ready'}
         text={
           tutorialTarget
-            ? `${tutorialStep.icon} ${tutorialStep.label}`
-            : `${STATION_ICONS[id]}${ready || st.state === 'chopped' ? ' ✓' : ''}${danger ? ' 焦げ注意' : ''}`
+            ? tutorialStep.label
+            : `${station.name}${ready || st.state === 'chopped' ? ' 完成' : ''}${danger ? ' 焦げ注意' : ''}`
         }
-        width={tutorialTarget ? 210 : danger ? 112 : 56}
+        width={tutorialTarget ? 210 : danger ? 144 : 100}
         color={
-          tutorialTarget
+          focused
             ? '#f4cd75'
-            : tutorialMuted
-              ? '#c4ddc4'
-              : boostWindow
-                ? '#f4cd75'
-                : palette.white
+            : tutorialTarget
+              ? '#f4cd75'
+              : tutorialMuted
+                ? '#c4ddc4'
+                : boostWindow
+                  ? '#f4cd75'
+                  : palette.white
         }
         progress={working ? progress : ready ? burnWindow : null}
         danger={danger}
@@ -574,12 +470,11 @@ function Chef({ who }) {
   const previous = useRef(null);
   useKitchen((s) => s.revision);
   const reducedMotion = useKitchen((s) => s.reducedMotion);
-  const staffId = useKitchen((s) => s.game.staffId);
+  const phase = useKitchen((s) => s.phase);
   const graphicsReady = useKitchen((s) => s.ready);
   const human = who === 'human',
     color = human ? palette.coral : palette.yellow;
   const actor = useKitchen.getState().game[who];
-  const staff = STAFF[staffId] ?? STAFF.helper;
   useFrame(() => {
     const { game: g, phase } = useKitchen.getState(),
       a = g[who];
@@ -667,8 +562,8 @@ function Chef({ who }) {
       </group>
       <WorldLabel
         position={[0, 2.08, 0]}
-        visible={graphicsReady}
-        text={`${human ? 'あなた' : staff.icon + ' 相棒'}${actor.carrying ? ` ${ITEM_EMOJI[actor.carrying] ?? '🍽️'}` : ''}`}
+        visible={graphicsReady && phase !== 'ready'}
+        text={`${human ? 'あなた' : '相棒'}`}
         width={actor.carrying ? 112 : 84}
         color={human ? '#f7c4af' : palette.yellow}
       />
@@ -851,6 +746,7 @@ export default function Kitchen() {
     await disposeRenderer?.();
     rendererRef.current = null;
     initialization.current = null;
+    resetFont();
     setError(false);
     setGraphicsKey((key) => key + 1);
   };
@@ -865,6 +761,13 @@ export default function Kitchen() {
       ) : (
         <Canvas
           orthographic
+          events={(state) => ({
+            ...events(state),
+            filter: (hits) =>
+              hits.sort(
+                (a, b) => b.object.renderOrder - a.object.renderOrder || a.distance - b.distance,
+              ),
+          })}
           camera={{ position: [10, 15, 18], zoom: 45, near: 0.1, far: 100 }}
           dpr={[1, 1.5]}
           shadows={{ type: THREE.PCFShadowMap }}
@@ -914,6 +817,7 @@ export default function Kitchen() {
                   void disposeRenderer();
                 };
                 await renderer.init();
+                await prepareFont();
                 const device = renderer.backend?.device;
                 if (device?.lost) {
                   void device.lost
@@ -969,7 +873,10 @@ export default function Kitchen() {
             </div>
           }
         >
-          <Scene />
+          <Typography>
+            <Scene />
+            <SceneUI />
+          </Typography>
         </Canvas>
       )}
     </GraphicsBoundary>

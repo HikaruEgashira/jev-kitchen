@@ -3,8 +3,12 @@
 allowBuilds:
   esbuild: true
   workerd: true
+minimumReleaseAgeExclude:
+  - '@pmndrs/glyph@0.1.0'
 overrides:
   'vite@*': npm:@voidzero-dev/vite-plus-core@0.3.2
+patchedDependencies:
+  three@0.186.0: patches/three@0.186.0.patch
 peerDependencyRules:
   allowedVersions:
     vite: '*'
