@@ -15,15 +15,14 @@ import {
   MAX_LEVEL,
   STOCK_PRICE,
   levelConfig,
-  RECIPES,
   recommendedStock,
 } from './model.js';
 import { STAFF, nextStaffState, payroll } from './staff.js';
 import { EQUIPMENT, quoteEquipment } from './equipment.js';
 import { MAX_TRAINING, VITAMINS, quoteVitamins } from './training.js';
-import { preparation, purchase, screenContext } from './ui.js';
+import { preparation, purchase } from './ui.js';
 
-export const BENCH_PROTOCOL = 'jev-bench-v2';
+export const BENCH_PROTOCOL = 'jev-bench-v3';
 
 // Single source of truth for preparation parity. Every action the human
 // preparation sheet can render (see `screen()`) must be classified here: either
@@ -285,20 +284,91 @@ function partner(g) {
   return { id, actor: id ? (g.crew?.[id] ?? null) : null };
 }
 
-// Node tests have no window; the wide reference matches a desktop HUD.
-function viewport() {
+export function compactDecisionState(s) {
+  if (s.phase === 'preparation') {
+    const p = s.preparation,
+      b = p.bill;
+    const stage = p.stage;
+    return {
+      phase: s.phase,
+      preparation: {
+        stage,
+        cash_before_purchase: s.cash,
+        cash_remaining: b.cash,
+        next_level: {
+          level: p.next_level.level,
+          quota: p.next_level.quota,
+          staffSlots: p.next_level.staffSlots,
+          recipeMix: p.next_level.recipeMix,
+        },
+        selected: p.selected,
+        duty: p.duty,
+        stock: b.stock,
+        quantity: p.quantity,
+        recommended_purchase: p.recommended_purchase,
+        ...(stage === 'hiring' || stage === 'staffing'
+          ? {
+              roster: p.roster.map((x) => ({
+                id: x.id,
+                capabilities: x.capabilities,
+                wage: x.wage,
+                worked: x.worked,
+                rest: x.rest,
+              })),
+              applicants: p.applicants.map((x) => ({
+                id: x.id,
+                capabilities: x.capabilities,
+                cost: x.cost,
+                wage: x.wage,
+              })),
+            }
+          : {}),
+        ...(stage === 'investment'
+          ? {
+              equipment: b.equipment,
+              training: b.training,
+              pending_equipment: p.equipmentPurchases,
+              recent_actions: p.recent_actions,
+            }
+          : {}),
+      },
+    };
+  }
   return {
-    width: Number(globalThis.innerWidth) || 1280,
-    height: Number(globalThis.innerHeight) || 720,
+    phase: s.phase,
+    controlled_actor: s.controlled_actor,
+    level: s.level,
+    quota: s.quota,
+    orders_served: s.orders_served,
+    stock: s.stock,
+    seconds_left: s.seconds_left,
+    human: s.human,
+    crew: s.crew,
+    orders: s.orders,
+    dash_ready_in_ms: s.dash_ready_in_ms,
+    stations: Object.fromEntries(
+      Object.entries(s.stations)
+        .filter(([, v]) => v.active)
+        .map(([id, v]) => [
+          id,
+          {
+            x: v.x,
+            y: v.y,
+            state: v.state,
+            by: v.by,
+            burn_seconds: v.burn_seconds,
+            ...s.cooking[id],
+          },
+        ]),
+    ),
   };
 }
 
-// One builder for the model context: structured state, the rendered screen,
-// and bench-only timing. Kept out of the loop so it stays testable and the
-// prompt cannot drift from what the player sees.
+// Share the game observation, then keep only facts needed for this decision.
+// In preparation the pending bill is authoritative; old equipment and UI text
+// made the model undo purchases it had just selected.
 export function benchRequest(state, { preparing, plan, candidates }) {
   const g = state.game;
-  const sous = partner(g);
   const actions = new Set(candidates.map((c) => c.id));
   const bill = preparing ? purchase(g, plan) : null;
   const restedCrew = preparing
@@ -312,15 +382,13 @@ export function benchRequest(state, { preparing, plan, candidates }) {
   const cook = restedCrew
     .filter((id) => STAFF[id].capabilities.includes('cook'))
     .sort((a, b) => (bill.staffState[a]?.worked ?? 0) - (bill.staffState[b]?.worked ?? 0))[0];
-  return {
+  const request = {
     state: {
       ...(preparing
         ? {
             level: g.level,
             cash: g.cash,
             stock: g.stock,
-            equipment: g.equipment,
-            training: g.training,
           }
         : observe(g, '', 'human')),
       controlled_actor: 'human',
@@ -357,23 +425,8 @@ export function benchRequest(state, { preparing, plan, candidates }) {
               quantity: plan.quantity,
               recommended_purchase: recommendedStock(g),
               next_level: levelConfig(g.level + 1),
-              previous_sales: g.served,
-              previous_burned: g.burned,
-              recipes: Object.fromEntries(
-                Object.entries(RECIPES).map(([id, recipe]) => [
-                  id,
-                  {
-                    revenue: Math.round(recipe.points / 4),
-                    margin: Math.round(recipe.points / 4) - STOCK_PRICE,
-                  },
-                ]),
-              ),
-              equipment_catalog: EQUIPMENT,
-              vitamin_catalog: VITAMINS,
               equipmentPurchases: plan.equipmentPurchases ?? [],
-              layout: plan.layout ?? g.layout,
               bill,
-              stock_price: STOCK_PRICE,
               applicants: state.applicants.map((id) => ({ id, ...STAFF[id] })),
               roster: Object.entries(nextStaffState(g)).map(([id, schedule]) => ({
                 id,
@@ -383,20 +436,6 @@ export function benchRequest(state, { preparing, plan, candidates }) {
             },
           }
         : {}),
-      partner_intent: preparing ? undefined : (sous.actor?.intent?.id ?? null),
-      position: preparing
-        ? undefined
-        : {
-            human: { x: g.human.x, y: g.human.y },
-            ai: sous.actor ? { x: sous.actor.x, y: sous.actor.y } : null,
-          },
-      screen: screenContext(
-        state,
-        plan ?? preparation(g),
-        viewport().width,
-        viewport().height,
-        actions,
-      ),
     },
     questions: preparing
       ? {
@@ -441,6 +480,7 @@ export function benchRequest(state, { preparing, plan, candidates }) {
           }
         : buildQuestions(candidates, 'human', g),
   };
+  return { ...request, state: compactDecisionState(request.state) };
 }
 
 export function latencyStats(values) {
@@ -549,6 +589,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
     let plan;
     let planningGame;
     let navigating = false;
+    const preparationVisits = new Map();
     try {
       while (true) {
         session.signal.throwIfAborted();
@@ -590,6 +631,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
             break;
           }
           if (planningGame !== g) {
+            preparationVisits.clear();
             navigating = false;
             plan = { ...preparation(g), stage: 'hiring' };
             planningGame = g;
@@ -628,6 +670,11 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
           continue;
         }
         const requestGeneration = generation;
+        const stage = preparing ? plan.stage : null;
+        const body = JSON.stringify({
+          modelId: model.id,
+          ...benchRequest(state, { preparing, plan, candidates }),
+        });
         const requestStart = performance.now();
         nextCallAt = requestStart + 1000 / frequency;
         result.requests++;
@@ -638,10 +685,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             signal: AbortSignal.any([session.signal, AbortSignal.timeout(10000)]),
-            body: JSON.stringify({
-              modelId: model.id,
-              ...benchRequest(state, { preparing, plan, candidates }),
-            }),
+            body,
           });
           if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
           data = await response.json();
@@ -676,12 +720,32 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
         result.decisions.push({
           level: g.level,
           phase: preparing ? 'preparation' : 'playing',
+          stage,
           atMs: Math.round(g.time),
           action: selected.id,
           applied,
           latencyMs: Math.round(latencies.at(-1)),
           via: data.via,
+          confidence: Number.isFinite(data.result?.answers?.next_action?.confidence)
+            ? data.result.answers.next_action.confidence
+            : null,
+          candidateCount: candidates.length,
+          requestBytes: new TextEncoder().encode(body).length,
         });
+        if (preparing && applied && selected.id !== 'open_shift') {
+          const { selected: hire, duty, quantity, equipmentPurchases, vitamins } = plan;
+          const signature = JSON.stringify({
+            stage: plan.stage,
+            hire,
+            duty,
+            quantity,
+            equipmentPurchases,
+            vitamins,
+          });
+          const visits = (preparationVisits.get(signature) ?? 0) + 1;
+          preparationVisits.set(signature, visits);
+          if (visits >= 3) throw new Error('Preparation cycle: same plan chosen three times');
+        }
         const action = applied ? selected.label : '状況が変わったため再判断';
         useBenchmark.setState((state) => ({
           action,

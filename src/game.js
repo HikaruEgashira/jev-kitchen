@@ -368,10 +368,9 @@ function drawApplicants(hired) {
   }
   if (!hired.includes('veteran') && Math.random() < 0.01) pool.unshift('veteran');
   const applicants = pool.slice(0, 3);
-  // Keep hiring and rotating cooks available without requiring a lucky draw.
-  const cook = pool.find((id) => id === 'chef' || id === 'sous');
-  if (cook && !applicants.some((id) => id === 'chef' || id === 'sous'))
-    applicants[applicants.length - 1] = cook;
+  // Offer the affordable first cook, then the reserve, without a lucky draw.
+  const cook = ['chef', 'sous'].find((id) => pool.includes(id));
+  if (cook && !applicants.includes(cook)) applicants[applicants.length - 1] = cook;
   return applicants;
 }
 

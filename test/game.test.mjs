@@ -1030,7 +1030,7 @@ test('mentor retirement offers a cooking hire and preserves trained campaign sav
     g.served = g.quota;
     g.time = SHIFT_MS;
     tick(0);
-    assert.ok(useKitchen.getState().applicants.some((id) => id === 'chef' || id === 'sous'));
+    assert.ok(useKitchen.getState().applicants.includes('chef'));
     assert.equal(nextShift(null, 0, ['helper']), true);
     const next = useKitchen.getState().game;
     assert.deepEqual(next.training, { human: { move: 1, cook: 1 } });

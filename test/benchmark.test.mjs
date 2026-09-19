@@ -30,7 +30,7 @@ import { preparation, purchase } from '../src/ui.js';
 const writes = [];
 const model = { id: 'jev', name: 'Jev' };
 const answer = (choice) =>
-  Response.json({ ok: true, result: { answers: { next_action: { choice } } } });
+  Response.json({ ok: true, result: { answers: { next_action: { choice, confidence: 0.9 } } } });
 
 test.beforeEach(() => {
   writes.length = 0;
@@ -98,7 +98,7 @@ test('player instructions distinguish starting prep, serving hot food and discar
   assert.ok(buildCandidates(g, 'human').some((c) => c.id === 'discard'));
 });
 
-test('the model context carries the on-screen text, including station hints', () => {
+test('playing context keeps active station facts without duplicated UI and campaign data', () => {
   startBenchmark();
   const g = useKitchen.getState().game;
   g.level = 5;
@@ -111,8 +111,13 @@ test('the model context carries the on-screen text, including station hints', ()
     plan: undefined,
     candidates: buildCandidates(g, 'human'),
   });
-  assert.ok(state.screen.items.some((item) => item.id === 'shift'));
-  assert.ok(state.screen.items.some((item) => item.text?.includes('切ったトマトを持ってこよう')));
+  assert.equal(state.stations.pot.state, 'idle');
+  assert.equal(state.human.x, STATIONS.pot.x);
+  assert.equal(state.orders[0].recipe, 'soup');
+  assert.equal(state.stations.pot2, undefined);
+  assert.equal(state.screen, undefined);
+  assert.equal(state.equipment, undefined);
+  assert.equal(state.actor, undefined);
 });
 
 test('benchmark actions use movement, reject stale work on arrival, and never save a campaign', () => {
@@ -201,9 +206,9 @@ test('complete shifts are recorded and repeated attempts reset the starting cond
   await runBenchmark({ model });
   assert.equal(starts.length, 2);
   assert.ok(
-    starts.every((state) => state.level === 1 && state.cash === 180 && state.orders_served === 0),
+    starts.every((state) => state.level === 1 && state.stock === null && state.orders_served === 0),
   );
-  assert.ok(starts.every((state) => state.screen.items.length > 0));
+  assert.ok(starts.every((state) => state.controlled_actor === 'human'));
   const results = useBenchmark.getState().results;
   assert.equal(results.length, 2);
   assert.ok(
@@ -302,16 +307,10 @@ test('frequency spaces calls and the model hires, buys stock and assigns the nex
       useKitchen.setState({ applicants: ['chef'] });
     } else {
       assert.equal(body.state.phase, 'preparation');
-      assert.equal(body.state.preparation.applicants[0].id, 'chef');
+      if (calls.length <= 3) assert.equal(body.state.preparation.applicants[0].id, 'chef');
       if (calls.length === 2) assert.deepEqual(body.state.preparation.duty, ['helper']);
-      assert.ok(body.state.screen.items.some((item) => item.id === 'title'));
-      if (calls.length === 3) {
-        // The human's applicant ‹ › navigation is on screen but not a choice,
-        // so its wording stays while its selectable id is dropped.
-        const ids = body.state.screen.items.map((item) => item.id);
-        assert.ok(!ids.includes('previous-applicant') && !ids.includes('next-applicant'));
-        assert.ok(body.state.screen.items.some((item) => item.label === '前の応募者'));
-      }
+      assert.equal(body.state.screen, undefined);
+      assert.ok(body.state.preparation.cash_remaining >= 0);
     }
     return answer(choice);
   });
@@ -331,6 +330,7 @@ test('frequency spaces calls and the model hires, buys stock and assigns the nex
   );
   assert.equal(result.requests, 5);
   assert.equal(result.conditions.frequency, 10);
+  assert.ok(result.decisions.every((d) => d.confidence === 0.9 && d.candidateCount > 1));
   for (let i = 1; i < calls.length; i++) assert.ok(calls[i] - calls[i - 1] >= 100);
   assert.equal(writes.length, 0);
 });
@@ -394,7 +394,7 @@ test('bench observes the player and can deploy, rotate and hire a full crew', ()
   const plan = preparation(g);
   const observation = benchRequest(state, {
     preparing: true,
-    plan,
+    plan: { ...plan, stage: 'staffing' },
     candidates: preparationCandidates(state, plan),
   }).state;
   assert.equal(
@@ -406,11 +406,11 @@ test('bench observes the player and can deploy, rotate and hire a full crew', ()
     preparing: false,
     candidates: buildCandidates(g, 'human'),
   }).state;
-  assert.equal(playing.actor.carrying, 'chopped');
-  assert.equal(playing.staff, null);
+  assert.equal(playing.human.carrying, 'chopped');
+  assert.equal(playing.staff, undefined);
   assert.equal(observation.preparation.roster.find((s) => s.id === 'runner').rest, 1);
   assert.equal(observation.preparation.next_level.staffSlots, 4);
-  assert.equal(observation.preparation.recipes.soup.margin, 27);
+  assert.ok(observation.preparation.next_level.recipeMix.soup > 0);
   plan.selected = 'prep';
   for (const id of ['sous', 'prep']) {
     const option = preparationCandidates(state, plan).find((c) => c.id === `assign_${id}`);
@@ -556,6 +556,10 @@ test('investment considers the pending second board before recommending further 
   );
   assert.doesNotMatch(instruction(), /only one board/);
   assert.match(instruction(), /assigned cook/);
+  const request = benchRequest(s, { preparing: true, plan, candidates: pending });
+  assert.equal(request.state.preparation.equipment.board.count, 2);
+  assert.equal(request.state.equipment, undefined);
+  assert.equal(request.state.preparation.bill, undefined);
 });
 
 test('staffing recommends the rested cook while keeping every legal roster available', () => {
@@ -574,4 +578,45 @@ test('staffing recommends the rested cook while keeping every legal roster avail
   assert.match(candidates.find((c) => c.id === 'crew_chef').label, /連勤2\/3/);
   const request = benchRequest(s, { preparing: true, plan, candidates });
   assert.match(request.questions.next_action.instructions, /Assign sous as the ONLY heat cook/);
+});
+
+test('repeated purchase reversals stop before consuming the whole call budget', async (t) => {
+  const choices = [
+    'wait',
+    'skip_hiring',
+    'crew_chef',
+    'confirm_stock',
+    'equipment_add_board',
+    'equipment_cancel_add_board',
+    'equipment_add_board',
+    'equipment_cancel_add_board',
+    'equipment_add_board',
+  ];
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (_url, options) => {
+    const request = JSON.parse(options.body);
+    const choice = choices[calls++];
+    assert.ok(Object.hasOwn(request.questions.next_action.criteria, choice));
+    if (calls === 1) {
+      const g = createGame({
+        level: 7,
+        cash: 1000,
+        stock: 20,
+        hired: ['helper', 'chef'],
+        duty: ['chef'],
+      });
+      g.served = g.quota;
+      g.time = g.duration;
+      useKitchen.setState({ game: g, phase: 'finished', cleared: true, applicants: ['prep'] });
+    }
+    return answer(choice);
+  });
+  await runBenchmark({ model, frequency: 10, maxRequests: 20 });
+  const result = useBenchmark.getState().results.at(-1);
+  assert.equal(result.status, 'error');
+  assert.match(result.error, /Preparation cycle/);
+  assert.equal(result.requests, 8);
+  assert.ok(result.decisions.every((d) => d.requestBytes > 0 && d.confidence === 0.9));
+  assert.equal(useKitchen.getState().game.cash, 1000);
+  assert.equal(writes.length, 0);
 });

@@ -1,0 +1,5811 @@
+{
+  "sourceRevision": "453e12e6eaae3b1799fa507cfd6bf4a8c2ac2059",
+  "description": "Frozen actual Jev bench decisions. Calibration uses accelerated run; holdout uses separate real-time run. Expected sets express the scenario objective, not a unique optimum.",
+  "cases": [
+    {
+      "id": "rotate_cook",
+      "split": "calibration",
+      "state": {
+        "level": 12,
+        "cash": 309,
+        "stock": 4,
+        "equipment": {
+          "board": {
+            "count": 2,
+            "level": 2
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 5,
+            "cook": 5
+          },
+          "helper": {
+            "move": 2,
+            "cook": 0
+          },
+          "sous": {
+            "move": 5,
+            "cook": 0
+          },
+          "chef": {
+            "move": 5,
+            "cook": 0
+          }
+        },
+        "controlled_actor": "human",
+        "phase": "preparation",
+        "preparation": {
+          "selected": "prep",
+          "stage": "staffing",
+          "recent_actions": ["hire_prep"],
+          "duty": ["sous"],
+          "unfilled_slots": 2,
+          "quantity": 11,
+          "recommended_purchase": 11,
+          "next_level": {
+            "level": 13,
+            "kitchenTier": 3,
+            "stockFinite": true,
+            "quota": 9,
+            "orderWindowMs": 34957,
+            "recipeMix": {
+              "dish": 0.35,
+              "soup": 0.2,
+              "roast": 0.45
+            },
+            "partner": null,
+            "staffSlots": 3,
+            "boostEnabled": true,
+            "burningEnabled": true,
+            "fatigueEnabled": true,
+            "rushEnabled": true,
+            "difficulty": 0.03333333333333333,
+            "unlockLabel": "グリルの日"
+          },
+          "previous_sales": 9,
+          "previous_burned": 0,
+          "recipes": {
+            "dish": {
+              "revenue": 25,
+              "margin": 17
+            },
+            "soup": {
+              "revenue": 35,
+              "margin": 27
+            },
+            "roast": {
+              "revenue": 45,
+              "margin": 37
+            }
+          },
+          "equipment_catalog": {
+            "board": {
+              "name": "まな板",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 1,
+              "addUnlockLevel": 2,
+              "upgradeUnlockLevel": 2,
+              "addCost": 270,
+              "upgradeCosts": [135, 225]
+            },
+            "pot": {
+              "name": "スープ鍋",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 3,
+              "addUnlockLevel": 8,
+              "upgradeUnlockLevel": 3,
+              "addCost": 450,
+              "upgradeCosts": [180, 315]
+            },
+            "grill": {
+              "name": "グリル",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 7,
+              "addUnlockLevel": 10,
+              "upgradeUnlockLevel": 7,
+              "addCost": 540,
+              "upgradeCosts": [225, 360]
+            },
+            "warmer": {
+              "name": "保温台",
+              "initialCount": 0,
+              "maxCount": 1,
+              "unlockLevel": 6,
+              "addUnlockLevel": 6,
+              "upgradeUnlockLevel": 6,
+              "addCost": 540,
+              "upgradeCosts": [270, 360]
+            },
+            "kitchen": {
+              "name": "厨房拡張",
+              "initialCount": 1,
+              "maxCount": 1,
+              "unlockLevel": 1,
+              "addUnlockLevel": 101,
+              "upgradeUnlockLevel": 2,
+              "addCost": 0,
+              "upgradeCosts": [720, 1080]
+            }
+          },
+          "vitamin_catalog": {
+            "move": {
+              "name": "タウリン",
+              "icon": "💨",
+              "ability": "足の速さ",
+              "effect": "移動 +4%",
+              "cost": 45
+            },
+            "cook": {
+              "name": "インドメタシン",
+              "icon": "🔪",
+              "ability": "料理の速さ",
+              "effect": "調理 -4%",
+              "cost": 45
+            }
+          },
+          "equipmentPurchases": [],
+          "layout": {
+            "crate": "crate",
+            "board": "board",
+            "plates": "plates",
+            "serve": "serve",
+            "pot": "pot",
+            "grill": "grill",
+            "board2": "board2"
+          },
+          "bill": {
+            "quantity": 11,
+            "hiring": 90,
+            "wages": 60,
+            "duty": ["sous"],
+            "slots": 3,
+            "stock": 15,
+            "cash": 71,
+            "quota": 9,
+            "staffState": {
+              "helper": {
+                "worked": 0,
+                "rest": 1
+              },
+              "chef": {
+                "worked": 0,
+                "rest": 0
+              },
+              "sous": {
+                "worked": 1,
+                "rest": 0
+              }
+            },
+            "equipment": {
+              "board": {
+                "count": 2,
+                "level": 2
+              },
+              "pot": {
+                "count": 1,
+                "level": 1
+              },
+              "grill": {
+                "count": 1,
+                "level": 1
+              },
+              "warmer": {
+                "count": 0,
+                "level": 1
+              },
+              "kitchen": {
+                "count": 1,
+                "level": 1
+              }
+            },
+            "equipmentCost": 0,
+            "equipmentPurchases": [],
+            "vitamins": [],
+            "training": {
+              "human": {
+                "move": 5,
+                "cook": 5
+              },
+              "helper": {
+                "move": 2,
+                "cook": 0
+              },
+              "sous": {
+                "move": 5,
+                "cook": 0
+              },
+              "chef": {
+                "move": 5,
+                "cook": 0
+              }
+            },
+            "vitaminCost": 0,
+            "layout": {
+              "crate": "crate",
+              "board": "board",
+              "plates": "plates",
+              "serve": "serve",
+              "pot": "pot",
+              "grill": "grill",
+              "board2": "board2"
+            },
+            "error": ""
+          },
+          "stock_price": 8,
+          "applicants": [
+            {
+              "id": "sprinter",
+              "name": "特急配膳のレオ",
+              "icon": "💨",
+              "color": "#e08a3c",
+              "role": "runner",
+              "description": "配膳専門。ダッシュで届ける。",
+              "capabilities": ["serve"],
+              "canDash": true,
+              "employment": "アルバイト",
+              "wage": 32,
+              "maxConsecutive": 2,
+              "restShifts": 1,
+              "cost": 225,
+              "decisionMs": 1200,
+              "speed": 1.2,
+              "chop": 1,
+              "cook": 1
+            },
+            {
+              "id": "runner",
+              "name": "配膳係のソラ",
+              "icon": "⚡",
+              "color": "#4f9fd8",
+              "role": "runner",
+              "description": "運搬と盛り付け専門。足が速い。",
+              "capabilities": ["serve"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 20,
+              "maxConsecutive": 2,
+              "restShifts": 1,
+              "cost": 135,
+              "decisionMs": 1400,
+              "speed": 1.18,
+              "chop": 1.15,
+              "cook": 1
+            },
+            {
+              "id": "prep",
+              "name": "仕込み係のミオ",
+              "icon": "🥬",
+              "color": "#8cbf4d",
+              "role": "chef",
+              "description": "切る専門。手際がいい。",
+              "capabilities": ["prep"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 16,
+              "maxConsecutive": 3,
+              "restShifts": 1,
+              "cost": 90,
+              "decisionMs": 2000,
+              "speed": 1,
+              "chop": 0.55,
+              "cook": 1
+            }
+          ],
+          "roster": [
+            {
+              "id": "helper",
+              "name": "見習いのハル",
+              "icon": "🐣",
+              "color": "#f0b03b",
+              "role": "allrounder",
+              "description": "切る・盛る担当。煮る・焼くはあなた。",
+              "capabilities": ["prep", "serve"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 12,
+              "maxConsecutive": 4,
+              "restShifts": 1,
+              "cost": 0,
+              "decisionMs": 1800,
+              "speed": 1,
+              "chop": 1,
+              "cook": 1,
+              "worked": 0,
+              "rest": 1
+            },
+            {
+              "id": "chef",
+              "name": "料理人のナギ",
+              "icon": "🔪",
+              "color": "#d1583c",
+              "role": "chef",
+              "description": "仕込みと加熱専門。配膳はしない。",
+              "capabilities": ["prep", "cook"],
+              "canDash": false,
+              "employment": "正社員",
+              "wage": 45,
+              "maxConsecutive": 3,
+              "restShifts": 2,
+              "cost": 180,
+              "decisionMs": 900,
+              "speed": 0.9,
+              "chop": 0.55,
+              "cook": 0.75,
+              "worked": 0,
+              "rest": 0
+            },
+            {
+              "id": "sous",
+              "name": "副料理長のリン",
+              "icon": "⏱️",
+              "color": "#3f9e7d",
+              "role": "expediter",
+              "description": "全工程に対応。締切を優先。",
+              "capabilities": ["prep", "cook", "serve"],
+              "canDash": false,
+              "employment": "正社員",
+              "wage": 60,
+              "maxConsecutive": 2,
+              "restShifts": 2,
+              "cost": 270,
+              "decisionMs": 500,
+              "speed": 1.05,
+              "chop": 0.8,
+              "cook": 0.9,
+              "worked": 1,
+              "rest": 0
+            }
+          ]
+        },
+        "screen": {
+          "modal": "result-1",
+          "title": "候補者の採用",
+          "status": null,
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.12    9 / 9皿    0:00"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止",
+              "disabled": true
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "2087点   309 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  出\n🔪 ナギ  待\n⏱️ リン  出",
+              "label": "勤務一覧：🐣 ハル  出、🔪 ナギ  待、⏱️ リン  出"
+            },
+            {
+              "id": "food-6",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-6",
+              "text": "トマトスープ\nあと 2 秒"
+            },
+            {
+              "id": "food-9",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-9",
+              "text": "トマトスープ\nあと 4 秒"
+            },
+            {
+              "id": "food-11",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-11",
+              "text": "トマトスープ\nあと 28 秒"
+            },
+            {
+              "id": "title",
+              "text": "候補者の採用"
+            },
+            {
+              "text": "‹",
+              "label": "前の応募者"
+            },
+            {
+              "id": "applicant-name",
+              "text": "仕込み係のミオ  3/3"
+            },
+            {
+              "text": "›",
+              "label": "次の応募者"
+            },
+            {
+              "id": "applicant-avatar",
+              "text": null,
+              "label": "仕込み係のミオの立ち姿"
+            },
+            {
+              "id": "applicant-details",
+              "text": "切る専門。手際がいい。\n採用 90  ・  給与 16/営業  ・  お財布 309"
+            },
+            {
+              "id": "applicant-bar-speed-label",
+              "text": "速さ"
+            },
+            {
+              "id": "applicant-bar-speed",
+              "text": null,
+              "label": "速さの性能"
+            },
+            {
+              "id": "applicant-bar-decision-label",
+              "text": "判断"
+            },
+            {
+              "id": "applicant-bar-decision",
+              "text": null,
+              "label": "判断の性能"
+            },
+            {
+              "id": "applicant-bar-chop-label",
+              "text": "仕込み"
+            },
+            {
+              "id": "applicant-bar-chop",
+              "text": null,
+              "label": "仕込みの性能"
+            },
+            {
+              "id": "applicant-bar-cook-label",
+              "text": "加熱"
+            },
+            {
+              "id": "applicant-bar-cook",
+              "text": null,
+              "label": "加熱の性能"
+            },
+            {
+              "text": "採用予定",
+              "pressed": true
+            },
+            {
+              "text": "今回は見送る"
+            },
+            {
+              "text": "仕入れと配置へ"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "Assign chef as the ONLY heat cook; rest the other cooks to reset their consecutive shifts. Fill remaining useful slots with prep and serving staff. Each option is the complete roster, not an individual addition.",
+          "criteria": {
+            "crew_solo": "ひとり営業 / 給与0コイン",
+            "crew_chef": "料理人のナギ（prep/cook・連勤0/3） / 給与45コイン",
+            "crew_sous": "副料理長のリン（prep/cook/serve・連勤1/2） / 給与60コイン",
+            "crew_chef_sous": "料理人のナギ（prep/cook・連勤0/3） ＋ 副料理長のリン（prep/cook/serve・連勤1/2） / 給与105コイン",
+            "crew_prep": "仕込み係のミオ（prep・連勤0/3） / 給与16コイン",
+            "crew_chef_prep": "料理人のナギ（prep/cook・連勤0/3） ＋ 仕込み係のミオ（prep・連勤0/3） / 給与61コイン",
+            "crew_sous_prep": "副料理長のリン（prep/cook/serve・連勤1/2） ＋ 仕込み係のミオ（prep・連勤0/3） / 給与76コイン",
+            "crew_chef_sous_prep": "料理人のナギ（prep/cook・連勤0/3） ＋ 副料理長のリン（prep/cook/serve・連勤1/2） ＋ 仕込み係のミオ（prep・連勤0/3） / 給与121コイン"
+          }
+        }
+      },
+      "expected": ["crew_chef_prep"]
+    },
+    {
+      "id": "keep_pending_equipment",
+      "split": "calibration",
+      "state": {
+        "level": 15,
+        "cash": 1010,
+        "stock": 0,
+        "equipment": {
+          "board": {
+            "count": 2,
+            "level": 2
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 5,
+            "cook": 5
+          },
+          "helper": {
+            "move": 2,
+            "cook": 0
+          },
+          "sous": {
+            "move": 5,
+            "cook": 0
+          },
+          "chef": {
+            "move": 5,
+            "cook": 0
+          }
+        },
+        "controlled_actor": "human",
+        "phase": "preparation",
+        "preparation": {
+          "selected": null,
+          "stage": "investment",
+          "recent_actions": [
+            "skip_hiring",
+            "crew_helper_sous",
+            "confirm_stock",
+            "equipment_upgrade_pot"
+          ],
+          "duty": ["helper", "sous"],
+          "unfilled_slots": 2,
+          "quantity": 19,
+          "recommended_purchase": 19,
+          "next_level": {
+            "level": 16,
+            "kitchenTier": 3,
+            "stockFinite": true,
+            "quota": 10,
+            "orderWindowMs": 34435,
+            "recipeMix": {
+              "dish": 0.6,
+              "soup": 0.25,
+              "roast": 0.15
+            },
+            "partner": null,
+            "staffSlots": 4,
+            "boostEnabled": true,
+            "burningEnabled": true,
+            "fatigueEnabled": true,
+            "rushEnabled": true,
+            "difficulty": 0.06666666666666667,
+            "unlockLabel": "サラダランチ"
+          },
+          "previous_sales": 15,
+          "previous_burned": 0,
+          "recipes": {
+            "dish": {
+              "revenue": 25,
+              "margin": 17
+            },
+            "soup": {
+              "revenue": 35,
+              "margin": 27
+            },
+            "roast": {
+              "revenue": 45,
+              "margin": 37
+            }
+          },
+          "equipment_catalog": {
+            "board": {
+              "name": "まな板",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 1,
+              "addUnlockLevel": 2,
+              "upgradeUnlockLevel": 2,
+              "addCost": 270,
+              "upgradeCosts": [135, 225]
+            },
+            "pot": {
+              "name": "スープ鍋",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 3,
+              "addUnlockLevel": 8,
+              "upgradeUnlockLevel": 3,
+              "addCost": 450,
+              "upgradeCosts": [180, 315]
+            },
+            "grill": {
+              "name": "グリル",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 7,
+              "addUnlockLevel": 10,
+              "upgradeUnlockLevel": 7,
+              "addCost": 540,
+              "upgradeCosts": [225, 360]
+            },
+            "warmer": {
+              "name": "保温台",
+              "initialCount": 0,
+              "maxCount": 1,
+              "unlockLevel": 6,
+              "addUnlockLevel": 6,
+              "upgradeUnlockLevel": 6,
+              "addCost": 540,
+              "upgradeCosts": [270, 360]
+            },
+            "kitchen": {
+              "name": "厨房拡張",
+              "initialCount": 1,
+              "maxCount": 1,
+              "unlockLevel": 1,
+              "addUnlockLevel": 101,
+              "upgradeUnlockLevel": 2,
+              "addCost": 0,
+              "upgradeCosts": [720, 1080]
+            }
+          },
+          "vitamin_catalog": {
+            "move": {
+              "name": "タウリン",
+              "icon": "💨",
+              "ability": "足の速さ",
+              "effect": "移動 +4%",
+              "cost": 45
+            },
+            "cook": {
+              "name": "インドメタシン",
+              "icon": "🔪",
+              "ability": "料理の速さ",
+              "effect": "調理 -4%",
+              "cost": 45
+            }
+          },
+          "equipmentPurchases": ["upgrade_pot"],
+          "layout": {
+            "crate": "crate",
+            "board": "board",
+            "plates": "plates",
+            "serve": "serve",
+            "pot": "pot",
+            "grill": "grill",
+            "board2": "board2"
+          },
+          "bill": {
+            "quantity": 19,
+            "hiring": 0,
+            "wages": 72,
+            "duty": ["helper", "sous"],
+            "slots": 4,
+            "stock": 19,
+            "cash": 606,
+            "quota": 10,
+            "staffState": {
+              "helper": {
+                "worked": 2,
+                "rest": 0
+              },
+              "chef": {
+                "worked": 0,
+                "rest": 2
+              },
+              "sous": {
+                "worked": 0,
+                "rest": 0
+              },
+              "prep": {
+                "worked": 0,
+                "rest": 1
+              }
+            },
+            "equipment": {
+              "board": {
+                "count": 2,
+                "level": 2
+              },
+              "pot": {
+                "count": 1,
+                "level": 2
+              },
+              "grill": {
+                "count": 1,
+                "level": 1
+              },
+              "warmer": {
+                "count": 0,
+                "level": 1
+              },
+              "kitchen": {
+                "count": 1,
+                "level": 1
+              }
+            },
+            "equipmentCost": 180,
+            "equipmentPurchases": ["upgrade_pot"],
+            "vitamins": [],
+            "training": {
+              "human": {
+                "move": 5,
+                "cook": 5
+              },
+              "helper": {
+                "move": 2,
+                "cook": 0
+              },
+              "sous": {
+                "move": 5,
+                "cook": 0
+              },
+              "chef": {
+                "move": 5,
+                "cook": 0
+              }
+            },
+            "vitaminCost": 0,
+            "layout": {
+              "crate": "crate",
+              "board": "board",
+              "plates": "plates",
+              "serve": "serve",
+              "pot": "pot",
+              "grill": "grill",
+              "board2": "board2"
+            },
+            "error": ""
+          },
+          "stock_price": 8,
+          "applicants": [
+            {
+              "id": "sprinter",
+              "name": "特急配膳のレオ",
+              "icon": "💨",
+              "color": "#e08a3c",
+              "role": "runner",
+              "description": "配膳専門。ダッシュで届ける。",
+              "capabilities": ["serve"],
+              "canDash": true,
+              "employment": "アルバイト",
+              "wage": 32,
+              "maxConsecutive": 2,
+              "restShifts": 1,
+              "cost": 225,
+              "decisionMs": 1200,
+              "speed": 1.2,
+              "chop": 1,
+              "cook": 1
+            },
+            {
+              "id": "runner",
+              "name": "配膳係のソラ",
+              "icon": "⚡",
+              "color": "#4f9fd8",
+              "role": "runner",
+              "description": "運搬と盛り付け専門。足が速い。",
+              "capabilities": ["serve"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 20,
+              "maxConsecutive": 2,
+              "restShifts": 1,
+              "cost": 135,
+              "decisionMs": 1400,
+              "speed": 1.18,
+              "chop": 1.15,
+              "cook": 1
+            }
+          ],
+          "roster": [
+            {
+              "id": "helper",
+              "name": "見習いのハル",
+              "icon": "🐣",
+              "color": "#f0b03b",
+              "role": "allrounder",
+              "description": "切る・盛る担当。煮る・焼くはあなた。",
+              "capabilities": ["prep", "serve"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 12,
+              "maxConsecutive": 4,
+              "restShifts": 1,
+              "cost": 0,
+              "decisionMs": 1800,
+              "speed": 1,
+              "chop": 1,
+              "cook": 1,
+              "worked": 2,
+              "rest": 0
+            },
+            {
+              "id": "chef",
+              "name": "料理人のナギ",
+              "icon": "🔪",
+              "color": "#d1583c",
+              "role": "chef",
+              "description": "仕込みと加熱専門。配膳はしない。",
+              "capabilities": ["prep", "cook"],
+              "canDash": false,
+              "employment": "正社員",
+              "wage": 45,
+              "maxConsecutive": 3,
+              "restShifts": 2,
+              "cost": 180,
+              "decisionMs": 900,
+              "speed": 0.9,
+              "chop": 0.55,
+              "cook": 0.75,
+              "worked": 0,
+              "rest": 2
+            },
+            {
+              "id": "sous",
+              "name": "副料理長のリン",
+              "icon": "⏱️",
+              "color": "#3f9e7d",
+              "role": "expediter",
+              "description": "全工程に対応。締切を優先。",
+              "capabilities": ["prep", "cook", "serve"],
+              "canDash": false,
+              "employment": "正社員",
+              "wage": 60,
+              "maxConsecutive": 2,
+              "restShifts": 2,
+              "cost": 270,
+              "decisionMs": 500,
+              "speed": 1.05,
+              "chop": 0.8,
+              "cook": 0.9,
+              "worked": 0,
+              "rest": 0
+            },
+            {
+              "id": "prep",
+              "name": "仕込み係のミオ",
+              "icon": "🥬",
+              "color": "#8cbf4d",
+              "role": "chef",
+              "description": "切る専門。手際がいい。",
+              "capabilities": ["prep"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 16,
+              "maxConsecutive": 3,
+              "restShifts": 1,
+              "cost": 90,
+              "decisionMs": 2000,
+              "speed": 1,
+              "chop": 0.55,
+              "cook": 1,
+              "worked": 0,
+              "rest": 1
+            }
+          ]
+        },
+        "screen": {
+          "modal": "result-3",
+          "title": "Lv.16 設備投資",
+          "status": null,
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.15    15 / 10皿    0:00"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止",
+              "disabled": true
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "6303点   1010 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  出\n🔪 ナギ  出\n⏱️ リン  休1\n🥬 ミオ  出",
+              "label": "勤務一覧：🐣 ハル  出、🔪 ナギ  出、⏱️ リン  休1、🥬 ミオ  出"
+            },
+            {
+              "id": "food-14",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-14",
+              "text": "トマトスープ\nあと 17 秒"
+            },
+            {
+              "id": "food-16",
+              "text": null,
+              "recipe": "roast"
+            },
+            {
+              "id": "order-16",
+              "text": "焼きトマト\nあと 27 秒"
+            },
+            {
+              "id": "food-17",
+              "text": null,
+              "recipe": "dish"
+            },
+            {
+              "id": "order-17",
+              "text": "トマトサラダ\nあと 31 秒"
+            },
+            {
+              "id": "title",
+              "text": "Lv.16 設備投資"
+            },
+            {
+              "text": "仕入れへ"
+            },
+            {
+              "text": "配置",
+              "label": "設備の配置を変更"
+            },
+            {
+              "text": "この準備で開店"
+            },
+            {
+              "text": "‹",
+              "label": "前の設備ページ",
+              "disabled": true
+            },
+            {
+              "id": "equipment-page",
+              "text": "1 / 4"
+            },
+            {
+              "text": "›",
+              "label": "次の設備ページ"
+            },
+            {
+              "id": "equipment-label-board",
+              "text": "まな板\n2台 Lv2・時間-8%"
+            },
+            {
+              "text": "上限",
+              "label": "まな板の増設（まな板はこれ以上増設できません）",
+              "disabled": true
+            },
+            {
+              "text": "改良 🪙225",
+              "label": "まな板の改良（費用225コイン）"
+            },
+            {
+              "id": "equipment-label-pot",
+              "text": "スープ鍋\n1台 Lv2・時間-8%"
+            },
+            {
+              "text": "枠不足",
+              "label": "スープ鍋の増設（厨房の設備枠が足りません）",
+              "disabled": true
+            },
+            {
+              "text": "取消",
+              "label": "スープ鍋の改良（費用0コイン）",
+              "pressed": true
+            },
+            {
+              "id": "equipment-summary",
+              "text": "設備枠 1/1  投資 🪙180 / 残り 🪙606"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "Human training is complete. First train movement of the assigned cook (vitamin_move_chef or vitamin_move_sous) to maximum. Then invest for the next recipe mix: add a second pot for soup-heavy days, a second grill for roast-heavy days, then upgrade them. Train movement of other working crew with spare coins. Keep pending purchases; open when useful upgrades are unaffordable.",
+          "criteria": {
+            "equipment_upgrade_board": "まな板の強化を予定する（225コイン）",
+            "equipment_cancel_upgrade_pot": "スープ鍋の強化を取り消す（-180コイン）",
+            "equipment_upgrade_grill": "グリルの強化を予定する（225コイン）",
+            "vitamin_move_helper": "タウリンを見習いのハル（出勤予定）に使う（45コイン）",
+            "vitamin_move_prep": "タウリンを仕込み係のミオ（控え）に使う（45コイン）",
+            "vitamin_cook_helper": "インドメタシンを見習いのハル（出勤予定）に使う（45コイン）",
+            "vitamin_cook_chef": "インドメタシンを料理人のナギ（控え）に使う（45コイン）",
+            "vitamin_cook_sous": "インドメタシンを副料理長のリン（出勤予定）に使う（45コイン）",
+            "vitamin_cook_prep": "インドメタシンを仕込み係のミオ（控え）に使う（45コイン）",
+            "open_shift": "採用・配置・仕入れを確定し、次の営業を始める"
+          }
+        }
+      },
+      "expected": [
+        "equipment_upgrade_board",
+        "equipment_upgrade_grill",
+        "vitamin_move_helper",
+        "vitamin_move_prep",
+        "vitamin_cook_helper",
+        "vitamin_cook_chef",
+        "vitamin_cook_sous",
+        "vitamin_cook_prep",
+        "open_shift"
+      ]
+    },
+    {
+      "id": "reserve_cook_hire",
+      "split": "calibration",
+      "state": {
+        "level": 8,
+        "cash": 443,
+        "stock": 0,
+        "equipment": {
+          "board": {
+            "count": 2,
+            "level": 1
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 5,
+            "cook": 4
+          }
+        },
+        "controlled_actor": "human",
+        "phase": "preparation",
+        "preparation": {
+          "selected": null,
+          "stage": "hiring",
+          "recent_actions": [],
+          "duty": ["helper", "chef"],
+          "unfilled_slots": 0,
+          "quantity": 16,
+          "recommended_purchase": 16,
+          "next_level": {
+            "level": 9,
+            "kitchenTier": 3,
+            "stockFinite": true,
+            "quota": 8,
+            "orderWindowMs": 35652,
+            "recipeMix": {
+              "dish": 0.400942245870746,
+              "soup": 0.3969072164948454,
+              "roast": 0.2021505376344086
+            },
+            "partner": null,
+            "staffSlots": 2,
+            "boostEnabled": true,
+            "burningEnabled": true,
+            "fatigueEnabled": true,
+            "rushEnabled": false,
+            "difficulty": 0,
+            "unlockLabel": "連勤と休み"
+          },
+          "previous_sales": 12,
+          "previous_burned": 0,
+          "recipes": {
+            "dish": {
+              "revenue": 25,
+              "margin": 17
+            },
+            "soup": {
+              "revenue": 35,
+              "margin": 27
+            },
+            "roast": {
+              "revenue": 45,
+              "margin": 37
+            }
+          },
+          "equipment_catalog": {
+            "board": {
+              "name": "まな板",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 1,
+              "addUnlockLevel": 2,
+              "upgradeUnlockLevel": 2,
+              "addCost": 270,
+              "upgradeCosts": [135, 225]
+            },
+            "pot": {
+              "name": "スープ鍋",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 3,
+              "addUnlockLevel": 8,
+              "upgradeUnlockLevel": 3,
+              "addCost": 450,
+              "upgradeCosts": [180, 315]
+            },
+            "grill": {
+              "name": "グリル",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 7,
+              "addUnlockLevel": 10,
+              "upgradeUnlockLevel": 7,
+              "addCost": 540,
+              "upgradeCosts": [225, 360]
+            },
+            "warmer": {
+              "name": "保温台",
+              "initialCount": 0,
+              "maxCount": 1,
+              "unlockLevel": 6,
+              "addUnlockLevel": 6,
+              "upgradeUnlockLevel": 6,
+              "addCost": 540,
+              "upgradeCosts": [270, 360]
+            },
+            "kitchen": {
+              "name": "厨房拡張",
+              "initialCount": 1,
+              "maxCount": 1,
+              "unlockLevel": 1,
+              "addUnlockLevel": 101,
+              "upgradeUnlockLevel": 2,
+              "addCost": 0,
+              "upgradeCosts": [720, 1080]
+            }
+          },
+          "vitamin_catalog": {
+            "move": {
+              "name": "タウリン",
+              "icon": "💨",
+              "ability": "足の速さ",
+              "effect": "移動 +4%",
+              "cost": 45
+            },
+            "cook": {
+              "name": "インドメタシン",
+              "icon": "🔪",
+              "ability": "料理の速さ",
+              "effect": "調理 -4%",
+              "cost": 45
+            }
+          },
+          "equipmentPurchases": [],
+          "layout": {
+            "crate": "crate",
+            "board": "board",
+            "plates": "plates",
+            "serve": "serve",
+            "pot": "pot",
+            "grill": "grill",
+            "board2": "board2"
+          },
+          "bill": {
+            "quantity": 16,
+            "hiring": 0,
+            "wages": 57,
+            "duty": ["helper", "chef"],
+            "slots": 2,
+            "stock": 16,
+            "cash": 258,
+            "quota": 8,
+            "staffState": {
+              "helper": {
+                "worked": 0,
+                "rest": 0
+              },
+              "chef": {
+                "worked": 0,
+                "rest": 0
+              }
+            },
+            "equipment": {
+              "board": {
+                "count": 2,
+                "level": 1
+              },
+              "pot": {
+                "count": 1,
+                "level": 1
+              },
+              "grill": {
+                "count": 1,
+                "level": 1
+              },
+              "warmer": {
+                "count": 0,
+                "level": 1
+              },
+              "kitchen": {
+                "count": 1,
+                "level": 1
+              }
+            },
+            "equipmentCost": 0,
+            "equipmentPurchases": [],
+            "vitamins": [],
+            "training": {
+              "human": {
+                "move": 5,
+                "cook": 4
+              }
+            },
+            "vitaminCost": 0,
+            "layout": {
+              "crate": "crate",
+              "board": "board",
+              "plates": "plates",
+              "serve": "serve",
+              "pot": "pot",
+              "grill": "grill",
+              "board2": "board2"
+            },
+            "error": ""
+          },
+          "stock_price": 8,
+          "applicants": [
+            {
+              "id": "prep",
+              "name": "仕込み係のミオ",
+              "icon": "🥬",
+              "color": "#8cbf4d",
+              "role": "chef",
+              "description": "切る専門。手際がいい。",
+              "capabilities": ["prep"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 16,
+              "maxConsecutive": 3,
+              "restShifts": 1,
+              "cost": 90,
+              "decisionMs": 2000,
+              "speed": 1,
+              "chop": 0.55,
+              "cook": 1
+            },
+            {
+              "id": "runner",
+              "name": "配膳係のソラ",
+              "icon": "⚡",
+              "color": "#4f9fd8",
+              "role": "runner",
+              "description": "運搬と盛り付け専門。足が速い。",
+              "capabilities": ["serve"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 20,
+              "maxConsecutive": 2,
+              "restShifts": 1,
+              "cost": 135,
+              "decisionMs": 1400,
+              "speed": 1.18,
+              "chop": 1.15,
+              "cook": 1
+            },
+            {
+              "id": "sous",
+              "name": "副料理長のリン",
+              "icon": "⏱️",
+              "color": "#3f9e7d",
+              "role": "expediter",
+              "description": "全工程に対応。締切を優先。",
+              "capabilities": ["prep", "cook", "serve"],
+              "canDash": false,
+              "employment": "正社員",
+              "wage": 60,
+              "maxConsecutive": 2,
+              "restShifts": 2,
+              "cost": 270,
+              "decisionMs": 500,
+              "speed": 1.05,
+              "chop": 0.8,
+              "cook": 0.9
+            }
+          ],
+          "roster": [
+            {
+              "id": "helper",
+              "name": "見習いのハル",
+              "icon": "🐣",
+              "color": "#f0b03b",
+              "role": "allrounder",
+              "description": "切る・盛る担当。煮る・焼くはあなた。",
+              "capabilities": ["prep", "serve"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 12,
+              "maxConsecutive": 4,
+              "restShifts": 1,
+              "cost": 0,
+              "decisionMs": 1800,
+              "speed": 1,
+              "chop": 1,
+              "cook": 1,
+              "worked": 0,
+              "rest": 0
+            },
+            {
+              "id": "chef",
+              "name": "料理人のナギ",
+              "icon": "🔪",
+              "color": "#d1583c",
+              "role": "chef",
+              "description": "仕込みと加熱専門。配膳はしない。",
+              "capabilities": ["prep", "cook"],
+              "canDash": false,
+              "employment": "正社員",
+              "wage": 45,
+              "maxConsecutive": 3,
+              "restShifts": 2,
+              "cost": 180,
+              "decisionMs": 900,
+              "speed": 0.9,
+              "chop": 0.55,
+              "cook": 0.75,
+              "worked": 0,
+              "rest": 0
+            }
+          ]
+        },
+        "screen": {
+          "modal": "result-0",
+          "title": "Lv.8 営業クリア",
+          "status": null,
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.8    12 / 8皿    0:00"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止",
+              "disabled": true
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "4354点   443 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  出\n🔪 ナギ  出",
+              "label": "勤務一覧：🐣 ハル  出、🔪 ナギ  出"
+            },
+            {
+              "id": "food-11",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-11",
+              "text": "トマトスープ\nあと 21 秒"
+            },
+            {
+              "id": "food-13",
+              "text": null,
+              "recipe": "roast"
+            },
+            {
+              "id": "order-13",
+              "text": "焼きトマト\nあと 29 秒"
+            },
+            {
+              "id": "title",
+              "text": "Lv.8 営業クリア"
+            },
+            {
+              "id": "stars",
+              "text": "★ ★ ★"
+            },
+            {
+              "id": "result",
+              "text": "12 / 8皿  ・  4354点\nお財布 443コイン\n次は Lv.9、8皿を届けよう\n連勤と休み"
+            },
+            {
+              "text": "次のステージ"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "Hire another heat cook (chef or sous) if affordable. Two cooks are needed to alternate shifts and avoid forced rest leaving the kitchen without a cook. Prefer hiring the cook over skipping or hiring another role.",
+          "criteria": {
+            "skip_hiring": "採用を取り消す",
+            "hire_prep": "仕込み係のミオを採用予定にする（90コイン）",
+            "hire_runner": "配膳係のソラを採用予定にする（135コイン）",
+            "hire_sous": "副料理長のリンを採用予定にする（270コイン）"
+          }
+        }
+      },
+      "expected": ["hire_sous"]
+    },
+    {
+      "id": "invest_in_second_board",
+      "split": "calibration",
+      "state": {
+        "level": 7,
+        "cash": 511,
+        "stock": 2,
+        "equipment": {
+          "board": {
+            "count": 1,
+            "level": 1
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 4,
+            "cook": 4
+          }
+        },
+        "controlled_actor": "human",
+        "phase": "preparation",
+        "preparation": {
+          "selected": null,
+          "stage": "investment",
+          "recent_actions": ["skip_hiring", "crew_helper_chef", "confirm_stock"],
+          "duty": ["helper", "chef"],
+          "unfilled_slots": 0,
+          "quantity": 12,
+          "recommended_purchase": 12,
+          "next_level": {
+            "level": 8,
+            "kitchenTier": 3,
+            "stockFinite": true,
+            "quota": 8,
+            "orderWindowMs": 35826,
+            "recipeMix": {
+              "dish": 0.40150205077042456,
+              "soup": 0.39742268041237117,
+              "roast": 0.2010752688172043
+            },
+            "partner": null,
+            "staffSlots": 2,
+            "boostEnabled": true,
+            "burningEnabled": true,
+            "fatigueEnabled": false,
+            "rushEnabled": false,
+            "difficulty": 0,
+            "unlockLabel": "2人で役割分担"
+          },
+          "previous_sales": 9,
+          "previous_burned": 0,
+          "recipes": {
+            "dish": {
+              "revenue": 25,
+              "margin": 17
+            },
+            "soup": {
+              "revenue": 35,
+              "margin": 27
+            },
+            "roast": {
+              "revenue": 45,
+              "margin": 37
+            }
+          },
+          "equipment_catalog": {
+            "board": {
+              "name": "まな板",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 1,
+              "addUnlockLevel": 2,
+              "upgradeUnlockLevel": 2,
+              "addCost": 270,
+              "upgradeCosts": [135, 225]
+            },
+            "pot": {
+              "name": "スープ鍋",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 3,
+              "addUnlockLevel": 8,
+              "upgradeUnlockLevel": 3,
+              "addCost": 450,
+              "upgradeCosts": [180, 315]
+            },
+            "grill": {
+              "name": "グリル",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 7,
+              "addUnlockLevel": 10,
+              "upgradeUnlockLevel": 7,
+              "addCost": 540,
+              "upgradeCosts": [225, 360]
+            },
+            "warmer": {
+              "name": "保温台",
+              "initialCount": 0,
+              "maxCount": 1,
+              "unlockLevel": 6,
+              "addUnlockLevel": 6,
+              "upgradeUnlockLevel": 6,
+              "addCost": 540,
+              "upgradeCosts": [270, 360]
+            },
+            "kitchen": {
+              "name": "厨房拡張",
+              "initialCount": 1,
+              "maxCount": 1,
+              "unlockLevel": 1,
+              "addUnlockLevel": 101,
+              "upgradeUnlockLevel": 2,
+              "addCost": 0,
+              "upgradeCosts": [720, 1080]
+            }
+          },
+          "vitamin_catalog": {
+            "move": {
+              "name": "タウリン",
+              "icon": "💨",
+              "ability": "足の速さ",
+              "effect": "移動 +4%",
+              "cost": 45
+            },
+            "cook": {
+              "name": "インドメタシン",
+              "icon": "🔪",
+              "ability": "料理の速さ",
+              "effect": "調理 -4%",
+              "cost": 45
+            }
+          },
+          "equipmentPurchases": [],
+          "layout": {
+            "crate": "crate",
+            "board": "board",
+            "plates": "plates",
+            "serve": "serve",
+            "pot": "pot",
+            "grill": "grill"
+          },
+          "bill": {
+            "quantity": 12,
+            "hiring": 0,
+            "wages": 57,
+            "duty": ["helper", "chef"],
+            "slots": 2,
+            "stock": 14,
+            "cash": 358,
+            "quota": 8,
+            "staffState": {
+              "helper": {
+                "worked": 0,
+                "rest": 0
+              },
+              "chef": {
+                "worked": 0,
+                "rest": 0
+              }
+            },
+            "equipment": {
+              "board": {
+                "count": 1,
+                "level": 1
+              },
+              "pot": {
+                "count": 1,
+                "level": 1
+              },
+              "grill": {
+                "count": 1,
+                "level": 1
+              },
+              "warmer": {
+                "count": 0,
+                "level": 1
+              },
+              "kitchen": {
+                "count": 1,
+                "level": 1
+              }
+            },
+            "equipmentCost": 0,
+            "equipmentPurchases": [],
+            "vitamins": [],
+            "training": {
+              "human": {
+                "move": 4,
+                "cook": 4
+              }
+            },
+            "vitaminCost": 0,
+            "layout": {
+              "crate": "crate",
+              "board": "board",
+              "plates": "plates",
+              "serve": "serve",
+              "pot": "pot",
+              "grill": "grill"
+            },
+            "error": ""
+          },
+          "stock_price": 8,
+          "applicants": [
+            {
+              "id": "runner",
+              "name": "配膳係のソラ",
+              "icon": "⚡",
+              "color": "#4f9fd8",
+              "role": "runner",
+              "description": "運搬と盛り付け専門。足が速い。",
+              "capabilities": ["serve"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 20,
+              "maxConsecutive": 2,
+              "restShifts": 1,
+              "cost": 135,
+              "decisionMs": 1400,
+              "speed": 1.18,
+              "chop": 1.15,
+              "cook": 1
+            },
+            {
+              "id": "sprinter",
+              "name": "特急配膳のレオ",
+              "icon": "💨",
+              "color": "#e08a3c",
+              "role": "runner",
+              "description": "配膳専門。ダッシュで届ける。",
+              "capabilities": ["serve"],
+              "canDash": true,
+              "employment": "アルバイト",
+              "wage": 32,
+              "maxConsecutive": 2,
+              "restShifts": 1,
+              "cost": 225,
+              "decisionMs": 1200,
+              "speed": 1.2,
+              "chop": 1,
+              "cook": 1
+            },
+            {
+              "id": "sous",
+              "name": "副料理長のリン",
+              "icon": "⏱️",
+              "color": "#3f9e7d",
+              "role": "expediter",
+              "description": "全工程に対応。締切を優先。",
+              "capabilities": ["prep", "cook", "serve"],
+              "canDash": false,
+              "employment": "正社員",
+              "wage": 60,
+              "maxConsecutive": 2,
+              "restShifts": 2,
+              "cost": 270,
+              "decisionMs": 500,
+              "speed": 1.05,
+              "chop": 0.8,
+              "cook": 0.9
+            }
+          ],
+          "roster": [
+            {
+              "id": "helper",
+              "name": "見習いのハル",
+              "icon": "🐣",
+              "color": "#f0b03b",
+              "role": "allrounder",
+              "description": "切る・盛る担当。煮る・焼くはあなた。",
+              "capabilities": ["prep", "serve"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 12,
+              "maxConsecutive": 4,
+              "restShifts": 1,
+              "cost": 0,
+              "decisionMs": 1800,
+              "speed": 1,
+              "chop": 1,
+              "cook": 1,
+              "worked": 0,
+              "rest": 0
+            },
+            {
+              "id": "chef",
+              "name": "料理人のナギ",
+              "icon": "🔪",
+              "color": "#d1583c",
+              "role": "chef",
+              "description": "仕込みと加熱専門。配膳はしない。",
+              "capabilities": ["prep", "cook"],
+              "canDash": false,
+              "employment": "正社員",
+              "wage": 45,
+              "maxConsecutive": 3,
+              "restShifts": 2,
+              "cost": 180,
+              "decisionMs": 900,
+              "speed": 0.9,
+              "chop": 0.55,
+              "cook": 0.75,
+              "worked": 0,
+              "rest": 0
+            }
+          ]
+        },
+        "screen": {
+          "modal": "result-2",
+          "title": "Lv.8 仕入れ・勤務表",
+          "status": null,
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.7    9 / 6皿    0:00"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止",
+              "disabled": true
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "3065点   511 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  待\n🔪 ナギ  出",
+              "label": "勤務一覧：🐣 ハル  待、🔪 ナギ  出"
+            },
+            {
+              "id": "food-8",
+              "text": null,
+              "recipe": "roast"
+            },
+            {
+              "id": "order-8",
+              "text": "焼きトマト\nあと 11 秒"
+            },
+            {
+              "id": "food-10",
+              "text": null,
+              "recipe": "dish"
+            },
+            {
+              "id": "order-10",
+              "text": "トマトサラダ\nあと 32 秒"
+            },
+            {
+              "id": "title",
+              "text": "Lv.8 仕入れ・勤務表"
+            },
+            {
+              "text": "ハル\n出勤",
+              "label": "見習いのハル（アルバイト、給与12/営業、連勤上限4回、休養1営業）。現在出勤中。勤務から外す",
+              "pressed": true
+            },
+            {
+              "text": "ナギ\n出勤",
+              "label": "料理人のナギ（正社員、給与45/営業、連勤上限3回、休養2営業）。現在出勤中。勤務から外す",
+              "pressed": true
+            },
+            {
+              "id": "duty-summary",
+              "text": "出勤 2/2人  ・  勤務給与 🪙57"
+            },
+            {
+              "id": "stock-label",
+              "text": "8 / 個"
+            },
+            {
+              "text": "−",
+              "label": "仕入れを1個減らす"
+            },
+            {
+              "text": "12",
+              "label": "仕入れ個数"
+            },
+            {
+              "text": "＋",
+              "label": "仕入れを1個増やす"
+            },
+            {
+              "id": "bill",
+              "text": "在庫 2 → 14個 / ノルマ 8皿\n採用 0 ＋ 仕入れ 96 ＋ 給与 57 / 残り 358コイン"
+            },
+            {
+              "text": "採用"
+            },
+            {
+              "text": "設備",
+              "label": "設備投資を見る"
+            },
+            {
+              "text": "この準備で開店"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "Multiple crew share only one board. Prioritize equipment_add_board if affordable. Otherwise open_shift and save for that expansion; do not spend its budget on smaller upgrades.",
+          "criteria": {
+            "equipment_add_board": "まな板の増設を予定する（270コイン）",
+            "equipment_upgrade_board": "まな板の強化を予定する（135コイン）",
+            "equipment_upgrade_pot": "スープ鍋の強化を予定する（180コイン）",
+            "equipment_upgrade_grill": "グリルの強化を予定する（225コイン）",
+            "vitamin_move_human": "タウリンをプレイヤー（全営業に出勤）に使う（45コイン）",
+            "vitamin_move_helper": "タウリンを見習いのハル（出勤予定）に使う（45コイン）",
+            "vitamin_move_chef": "タウリンを料理人のナギ（出勤予定）に使う（45コイン）",
+            "vitamin_cook_human": "インドメタシンをプレイヤー（全営業に出勤）に使う（45コイン）",
+            "vitamin_cook_helper": "インドメタシンを見習いのハル（出勤予定）に使う（45コイン）",
+            "vitamin_cook_chef": "インドメタシンを料理人のナギ（出勤予定）に使う（45コイン）",
+            "open_shift": "採用・配置・仕入れを確定し、次の営業を始める"
+          }
+        }
+      },
+      "expected": ["equipment_add_board"]
+    },
+    {
+      "id": "serve_finished_soup",
+      "split": "calibration",
+      "state": {
+        "practice": false,
+        "level": 3,
+        "quota": 6,
+        "stock": 8,
+        "duration_seconds": 90,
+        "cash": 113,
+        "hired": ["helper", "veteran"],
+        "duty": ["veteran"],
+        "staff_state": {
+          "helper": {
+            "worked": 0,
+            "rest": 0
+          },
+          "veteran": {
+            "worked": 0,
+            "rest": 0
+          }
+        },
+        "equipment": {
+          "board": {
+            "count": 1,
+            "level": 1
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 1,
+            "cook": 1
+          }
+        },
+        "layout": {
+          "crate": "crate",
+          "board": "board",
+          "plates": "plates",
+          "serve": "serve",
+          "pot": "pot"
+        },
+        "kitchen_bounds": {
+          "minX": 85,
+          "maxX": 975,
+          "minY": 175,
+          "maxY": 402
+        },
+        "stations": {
+          "crate": {
+            "active": true,
+            "x": 155,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board": {
+            "active": true,
+            "x": 390,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "chopping",
+            "by": "veteran",
+            "started_at": 34709.91925000046,
+            "duration": 1200,
+            "burn_seconds": null
+          },
+          "board2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot": {
+            "active": true,
+            "x": 930,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "plates": {
+            "active": true,
+            "x": 755,
+            "y": 285,
+            "dx": 84,
+            "dy": 0,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "serve": {
+            "active": true,
+            "x": 455,
+            "y": 390,
+            "dx": 0,
+            "dy": 82,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          }
+        },
+        "staff": null,
+        "actor": {
+          "carrying": "soup",
+          "x": 930,
+          "y": 190,
+          "at_station": "pot",
+          "last_action": "スープを盛り付けた",
+          "recent_actions": [
+            "サラダを盛り付けた",
+            "トマトサラダを配膳した",
+            "お皿を取った",
+            "スープを盛り付けた"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "crew": {
+          "veteran": {
+            "carrying": null,
+            "x": 390,
+            "y": 190,
+            "at_station": "board",
+            "last_action": "トマトを切り始めた",
+            "recent_actions": [
+              "お皿を取った",
+              "お皿を戻した",
+              "トマトを取った",
+              "トマトを切り始めた"
+            ],
+            "intent": {
+              "id": "wait",
+              "station": null
+            },
+            "quality": false
+          }
+        },
+        "policy": null,
+        "human": {
+          "carrying": "soup",
+          "x": 930,
+          "y": 190,
+          "at_station": "pot",
+          "last_action": "スープを盛り付けた",
+          "recent_actions": [
+            "サラダを盛り付けた",
+            "トマトサラダを配膳した",
+            "お皿を取った",
+            "スープを盛り付けた"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "board": "chopping",
+        "pot": "idle",
+        "grill": "idle",
+        "pot_burn_seconds": null,
+        "grill_burn_seconds": null,
+        "burned": 0,
+        "quality": {
+          "human": false,
+          "veteran": false
+        },
+        "board_operator": "veteran",
+        "orders": [
+          {
+            "recipe": "soup",
+            "seconds_left": 19
+          },
+          {
+            "recipe": "soup",
+            "seconds_left": 33
+          }
+        ],
+        "seconds_left": 55,
+        "orders_served": 4,
+        "controlled_actor": "human",
+        "phase": "playing",
+        "player_intent": null,
+        "dash_ready_in_ms": 1282.1151663334022,
+        "cooking": {
+          "board": {
+            "remaining_ms": 71.80400000010559,
+            "progress": 0.9401633333332453,
+            "boosted": false
+          },
+          "pot": {
+            "remaining_ms": 0,
+            "progress": null,
+            "boosted": false
+          }
+        },
+        "partner_intent": "wait",
+        "position": {
+          "human": {
+            "x": 930,
+            "y": 190
+          },
+          "ai": {
+            "x": 390,
+            "y": 190
+          }
+        },
+        "screen": {
+          "modal": null,
+          "title": "キッチン",
+          "status": "お待たせしました！ +123",
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.3    4 / 6皿    0:55"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止"
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "993点   113 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  待\n🌟 アオ  出",
+              "label": "勤務一覧：🐣 ハル  待、🌟 アオ  出"
+            },
+            {
+              "id": "food-3",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-3",
+              "text": "トマトスープ\nあと 19 秒"
+            },
+            {
+              "id": "food-5",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-5",
+              "text": "トマトスープ\nあと 33 秒"
+            },
+            {
+              "text": "E  配膳口へ運ぶ"
+            },
+            {
+              "text": "Shift 急ぐ",
+              "label": "ダッシュ",
+              "disabled": true
+            },
+            {
+              "text": "Q 片づけ"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "You control the HUMAN player. Serve your finished dish now. Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item. Keep selling beyond quota.",
+          "criteria": {
+            "serve": "完成した料理を配膳する",
+            "discard": "手元の物を捨てる（コンボをリセット）",
+            "wait": "今は動かず、様子を見る",
+            "navigate": "作業せずに移動する場所を選ぶ（調理の行動は自動移動つき）"
+          }
+        }
+      },
+      "expected": ["serve"]
+    },
+    {
+      "id": "plate_ready_soup",
+      "split": "calibration",
+      "state": {
+        "practice": false,
+        "level": 3,
+        "quota": 6,
+        "stock": 8,
+        "duration_seconds": 90,
+        "cash": 113,
+        "hired": ["helper", "veteran"],
+        "duty": ["veteran"],
+        "staff_state": {
+          "helper": {
+            "worked": 0,
+            "rest": 0
+          },
+          "veteran": {
+            "worked": 0,
+            "rest": 0
+          }
+        },
+        "equipment": {
+          "board": {
+            "count": 1,
+            "level": 1
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 1,
+            "cook": 1
+          }
+        },
+        "layout": {
+          "crate": "crate",
+          "board": "board",
+          "plates": "plates",
+          "serve": "serve",
+          "pot": "pot"
+        },
+        "kitchen_bounds": {
+          "minX": 85,
+          "maxX": 975,
+          "minY": 175,
+          "maxY": 402
+        },
+        "stations": {
+          "crate": {
+            "active": true,
+            "x": 155,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board": {
+            "active": true,
+            "x": 390,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "chopping",
+            "by": "veteran",
+            "started_at": 34709.91925000046,
+            "duration": 1200,
+            "burn_seconds": null
+          },
+          "board2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot": {
+            "active": true,
+            "x": 930,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "ready",
+            "by": "veteran",
+            "started_at": 24963.798333333634,
+            "duration": 9600,
+            "burn_seconds": null
+          },
+          "pot2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "plates": {
+            "active": true,
+            "x": 755,
+            "y": 285,
+            "dx": 84,
+            "dy": 0,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "serve": {
+            "active": true,
+            "x": 455,
+            "y": 390,
+            "dx": 0,
+            "dy": 82,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          }
+        },
+        "staff": null,
+        "actor": {
+          "carrying": "plate",
+          "x": 755,
+          "y": 285,
+          "at_station": "plates",
+          "last_action": "お皿を取った",
+          "recent_actions": [
+            "お皿を取った",
+            "サラダを盛り付けた",
+            "トマトサラダを配膳した",
+            "お皿を取った"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "crew": {
+          "veteran": {
+            "carrying": null,
+            "x": 390,
+            "y": 190,
+            "at_station": "board",
+            "last_action": "トマトを切り始めた",
+            "recent_actions": [
+              "お皿を取った",
+              "お皿を戻した",
+              "トマトを取った",
+              "トマトを切り始めた"
+            ],
+            "intent": {
+              "id": "wait",
+              "station": null
+            },
+            "quality": false
+          }
+        },
+        "policy": null,
+        "human": {
+          "carrying": "plate",
+          "x": 755,
+          "y": 285,
+          "at_station": "plates",
+          "last_action": "お皿を取った",
+          "recent_actions": [
+            "お皿を取った",
+            "サラダを盛り付けた",
+            "トマトサラダを配膳した",
+            "お皿を取った"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "board": "chopping",
+        "pot": "ready",
+        "grill": "idle",
+        "pot_burn_seconds": 0,
+        "grill_burn_seconds": null,
+        "burned": 0,
+        "quality": {
+          "human": false,
+          "veteran": false
+        },
+        "board_operator": "veteran",
+        "orders": [
+          {
+            "recipe": "soup",
+            "seconds_left": 20
+          },
+          {
+            "recipe": "soup",
+            "seconds_left": 34
+          }
+        ],
+        "seconds_left": 56,
+        "orders_served": 4,
+        "controlled_actor": "human",
+        "phase": "playing",
+        "player_intent": null,
+        "dash_ready_in_ms": 0,
+        "cooking": {
+          "board": {
+            "remaining_ms": 914.6072916667035,
+            "progress": 0.23782725694441373,
+            "boosted": false
+          },
+          "pot": {
+            "remaining_ms": 0,
+            "progress": 1.0449493359375124,
+            "boosted": false
+          }
+        },
+        "partner_intent": "wait",
+        "position": {
+          "human": {
+            "x": 755,
+            "y": 285
+          },
+          "ai": {
+            "x": 390,
+            "y": 190
+          }
+        },
+        "screen": {
+          "modal": null,
+          "title": "キッチン",
+          "status": "お待たせしました！ +123",
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.3    4 / 6皿    0:56"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止"
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "993点   113 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  待\n🌟 アオ  出",
+              "label": "勤務一覧：🐣 ハル  待、🌟 アオ  出"
+            },
+            {
+              "id": "food-3",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-3",
+              "text": "トマトスープ\nあと 20 秒"
+            },
+            {
+              "id": "food-5",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-5",
+              "text": "トマトスープ\nあと 34 秒"
+            },
+            {
+              "id": "interact",
+              "text": "E  お皿を戻す"
+            },
+            {
+              "id": "dash",
+              "text": "Shift 急ぐ",
+              "label": "ダッシュ"
+            },
+            {
+              "text": "Q 片づけ"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "You control the HUMAN player. Ordered food is ready. Choose plate_soup or its dash_ version to plate it now. Do not return your plate. Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item. Keep selling beyond quota.",
+          "criteria": {
+            "plate_soup": "スープ鍋で盛り付ける",
+            "return_plate": "お皿を戻して手を空ける",
+            "discard": "手元の物を捨てる（コンボをリセット）",
+            "interact": "お皿を戻して手を空ける（E）",
+            "dash_plate_soup": "ダッシュしてスープ鍋で盛り付ける",
+            "dash_return_plate": "ダッシュしてお皿を戻して手を空ける",
+            "dash_interact": "ダッシュしてお皿を戻して手を空ける（E）",
+            "dash": "ダッシュする（移動を継続・再使用まで1.8秒）",
+            "wait": "今は動かず、様子を見る",
+            "navigate": "作業せずに移動する場所を選ぶ（調理の行動は自動移動つき）"
+          }
+        }
+      },
+      "expected": ["plate_soup", "dash_plate_soup"]
+    },
+    {
+      "id": "wait_for_cooking",
+      "split": "calibration",
+      "state": {
+        "practice": false,
+        "level": 3,
+        "quota": 6,
+        "stock": 8,
+        "duration_seconds": 90,
+        "cash": 113,
+        "hired": ["helper", "veteran"],
+        "duty": ["veteran"],
+        "staff_state": {
+          "helper": {
+            "worked": 0,
+            "rest": 0
+          },
+          "veteran": {
+            "worked": 0,
+            "rest": 0
+          }
+        },
+        "equipment": {
+          "board": {
+            "count": 1,
+            "level": 1
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 1,
+            "cook": 1
+          }
+        },
+        "layout": {
+          "crate": "crate",
+          "board": "board",
+          "plates": "plates",
+          "serve": "serve",
+          "pot": "pot"
+        },
+        "kitchen_bounds": {
+          "minX": 85,
+          "maxX": 975,
+          "minY": 175,
+          "maxY": 402
+        },
+        "stations": {
+          "crate": {
+            "active": true,
+            "x": 155,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board": {
+            "active": true,
+            "x": 390,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot": {
+            "active": true,
+            "x": 930,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "cooking",
+            "by": "veteran",
+            "started_at": 24963.798333333634,
+            "duration": 9600,
+            "burn_seconds": null
+          },
+          "pot2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "plates": {
+            "active": true,
+            "x": 755,
+            "y": 285,
+            "dx": 84,
+            "dy": 0,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "serve": {
+            "active": true,
+            "x": 455,
+            "y": 390,
+            "dx": 0,
+            "dy": 82,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          }
+        },
+        "staff": null,
+        "actor": {
+          "carrying": "plate",
+          "x": 755,
+          "y": 285,
+          "at_station": "plates",
+          "last_action": "お皿を取った",
+          "recent_actions": [
+            "お皿を取った",
+            "サラダを盛り付けた",
+            "トマトサラダを配膳した",
+            "お皿を取った"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "crew": {
+          "veteran": {
+            "carrying": "tomato",
+            "x": 190,
+            "y": 190,
+            "at_station": "crate",
+            "last_action": "トマトを取った",
+            "recent_actions": [
+              "トマトを切り始めた",
+              "お皿を取った",
+              "お皿を戻した",
+              "トマトを取った"
+            ],
+            "intent": {
+              "id": "chop",
+              "station": "board"
+            },
+            "quality": false
+          }
+        },
+        "policy": null,
+        "human": {
+          "carrying": "plate",
+          "x": 755,
+          "y": 285,
+          "at_station": "plates",
+          "last_action": "お皿を取った",
+          "recent_actions": [
+            "お皿を取った",
+            "サラダを盛り付けた",
+            "トマトサラダを配膳した",
+            "お皿を取った"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "board": "idle",
+        "pot": "cooking",
+        "grill": "idle",
+        "pot_burn_seconds": null,
+        "grill_burn_seconds": null,
+        "burned": 0,
+        "quality": {
+          "human": false,
+          "veteran": false
+        },
+        "board_operator": null,
+        "orders": [
+          {
+            "recipe": "soup",
+            "seconds_left": 21
+          },
+          {
+            "recipe": "soup",
+            "seconds_left": 35
+          }
+        ],
+        "seconds_left": 57,
+        "orders_served": 4,
+        "controlled_actor": "human",
+        "phase": "playing",
+        "player_intent": null,
+        "dash_ready_in_ms": 763.1486246668064,
+        "cooking": {
+          "board": {
+            "remaining_ms": 0,
+            "progress": null,
+            "boosted": false
+          },
+          "pot": {
+            "remaining_ms": 712.37741633314,
+            "progress": 0.9257940191319642,
+            "boosted": false
+          }
+        },
+        "partner_intent": "chop",
+        "position": {
+          "human": {
+            "x": 755,
+            "y": 285
+          },
+          "ai": {
+            "x": 190.29501045312497,
+            "y": 190
+          }
+        },
+        "screen": {
+          "modal": null,
+          "title": "キッチン",
+          "status": "お待たせしました！ +123",
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.3    4 / 6皿    0:57"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止"
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "993点   113 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  待\n🌟 アオ  出",
+              "label": "勤務一覧：🐣 ハル  待、🌟 アオ  出"
+            },
+            {
+              "id": "food-3",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-3",
+              "text": "トマトスープ\nあと 21 秒"
+            },
+            {
+              "id": "food-5",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-5",
+              "text": "トマトスープ\nあと 35 秒"
+            },
+            {
+              "id": "toast",
+              "text": "お待たせしました！ +123"
+            },
+            {
+              "id": "interact",
+              "text": "E  お皿を戻す"
+            },
+            {
+              "text": "Shift 急ぐ",
+              "label": "ダッシュ",
+              "disabled": true
+            },
+            {
+              "text": "Q 片づけ"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "You control the HUMAN player. Ordered food is cooking at pot. Keep your plate and wait for it; do not return the plate. Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item. Keep selling beyond quota.",
+          "criteria": {
+            "return_plate": "お皿を戻して手を空ける",
+            "discard": "手元の物を捨てる（コンボをリセット）",
+            "interact": "お皿を戻して手を空ける（E）",
+            "wait": "今は動かず、様子を見る",
+            "navigate": "作業せずに移動する場所を選ぶ（調理の行動は自動移動つき）"
+          }
+        }
+      },
+      "expected": ["wait"]
+    },
+    {
+      "id": "cook_chopped",
+      "split": "calibration",
+      "state": {
+        "practice": false,
+        "level": 12,
+        "quota": 9,
+        "stock": 13,
+        "duration_seconds": 90,
+        "cash": 109,
+        "hired": ["helper", "chef", "sous"],
+        "duty": ["helper", "sous"],
+        "staff_state": {
+          "helper": {
+            "worked": 3,
+            "rest": 0
+          },
+          "chef": {
+            "worked": 1,
+            "rest": 0
+          },
+          "sous": {
+            "worked": 0,
+            "rest": 0
+          }
+        },
+        "equipment": {
+          "board": {
+            "count": 2,
+            "level": 2
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 5,
+            "cook": 5
+          },
+          "helper": {
+            "move": 2,
+            "cook": 0
+          },
+          "sous": {
+            "move": 5,
+            "cook": 0
+          },
+          "chef": {
+            "move": 5,
+            "cook": 0
+          }
+        },
+        "layout": {
+          "crate": "crate",
+          "board": "board",
+          "plates": "plates",
+          "serve": "serve",
+          "pot": "pot",
+          "grill": "grill",
+          "board2": "board2"
+        },
+        "kitchen_bounds": {
+          "minX": 85,
+          "maxX": 1175,
+          "minY": 175,
+          "maxY": 402
+        },
+        "stations": {
+          "crate": {
+            "active": true,
+            "x": 155,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board": {
+            "active": true,
+            "x": 390,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board2": {
+            "active": true,
+            "x": 620,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "chopping",
+            "by": "sous",
+            "started_at": 25290.00054133368,
+            "duration": 1178,
+            "burn_seconds": null
+          },
+          "pot": {
+            "active": true,
+            "x": 930,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill": {
+            "active": true,
+            "x": 1130,
+            "y": 320,
+            "dx": 84,
+            "dy": 0,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "plates": {
+            "active": true,
+            "x": 755,
+            "y": 285,
+            "dx": 84,
+            "dy": 0,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "serve": {
+            "active": true,
+            "x": 455,
+            "y": 390,
+            "dx": 0,
+            "dy": 82,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          }
+        },
+        "staff": null,
+        "actor": {
+          "carrying": "chopped",
+          "x": 390,
+          "y": 190,
+          "at_station": "board",
+          "last_action": "切ったトマトを取った",
+          "recent_actions": [
+            "お皿を取った",
+            "スープを盛り付けた",
+            "トマトスープを配膳した",
+            "切ったトマトを取った"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "crew": {
+          "helper": {
+            "carrying": null,
+            "x": 390,
+            "y": 190,
+            "at_station": "board",
+            "last_action": "トマトを切り始めた",
+            "recent_actions": ["トマトを取った", "トマトを切り始めた"],
+            "intent": {
+              "id": "wait",
+              "station": null
+            },
+            "quality": false
+          },
+          "sous": {
+            "carrying": null,
+            "x": 582,
+            "y": 190,
+            "at_station": "board2",
+            "last_action": "トマトを切り始めた",
+            "recent_actions": [
+              "サラダを盛り付けた",
+              "トマトサラダを配膳した",
+              "トマトを取った",
+              "トマトを切り始めた"
+            ],
+            "intent": null,
+            "quality": false
+          }
+        },
+        "policy": null,
+        "human": {
+          "carrying": "chopped",
+          "x": 390,
+          "y": 190,
+          "at_station": "board",
+          "last_action": "切ったトマトを取った",
+          "recent_actions": [
+            "お皿を取った",
+            "スープを盛り付けた",
+            "トマトスープを配膳した",
+            "切ったトマトを取った"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "board": "idle",
+        "pot": "idle",
+        "grill": "idle",
+        "pot_burn_seconds": null,
+        "grill_burn_seconds": null,
+        "burned": 0,
+        "quality": {
+          "human": false,
+          "helper": false,
+          "sous": false
+        },
+        "board_operator": null,
+        "orders": [
+          {
+            "recipe": "soup",
+            "seconds_left": 30
+          },
+          {
+            "recipe": "soup",
+            "seconds_left": 35
+          }
+        ],
+        "seconds_left": 65,
+        "orders_served": 3,
+        "controlled_actor": "human",
+        "phase": "playing",
+        "player_intent": null,
+        "dash_ready_in_ms": 1350.1233329999668,
+        "cooking": {
+          "board": {
+            "remaining_ms": 0,
+            "progress": null,
+            "boosted": false
+          },
+          "board2": {
+            "remaining_ms": 977.4650413332929,
+            "progress": 0.17023341143183965,
+            "boosted": false
+          },
+          "pot": {
+            "remaining_ms": 0,
+            "progress": null,
+            "boosted": false
+          },
+          "grill": {
+            "remaining_ms": 0,
+            "progress": null,
+            "boosted": false
+          }
+        },
+        "partner_intent": "wait",
+        "position": {
+          "human": {
+            "x": 390,
+            "y": 190
+          },
+          "ai": {
+            "x": 390,
+            "y": 190
+          }
+        },
+        "screen": {
+          "modal": null,
+          "title": "キッチン",
+          "status": "お待たせしました！ +163",
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.12    3 / 9皿    1:05"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止"
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "628点   109 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  出\n🔪 ナギ  待\n⏱️ リン  出",
+              "label": "勤務一覧：🐣 ハル  出、🔪 ナギ  待、⏱️ リン  出"
+            },
+            {
+              "id": "food-3",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-3",
+              "text": "トマトスープ\nあと 30 秒"
+            },
+            {
+              "id": "food-4",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-4",
+              "text": "トマトスープ\nあと 35 秒"
+            },
+            {
+              "id": "toast",
+              "text": "お待たせしました！ +163"
+            },
+            {
+              "text": "E  ハルに切ったトマトを渡す"
+            },
+            {
+              "text": "Shift 急ぐ",
+              "label": "ダッシュ",
+              "disabled": true
+            },
+            {
+              "text": "Q 片づけ"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "You control the HUMAN player. Cook or grill your chopped tomato for a visible order. Assemble salad only if a salad is ordered. Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item. Keep selling beyond quota.",
+          "criteria": {
+            "cook": "スープ鍋でスープを煮込む",
+            "grill": "グリルで焼く【この料理は現在注文なし】",
+            "assemble": "切ったトマトをお皿に盛ってサラダにする【この料理は現在注文なし】",
+            "discard": "手元の物を捨てる（コンボをリセット）",
+            "handoff_chopped_helper": "ハルに切ったトマトを渡す（E・相手は切る・盛る担当。煮る・焼くはあなた。）",
+            "wait": "今は動かず、様子を見る",
+            "navigate": "作業せずに移動する場所を選ぶ（調理の行動は自動移動つき）"
+          }
+        }
+      },
+      "expected": ["cook"]
+    },
+    {
+      "id": "return_unneeded_plate",
+      "split": "calibration",
+      "state": {
+        "practice": false,
+        "level": 2,
+        "quota": 7,
+        "stock": 12,
+        "duration_seconds": 90,
+        "cash": 16,
+        "hired": ["helper", "veteran"],
+        "duty": ["veteran"],
+        "staff_state": {
+          "helper": {
+            "worked": 0,
+            "rest": 0
+          },
+          "veteran": {
+            "worked": 0,
+            "rest": 0
+          }
+        },
+        "equipment": {
+          "board": {
+            "count": 1,
+            "level": 1
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {},
+        "layout": {
+          "crate": "crate",
+          "board": "board",
+          "plates": "plates",
+          "serve": "serve"
+        },
+        "kitchen_bounds": {
+          "minX": 85,
+          "maxX": 775,
+          "minY": 175,
+          "maxY": 402
+        },
+        "stations": {
+          "crate": {
+            "active": true,
+            "x": 155,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board": {
+            "active": true,
+            "x": 390,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "plates": {
+            "active": true,
+            "x": 755,
+            "y": 285,
+            "dx": 84,
+            "dy": 0,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "serve": {
+            "active": true,
+            "x": 455,
+            "y": 390,
+            "dx": 0,
+            "dy": 82,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          }
+        },
+        "staff": null,
+        "actor": {
+          "carrying": "plate",
+          "x": 570,
+          "y": 237,
+          "at_station": null,
+          "last_action": "お皿を取った",
+          "recent_actions": ["トマトを取った", "トマトを切り始めた", "お皿を取った"],
+          "intent": null,
+          "quality": false
+        },
+        "crew": {
+          "veteran": {
+            "carrying": "dish",
+            "x": 394,
+            "y": 201,
+            "at_station": "board",
+            "last_action": "サラダを盛り付けた",
+            "recent_actions": ["お皿を取った", "サラダを盛り付けた"],
+            "intent": {
+              "id": "serve",
+              "station": "serve"
+            },
+            "quality": false
+          }
+        },
+        "policy": null,
+        "human": {
+          "carrying": "plate",
+          "x": 570,
+          "y": 237,
+          "at_station": null,
+          "last_action": "お皿を取った",
+          "recent_actions": ["トマトを取った", "トマトを切り始めた", "お皿を取った"],
+          "intent": null,
+          "quality": false
+        },
+        "board": "idle",
+        "pot": "idle",
+        "grill": "idle",
+        "pot_burn_seconds": null,
+        "grill_burn_seconds": null,
+        "burned": 0,
+        "quality": {
+          "human": false,
+          "veteran": false
+        },
+        "board_operator": null,
+        "orders": [
+          {
+            "recipe": "dish",
+            "seconds_left": 30
+          },
+          {
+            "recipe": "dish",
+            "seconds_left": 42
+          }
+        ],
+        "seconds_left": 84,
+        "orders_served": 0,
+        "controlled_actor": "human",
+        "phase": "playing",
+        "player_intent": null,
+        "dash_ready_in_ms": 0,
+        "cooking": {
+          "board": {
+            "remaining_ms": 0,
+            "progress": null,
+            "boosted": false
+          }
+        },
+        "partner_intent": "serve",
+        "position": {
+          "human": {
+            "x": 569.8264899490545,
+            "y": 236.80415491824715
+          },
+          "ai": {
+            "x": 393.612578835811,
+            "y": 201.11562718711087
+          }
+        },
+        "screen": {
+          "modal": null,
+          "title": "キッチン",
+          "status": null,
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.2    0 / 7皿    1:24"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止"
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "0点   16 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  待\n🌟 アオ  出",
+              "label": "勤務一覧：🐣 ハル  待、🌟 アオ  出"
+            },
+            {
+              "id": "food-0",
+              "text": null,
+              "recipe": "dish"
+            },
+            {
+              "id": "order-0",
+              "text": "トマトサラダ\nあと 30 秒"
+            },
+            {
+              "id": "food-1",
+              "text": null,
+              "recipe": "dish"
+            },
+            {
+              "id": "order-1",
+              "text": "トマトサラダ\nあと 42 秒"
+            },
+            {
+              "text": "作業台へ移動",
+              "disabled": true
+            },
+            {
+              "id": "dash",
+              "text": "Shift 急ぐ",
+              "label": "ダッシュ"
+            },
+            {
+              "text": "Q 片づけ"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "You control the HUMAN player. No ordered food is ready or cooking. Return your plate to free your hands and prepare ingredients. Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item. Keep selling beyond quota.",
+          "criteria": {
+            "return_plate": "お皿を戻して手を空ける",
+            "discard": "手元の物を捨てる（コンボをリセット）",
+            "dash_return_plate": "ダッシュしてお皿を戻して手を空ける",
+            "dash": "ダッシュする（移動を継続・再使用まで1.8秒）",
+            "wait": "今は動かず、様子を見る",
+            "navigate": "作業せずに移動する場所を選ぶ（調理の行動は自動移動つき）"
+          }
+        }
+      },
+      "expected": ["return_plate", "dash_return_plate"]
+    },
+    {
+      "id": "realtime_serve_salad",
+      "split": "holdout",
+      "state": {
+        "practice": false,
+        "level": 6,
+        "quota": 7,
+        "stock": 1,
+        "duration_seconds": 90,
+        "cash": 327,
+        "hired": ["helper", "prep", "chef"],
+        "duty": ["chef"],
+        "staff_state": {
+          "helper": {
+            "worked": 0,
+            "rest": 0
+          },
+          "prep": {
+            "worked": 0,
+            "rest": 0
+          },
+          "chef": {
+            "worked": 0,
+            "rest": 0
+          }
+        },
+        "equipment": {
+          "board": {
+            "count": 1,
+            "level": 1
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 3,
+            "cook": 1
+          }
+        },
+        "layout": {
+          "crate": "crate",
+          "board": "board",
+          "plates": "plates",
+          "serve": "serve",
+          "pot": "pot"
+        },
+        "kitchen_bounds": {
+          "minX": 85,
+          "maxX": 975,
+          "minY": 175,
+          "maxY": 402
+        },
+        "stations": {
+          "crate": {
+            "active": true,
+            "x": 155,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board": {
+            "active": true,
+            "x": 390,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot": {
+            "active": true,
+            "x": 930,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "cooking",
+            "by": "chef",
+            "started_at": 82904.76595800003,
+            "duration": 9000,
+            "burn_seconds": null
+          },
+          "pot2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "plates": {
+            "active": true,
+            "x": 755,
+            "y": 285,
+            "dx": 84,
+            "dy": 0,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "serve": {
+            "active": true,
+            "x": 455,
+            "y": 390,
+            "dx": 0,
+            "dy": 82,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          }
+        },
+        "staff": null,
+        "actor": {
+          "carrying": "dish",
+          "x": 390,
+          "y": 190,
+          "at_station": "board",
+          "last_action": "サラダを盛り付けた",
+          "recent_actions": [
+            "トマトを取った",
+            "トマトを戻した",
+            "お皿を取った",
+            "サラダを盛り付けた"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "crew": {
+          "chef": {
+            "carrying": null,
+            "x": 930,
+            "y": 190,
+            "at_station": "pot",
+            "last_action": "スープを煮込み始めた",
+            "recent_actions": [
+              "トマトを取った",
+              "トマトを切り始めた",
+              "切ったトマトを取った",
+              "スープを煮込み始めた"
+            ],
+            "intent": {
+              "id": "wait",
+              "station": null
+            },
+            "quality": false
+          }
+        },
+        "policy": null,
+        "human": {
+          "carrying": "dish",
+          "x": 390,
+          "y": 190,
+          "at_station": "board",
+          "last_action": "サラダを盛り付けた",
+          "recent_actions": [
+            "トマトを取った",
+            "トマトを戻した",
+            "お皿を取った",
+            "サラダを盛り付けた"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "board": "idle",
+        "pot": "cooking",
+        "grill": "idle",
+        "pot_burn_seconds": null,
+        "grill_burn_seconds": null,
+        "burned": 0,
+        "quality": {
+          "human": false,
+          "chef": false
+        },
+        "board_operator": null,
+        "orders": [
+          {
+            "recipe": "dish",
+            "seconds_left": 21
+          },
+          {
+            "recipe": "soup",
+            "seconds_left": 28
+          }
+        ],
+        "seconds_left": 2,
+        "orders_served": 10,
+        "controlled_actor": "human",
+        "phase": "playing",
+        "player_intent": null,
+        "dash_ready_in_ms": 638.6980420000036,
+        "cooking": {
+          "board": {
+            "remaining_ms": 0,
+            "progress": null,
+            "boosted": false
+          },
+          "pot": {
+            "remaining_ms": 3409.7304170000134,
+            "progress": 0.6211410647777763,
+            "boosted": false
+          }
+        },
+        "partner_intent": "wait",
+        "position": {
+          "human": {
+            "x": 390,
+            "y": 190
+          },
+          "ai": {
+            "x": 930,
+            "y": 190
+          }
+        },
+        "screen": {
+          "modal": null,
+          "title": "キッチン",
+          "status": "お待たせしました！ +465",
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.6    10 / 7皿    0:02"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止"
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "3871点   327 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  待\n🥬 ミオ  待\n🔪 ナギ  出",
+              "label": "勤務一覧：🐣 ハル  待、🥬 ミオ  待、🔪 ナギ  出"
+            },
+            {
+              "id": "food-10",
+              "text": null,
+              "recipe": "dish"
+            },
+            {
+              "id": "order-10",
+              "text": "トマトサラダ\nあと 21 秒"
+            },
+            {
+              "id": "food-11",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-11",
+              "text": "トマトスープ\nあと 28 秒"
+            },
+            {
+              "text": "E  トマトを取ってこよう"
+            },
+            {
+              "text": "Shift 急ぐ",
+              "label": "ダッシュ",
+              "disabled": true
+            },
+            {
+              "text": "Q 片づけ"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "You control the HUMAN player. Serve your finished dish now. Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item. Keep selling beyond quota.",
+          "criteria": {
+            "serve": "完成した料理を配膳する",
+            "discard": "手元の物を捨てる（コンボをリセット）",
+            "wait": "今は動かず、様子を見る",
+            "navigate": "作業せずに移動する場所を選ぶ（調理の行動は自動移動つき）"
+          }
+        }
+      },
+      "expected": ["serve"]
+    },
+    {
+      "id": "realtime_plate_salad",
+      "split": "holdout",
+      "state": {
+        "practice": false,
+        "level": 6,
+        "quota": 7,
+        "stock": 1,
+        "duration_seconds": 90,
+        "cash": 327,
+        "hired": ["helper", "prep", "chef"],
+        "duty": ["chef"],
+        "staff_state": {
+          "helper": {
+            "worked": 0,
+            "rest": 0
+          },
+          "prep": {
+            "worked": 0,
+            "rest": 0
+          },
+          "chef": {
+            "worked": 0,
+            "rest": 0
+          }
+        },
+        "equipment": {
+          "board": {
+            "count": 1,
+            "level": 1
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 3,
+            "cook": 1
+          }
+        },
+        "layout": {
+          "crate": "crate",
+          "board": "board",
+          "plates": "plates",
+          "serve": "serve",
+          "pot": "pot"
+        },
+        "kitchen_bounds": {
+          "minX": 85,
+          "maxX": 975,
+          "minY": 175,
+          "maxY": 402
+        },
+        "stations": {
+          "crate": {
+            "active": true,
+            "x": 155,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board": {
+            "active": true,
+            "x": 390,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "chopped",
+            "by": "human",
+            "started_at": 82585.01225000003,
+            "duration": 1536,
+            "burn_seconds": null
+          },
+          "board2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot": {
+            "active": true,
+            "x": 930,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "cooking",
+            "by": "chef",
+            "started_at": 82904.76595800003,
+            "duration": 9000,
+            "burn_seconds": null
+          },
+          "pot2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "plates": {
+            "active": true,
+            "x": 755,
+            "y": 285,
+            "dx": 84,
+            "dy": 0,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "serve": {
+            "active": true,
+            "x": 455,
+            "y": 390,
+            "dx": 0,
+            "dy": 82,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          }
+        },
+        "staff": null,
+        "actor": {
+          "carrying": "plate",
+          "x": 755,
+          "y": 285,
+          "at_station": "plates",
+          "last_action": "お皿を取った",
+          "recent_actions": [
+            "トマトを切り始めた",
+            "トマトを取った",
+            "トマトを戻した",
+            "お皿を取った"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "crew": {
+          "chef": {
+            "carrying": null,
+            "x": 930,
+            "y": 190,
+            "at_station": "pot",
+            "last_action": "スープを煮込み始めた",
+            "recent_actions": [
+              "トマトを取った",
+              "トマトを切り始めた",
+              "切ったトマトを取った",
+              "スープを煮込み始めた"
+            ],
+            "intent": {
+              "id": "wait",
+              "station": null
+            },
+            "quality": false
+          }
+        },
+        "policy": null,
+        "human": {
+          "carrying": "plate",
+          "x": 755,
+          "y": 285,
+          "at_station": "plates",
+          "last_action": "お皿を取った",
+          "recent_actions": [
+            "トマトを切り始めた",
+            "トマトを取った",
+            "トマトを戻した",
+            "お皿を取った"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "board": "chopped",
+        "pot": "cooking",
+        "grill": "idle",
+        "pot_burn_seconds": null,
+        "grill_burn_seconds": null,
+        "burned": 0,
+        "quality": {
+          "human": false,
+          "chef": false
+        },
+        "board_operator": null,
+        "orders": [
+          {
+            "recipe": "dish",
+            "seconds_left": 23
+          },
+          {
+            "recipe": "soup",
+            "seconds_left": 29
+          }
+        ],
+        "seconds_left": 3,
+        "orders_served": 10,
+        "controlled_actor": "human",
+        "phase": "playing",
+        "player_intent": null,
+        "dash_ready_in_ms": 0,
+        "cooking": {
+          "board": {
+            "remaining_ms": 0,
+            "progress": 2.938271891276031,
+            "boosted": false
+          },
+          "pot": {
+            "remaining_ms": 4806.56808300002,
+            "progress": 0.4659368796666644,
+            "boosted": false
+          }
+        },
+        "partner_intent": "wait",
+        "position": {
+          "human": {
+            "x": 755,
+            "y": 285
+          },
+          "ai": {
+            "x": 930,
+            "y": 190
+          }
+        },
+        "screen": {
+          "modal": null,
+          "title": "キッチン",
+          "status": "お待たせしました！ +465",
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.6    10 / 7皿    0:03"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止"
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "3871点   327 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  待\n🥬 ミオ  待\n🔪 ナギ  出",
+              "label": "勤務一覧：🐣 ハル  待、🥬 ミオ  待、🔪 ナギ  出"
+            },
+            {
+              "id": "food-10",
+              "text": null,
+              "recipe": "dish"
+            },
+            {
+              "id": "order-10",
+              "text": "トマトサラダ\nあと 23 秒"
+            },
+            {
+              "id": "food-11",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-11",
+              "text": "トマトスープ\nあと 29 秒"
+            },
+            {
+              "id": "interact",
+              "text": "E  お皿を戻す"
+            },
+            {
+              "id": "dash",
+              "text": "Shift 急ぐ",
+              "label": "ダッシュ"
+            },
+            {
+              "text": "Q 片づけ"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "You control the HUMAN player. Ordered food is ready. Choose plate or its dash_ version to plate it now. Do not return your plate. Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item. Keep selling beyond quota.",
+          "criteria": {
+            "plate": "まな板でサラダを盛り付ける",
+            "return_plate": "お皿を戻して手を空ける",
+            "discard": "手元の物を捨てる（コンボをリセット）",
+            "interact": "お皿を戻して手を空ける（E）",
+            "dash_plate": "ダッシュしてまな板でサラダを盛り付ける",
+            "dash_return_plate": "ダッシュしてお皿を戻して手を空ける",
+            "dash_interact": "ダッシュしてお皿を戻して手を空ける（E）",
+            "dash": "ダッシュする（移動を継続・再使用まで1.8秒）",
+            "wait": "今は動かず、様子を見る",
+            "navigate": "作業せずに移動する場所を選ぶ（調理の行動は自動移動つき）"
+          }
+        }
+      },
+      "expected": ["plate", "dash_plate"]
+    },
+    {
+      "id": "realtime_cook_soup",
+      "split": "holdout",
+      "state": {
+        "practice": false,
+        "level": 4,
+        "quota": 6,
+        "stock": 8,
+        "duration_seconds": 90,
+        "cash": 214,
+        "hired": ["helper", "prep"],
+        "duty": ["helper"],
+        "staff_state": {
+          "helper": {
+            "worked": 0,
+            "rest": 0
+          },
+          "prep": {
+            "worked": 0,
+            "rest": 0
+          }
+        },
+        "equipment": {
+          "board": {
+            "count": 1,
+            "level": 1
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 2,
+            "cook": 1
+          }
+        },
+        "layout": {
+          "crate": "crate",
+          "board": "board",
+          "plates": "plates",
+          "serve": "serve",
+          "pot": "pot"
+        },
+        "kitchen_bounds": {
+          "minX": 85,
+          "maxX": 975,
+          "minY": 175,
+          "maxY": 402
+        },
+        "stations": {
+          "crate": {
+            "active": true,
+            "x": 155,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board": {
+            "active": true,
+            "x": 390,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot": {
+            "active": true,
+            "x": 930,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "plates": {
+            "active": true,
+            "x": 755,
+            "y": 285,
+            "dx": 84,
+            "dy": 0,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "serve": {
+            "active": true,
+            "x": 455,
+            "y": 390,
+            "dx": 0,
+            "dy": 82,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          }
+        },
+        "staff": null,
+        "actor": {
+          "carrying": "chopped",
+          "x": 390,
+          "y": 190,
+          "at_station": "board",
+          "last_action": "切ったトマトを取った",
+          "recent_actions": [
+            "トマトを切り始めた",
+            "トマトを取った",
+            "トマトを戻した",
+            "切ったトマトを取った"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "crew": {
+          "helper": {
+            "carrying": null,
+            "x": 475,
+            "y": 212,
+            "at_station": null,
+            "last_action": "トマトを切り始めた",
+            "recent_actions": [
+              "スープを盛り付けた",
+              "トマトスープを配膳した",
+              "トマトを取った",
+              "トマトを切り始めた"
+            ],
+            "intent": {
+              "id": "wait",
+              "station": null
+            },
+            "quality": false
+          }
+        },
+        "policy": null,
+        "human": {
+          "carrying": "chopped",
+          "x": 390,
+          "y": 190,
+          "at_station": "board",
+          "last_action": "切ったトマトを取った",
+          "recent_actions": [
+            "トマトを切り始めた",
+            "トマトを取った",
+            "トマトを戻した",
+            "切ったトマトを取った"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "board": "idle",
+        "pot": "idle",
+        "grill": "idle",
+        "pot_burn_seconds": null,
+        "grill_burn_seconds": null,
+        "burned": 0,
+        "quality": {
+          "human": false,
+          "helper": false
+        },
+        "board_operator": null,
+        "orders": [
+          {
+            "recipe": "soup",
+            "seconds_left": 4
+          },
+          {
+            "recipe": "soup",
+            "seconds_left": 31
+          }
+        ],
+        "seconds_left": 16,
+        "orders_served": 6,
+        "controlled_actor": "human",
+        "phase": "playing",
+        "player_intent": null,
+        "dash_ready_in_ms": 193.85620899999049,
+        "cooking": {
+          "board": {
+            "remaining_ms": 0,
+            "progress": null,
+            "boosted": false
+          },
+          "pot": {
+            "remaining_ms": 0,
+            "progress": null,
+            "boosted": false
+          }
+        },
+        "partner_intent": "wait",
+        "position": {
+          "human": {
+            "x": 390,
+            "y": 190
+          },
+          "ai": {
+            "x": 475.09213260730775,
+            "y": 212.14726739094306
+          }
+        },
+        "screen": {
+          "modal": null,
+          "title": "キッチン",
+          "status": "お待たせしました！ +266",
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.4    6 / 6皿    0:16"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止"
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "1246点   214 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  出\n🥬 ミオ  待",
+              "label": "勤務一覧：🐣 ハル  出、🥬 ミオ  待"
+            },
+            {
+              "id": "food-6",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-6",
+              "text": "トマトスープ\nあと 4 秒"
+            },
+            {
+              "id": "food-8",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-8",
+              "text": "トマトスープ\nあと 31 秒"
+            },
+            {
+              "text": "E  お皿の台へ運ぶ"
+            },
+            {
+              "text": "Shift 急ぐ",
+              "label": "ダッシュ",
+              "disabled": true
+            },
+            {
+              "text": "Q 片づけ"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "You control the HUMAN player. Cook or grill your chopped tomato for a visible order. Assemble salad only if a salad is ordered. Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item. Keep selling beyond quota.",
+          "criteria": {
+            "cook": "スープ鍋でスープを煮込む",
+            "assemble": "切ったトマトをお皿に盛ってサラダにする【この料理は現在注文なし】",
+            "discard": "手元の物を捨てる（コンボをリセット）",
+            "wait": "今は動かず、様子を見る",
+            "navigate": "作業せずに移動する場所を選ぶ（調理の行動は自動移動つき）"
+          }
+        }
+      },
+      "expected": ["cook"]
+    },
+    {
+      "id": "realtime_fetch_tomato",
+      "split": "holdout",
+      "state": {
+        "practice": false,
+        "level": 7,
+        "quota": 6,
+        "stock": 13,
+        "duration_seconds": 90,
+        "cash": 105,
+        "hired": ["helper", "prep", "chef"],
+        "duty": ["chef"],
+        "staff_state": {
+          "helper": {
+            "worked": 0,
+            "rest": 0
+          },
+          "prep": {
+            "worked": 0,
+            "rest": 0
+          },
+          "chef": {
+            "worked": 0,
+            "rest": 0
+          }
+        },
+        "equipment": {
+          "board": {
+            "count": 1,
+            "level": 1
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 4,
+            "cook": 2
+          }
+        },
+        "layout": {
+          "crate": "crate",
+          "board": "board",
+          "plates": "plates",
+          "serve": "serve",
+          "pot": "pot",
+          "grill": "grill"
+        },
+        "kitchen_bounds": {
+          "minX": 85,
+          "maxX": 1175,
+          "minY": 175,
+          "maxY": 402
+        },
+        "stations": {
+          "crate": {
+            "active": true,
+            "x": 155,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "board": {
+            "active": true,
+            "x": 390,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "chopping",
+            "by": "human",
+            "started_at": 5473.849500000011,
+            "duration": 1472,
+            "burn_seconds": null
+          },
+          "board2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot": {
+            "active": true,
+            "x": 930,
+            "y": 190,
+            "dx": 0,
+            "dy": -84,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "pot2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill": {
+            "active": true,
+            "x": 1130,
+            "y": 320,
+            "dx": 84,
+            "dy": 0,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "grill2": {
+            "active": false,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "plates": {
+            "active": true,
+            "x": 755,
+            "y": 285,
+            "dx": 84,
+            "dy": 0,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          },
+          "serve": {
+            "active": true,
+            "x": 455,
+            "y": 390,
+            "dx": 0,
+            "dy": 82,
+            "state": "idle",
+            "by": null,
+            "started_at": 0,
+            "duration": 0,
+            "burn_seconds": null
+          }
+        },
+        "staff": null,
+        "actor": {
+          "carrying": null,
+          "x": 390,
+          "y": 190,
+          "at_station": "board",
+          "last_action": "トマトを切り始めた",
+          "recent_actions": [
+            "トマトを取った",
+            "トマトを切り始めた",
+            "トマトを取った",
+            "トマトを切り始めた"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "crew": {
+          "chef": {
+            "carrying": "chopped",
+            "x": 558,
+            "y": 220,
+            "at_station": null,
+            "last_action": "切ったトマトを取った",
+            "recent_actions": ["切ったトマトを取った"],
+            "intent": {
+              "id": "grill",
+              "station": "grill"
+            },
+            "quality": false
+          }
+        },
+        "policy": null,
+        "human": {
+          "carrying": null,
+          "x": 390,
+          "y": 190,
+          "at_station": "board",
+          "last_action": "トマトを切り始めた",
+          "recent_actions": [
+            "トマトを取った",
+            "トマトを切り始めた",
+            "トマトを取った",
+            "トマトを切り始めた"
+          ],
+          "intent": null,
+          "quality": false
+        },
+        "board": "chopping",
+        "pot": "idle",
+        "grill": "idle",
+        "pot_burn_seconds": null,
+        "grill_burn_seconds": null,
+        "burned": 0,
+        "quality": {
+          "human": false,
+          "chef": false
+        },
+        "board_operator": "human",
+        "orders": [
+          {
+            "recipe": "roast",
+            "seconds_left": 31
+          },
+          {
+            "recipe": "soup",
+            "seconds_left": 43
+          }
+        ],
+        "seconds_left": 85,
+        "orders_served": 0,
+        "controlled_actor": "human",
+        "phase": "playing",
+        "player_intent": null,
+        "dash_ready_in_ms": 205.8614580000285,
+        "cooking": {
+          "board": {
+            "remaining_ms": 1455.291583000042,
+            "progress": 0.011350826766275808,
+            "boosted": false
+          },
+          "pot": {
+            "remaining_ms": 0,
+            "progress": null,
+            "boosted": false
+          },
+          "grill": {
+            "remaining_ms": 0,
+            "progress": null,
+            "boosted": false
+          }
+        },
+        "partner_intent": "grill",
+        "position": {
+          "human": {
+            "x": 390,
+            "y": 190
+          },
+          "ai": {
+            "x": 558.4972472555335,
+            "y": 219.60086776110728
+          }
+        },
+        "screen": {
+          "modal": null,
+          "title": "キッチン",
+          "status": null,
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.7    0 / 6皿    1:25"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止"
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "0点   105 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  待\n🥬 ミオ  待\n🔪 ナギ  出",
+              "label": "勤務一覧：🐣 ハル  待、🥬 ミオ  待、🔪 ナギ  出"
+            },
+            {
+              "id": "food-0",
+              "text": null,
+              "recipe": "roast"
+            },
+            {
+              "id": "order-0",
+              "text": "焼きトマト\nあと 31 秒"
+            },
+            {
+              "id": "food-1",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-1",
+              "text": "トマトスープ\nあと 43 秒"
+            },
+            {
+              "text": "E  切り終わるまで待つ"
+            },
+            {
+              "text": "Shift 急ぐ",
+              "label": "ダッシュ",
+              "disabled": true
+            },
+            {
+              "text": "Q 片づけ",
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "You control the HUMAN player. No food is ready to plate. Fetch a tomato and chop it to start an order. Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item. Keep selling beyond quota.",
+          "criteria": {
+            "fetch_tomato": "トマトを取る",
+            "fetch_plate": "お皿を用意する",
+            "wait": "今は動かず、様子を見る",
+            "navigate": "作業せずに移動する場所を選ぶ（調理の行動は自動移動つき）"
+          }
+        }
+      },
+      "expected": ["fetch_tomato"]
+    },
+    {
+      "id": "realtime_save_for_cook",
+      "split": "holdout",
+      "state": {
+        "level": 3,
+        "cash": 356,
+        "stock": 0,
+        "equipment": {
+          "board": {
+            "count": 1,
+            "level": 1
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 1,
+            "cook": 0
+          }
+        },
+        "controlled_actor": "human",
+        "phase": "preparation",
+        "preparation": {
+          "selected": null,
+          "stage": "hiring",
+          "recent_actions": [],
+          "duty": ["helper"],
+          "unfilled_slots": 0,
+          "quantity": 15,
+          "recommended_purchase": 15,
+          "next_level": {
+            "level": 4,
+            "kitchenTier": 2,
+            "stockFinite": true,
+            "quota": 6,
+            "orderWindowMs": 36000,
+            "recipeMix": {
+              "dish": 0.6005154639175257,
+              "soup": 0.39948453608247425,
+              "roast": 0
+            },
+            "partner": null,
+            "staffSlots": 1,
+            "boostEnabled": false,
+            "burningEnabled": false,
+            "fatigueEnabled": false,
+            "rushEnabled": false,
+            "difficulty": 0,
+            "unlockLabel": "店長退職・ハルと営業"
+          },
+          "previous_sales": 11,
+          "previous_burned": 0,
+          "recipes": {
+            "dish": {
+              "revenue": 25,
+              "margin": 17
+            },
+            "soup": {
+              "revenue": 35,
+              "margin": 27
+            },
+            "roast": {
+              "revenue": 45,
+              "margin": 37
+            }
+          },
+          "equipment_catalog": {
+            "board": {
+              "name": "まな板",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 1,
+              "addUnlockLevel": 2,
+              "upgradeUnlockLevel": 2,
+              "addCost": 270,
+              "upgradeCosts": [135, 225]
+            },
+            "pot": {
+              "name": "スープ鍋",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 3,
+              "addUnlockLevel": 8,
+              "upgradeUnlockLevel": 3,
+              "addCost": 450,
+              "upgradeCosts": [180, 315]
+            },
+            "grill": {
+              "name": "グリル",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 7,
+              "addUnlockLevel": 10,
+              "upgradeUnlockLevel": 7,
+              "addCost": 540,
+              "upgradeCosts": [225, 360]
+            },
+            "warmer": {
+              "name": "保温台",
+              "initialCount": 0,
+              "maxCount": 1,
+              "unlockLevel": 6,
+              "addUnlockLevel": 6,
+              "upgradeUnlockLevel": 6,
+              "addCost": 540,
+              "upgradeCosts": [270, 360]
+            },
+            "kitchen": {
+              "name": "厨房拡張",
+              "initialCount": 1,
+              "maxCount": 1,
+              "unlockLevel": 1,
+              "addUnlockLevel": 101,
+              "upgradeUnlockLevel": 2,
+              "addCost": 0,
+              "upgradeCosts": [720, 1080]
+            }
+          },
+          "vitamin_catalog": {
+            "move": {
+              "name": "タウリン",
+              "icon": "💨",
+              "ability": "足の速さ",
+              "effect": "移動 +4%",
+              "cost": 45
+            },
+            "cook": {
+              "name": "インドメタシン",
+              "icon": "🔪",
+              "ability": "料理の速さ",
+              "effect": "調理 -4%",
+              "cost": 45
+            }
+          },
+          "equipmentPurchases": [],
+          "layout": {
+            "crate": "crate",
+            "board": "board",
+            "plates": "plates",
+            "serve": "serve",
+            "pot": "pot"
+          },
+          "bill": {
+            "quantity": 15,
+            "hiring": 0,
+            "wages": 12,
+            "duty": ["helper"],
+            "slots": 1,
+            "stock": 15,
+            "cash": 224,
+            "quota": 6,
+            "staffState": {
+              "helper": {
+                "worked": 0,
+                "rest": 0
+              }
+            },
+            "equipment": {
+              "board": {
+                "count": 1,
+                "level": 1
+              },
+              "pot": {
+                "count": 1,
+                "level": 1
+              },
+              "grill": {
+                "count": 1,
+                "level": 1
+              },
+              "warmer": {
+                "count": 0,
+                "level": 1
+              },
+              "kitchen": {
+                "count": 1,
+                "level": 1
+              }
+            },
+            "equipmentCost": 0,
+            "equipmentPurchases": [],
+            "vitamins": [],
+            "training": {
+              "human": {
+                "move": 1,
+                "cook": 0
+              }
+            },
+            "vitaminCost": 0,
+            "layout": {
+              "crate": "crate",
+              "board": "board",
+              "plates": "plates",
+              "serve": "serve",
+              "pot": "pot"
+            },
+            "error": ""
+          },
+          "stock_price": 8,
+          "applicants": [
+            {
+              "id": "runner",
+              "name": "配膳係のソラ",
+              "icon": "⚡",
+              "color": "#4f9fd8",
+              "role": "runner",
+              "description": "運搬と盛り付け専門。足が速い。",
+              "capabilities": ["serve"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 20,
+              "maxConsecutive": 2,
+              "restShifts": 1,
+              "cost": 135,
+              "decisionMs": 1400,
+              "speed": 1.18,
+              "chop": 1.15,
+              "cook": 1
+            },
+            {
+              "id": "prep",
+              "name": "仕込み係のミオ",
+              "icon": "🥬",
+              "color": "#8cbf4d",
+              "role": "chef",
+              "description": "切る専門。手際がいい。",
+              "capabilities": ["prep"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 16,
+              "maxConsecutive": 3,
+              "restShifts": 1,
+              "cost": 90,
+              "decisionMs": 2000,
+              "speed": 1,
+              "chop": 0.55,
+              "cook": 1
+            },
+            {
+              "id": "sous",
+              "name": "副料理長のリン",
+              "icon": "⏱️",
+              "color": "#3f9e7d",
+              "role": "expediter",
+              "description": "全工程に対応。締切を優先。",
+              "capabilities": ["prep", "cook", "serve"],
+              "canDash": false,
+              "employment": "正社員",
+              "wage": 60,
+              "maxConsecutive": 2,
+              "restShifts": 2,
+              "cost": 270,
+              "decisionMs": 500,
+              "speed": 1.05,
+              "chop": 0.8,
+              "cook": 0.9
+            }
+          ],
+          "roster": [
+            {
+              "id": "helper",
+              "name": "見習いのハル",
+              "icon": "🐣",
+              "color": "#f0b03b",
+              "role": "allrounder",
+              "description": "切る・盛る担当。煮る・焼くはあなた。",
+              "capabilities": ["prep", "serve"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 12,
+              "maxConsecutive": 4,
+              "restShifts": 1,
+              "cost": 0,
+              "decisionMs": 1800,
+              "speed": 1,
+              "chop": 1,
+              "cook": 1,
+              "worked": 0,
+              "rest": 0
+            }
+          ]
+        },
+        "screen": {
+          "modal": "result-0",
+          "title": "Lv.3 営業クリア",
+          "status": null,
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.3    11 / 6皿    0:00"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止",
+              "disabled": true
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "3820点   356 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  待\n🌟 アオ  出",
+              "label": "勤務一覧：🐣 ハル  待、🌟 アオ  出"
+            },
+            {
+              "id": "food-11",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-11",
+              "text": "トマトスープ\nあと 26 秒"
+            },
+            {
+              "id": "food-12",
+              "text": null,
+              "recipe": "dish"
+            },
+            {
+              "id": "order-12",
+              "text": "トマトサラダ\nあと 26 秒"
+            },
+            {
+              "id": "title",
+              "text": "Lv.3 営業クリア"
+            },
+            {
+              "id": "stars",
+              "text": "★ ★ ★"
+            },
+            {
+              "id": "result",
+              "text": "11 / 6皿  ・  3820点\nお財布 356コイン\n次は Lv.4、6皿を届けよう\n店長退職・ハルと営業"
+            },
+            {
+              "text": "次のステージ"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "Choose one affordable recruit or skip. First hire a chef or sous for cooking. Later recruit only to fill an available slot or cover forced rest from Lv9. Skip redundant hires when the next crew is covered: preserve money for stock and permanent upgrades. Hiring alone does not assign duty.",
+          "criteria": {
+            "skip_hiring": "採用を取り消す",
+            "hire_runner": "配膳係のソラを採用予定にする（135コイン）",
+            "hire_prep": "仕込み係のミオを採用予定にする（90コイン）"
+          }
+        }
+      },
+      "expected": ["skip_hiring"],
+      "reason": "No affordable cooking recruit is present in the legal candidates; save for one instead of buying another role."
+    },
+    {
+      "id": "realtime_train_player",
+      "split": "holdout",
+      "state": {
+        "level": 6,
+        "cash": 352,
+        "stock": 1,
+        "equipment": {
+          "board": {
+            "count": 1,
+            "level": 1
+          },
+          "pot": {
+            "count": 1,
+            "level": 1
+          },
+          "grill": {
+            "count": 1,
+            "level": 1
+          },
+          "warmer": {
+            "count": 0,
+            "level": 1
+          },
+          "kitchen": {
+            "count": 1,
+            "level": 1
+          }
+        },
+        "training": {
+          "human": {
+            "move": 3,
+            "cook": 1
+          }
+        },
+        "controlled_actor": "human",
+        "phase": "preparation",
+        "preparation": {
+          "selected": null,
+          "stage": "investment",
+          "recent_actions": [
+            "skip_hiring",
+            "crew_chef",
+            "confirm_stock",
+            "vitamin_move_human",
+            "vitamin_cook_human"
+          ],
+          "duty": ["chef"],
+          "unfilled_slots": 0,
+          "quantity": 14,
+          "recommended_purchase": 14,
+          "next_level": {
+            "level": 7,
+            "kitchenTier": 3,
+            "stockFinite": true,
+            "quota": 6,
+            "orderWindowMs": 36000,
+            "recipeMix": {
+              "dish": 0.40206185567010305,
+              "soup": 0.39793814432989694,
+              "roast": 0.2
+            },
+            "partner": null,
+            "staffSlots": 1,
+            "boostEnabled": true,
+            "burningEnabled": true,
+            "fatigueEnabled": false,
+            "rushEnabled": false,
+            "difficulty": 0,
+            "unlockLabel": "グリルと鍋を並行"
+          },
+          "previous_sales": 11,
+          "previous_burned": 0,
+          "recipes": {
+            "dish": {
+              "revenue": 25,
+              "margin": 17
+            },
+            "soup": {
+              "revenue": 35,
+              "margin": 27
+            },
+            "roast": {
+              "revenue": 45,
+              "margin": 37
+            }
+          },
+          "equipment_catalog": {
+            "board": {
+              "name": "まな板",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 1,
+              "addUnlockLevel": 2,
+              "upgradeUnlockLevel": 2,
+              "addCost": 270,
+              "upgradeCosts": [135, 225]
+            },
+            "pot": {
+              "name": "スープ鍋",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 3,
+              "addUnlockLevel": 8,
+              "upgradeUnlockLevel": 3,
+              "addCost": 450,
+              "upgradeCosts": [180, 315]
+            },
+            "grill": {
+              "name": "グリル",
+              "initialCount": 1,
+              "maxCount": 2,
+              "unlockLevel": 7,
+              "addUnlockLevel": 10,
+              "upgradeUnlockLevel": 7,
+              "addCost": 540,
+              "upgradeCosts": [225, 360]
+            },
+            "warmer": {
+              "name": "保温台",
+              "initialCount": 0,
+              "maxCount": 1,
+              "unlockLevel": 6,
+              "addUnlockLevel": 6,
+              "upgradeUnlockLevel": 6,
+              "addCost": 540,
+              "upgradeCosts": [270, 360]
+            },
+            "kitchen": {
+              "name": "厨房拡張",
+              "initialCount": 1,
+              "maxCount": 1,
+              "unlockLevel": 1,
+              "addUnlockLevel": 101,
+              "upgradeUnlockLevel": 2,
+              "addCost": 0,
+              "upgradeCosts": [720, 1080]
+            }
+          },
+          "vitamin_catalog": {
+            "move": {
+              "name": "タウリン",
+              "icon": "💨",
+              "ability": "足の速さ",
+              "effect": "移動 +4%",
+              "cost": 45
+            },
+            "cook": {
+              "name": "インドメタシン",
+              "icon": "🔪",
+              "ability": "料理の速さ",
+              "effect": "調理 -4%",
+              "cost": 45
+            }
+          },
+          "equipmentPurchases": [],
+          "layout": {
+            "crate": "crate",
+            "board": "board",
+            "plates": "plates",
+            "serve": "serve",
+            "pot": "pot"
+          },
+          "bill": {
+            "quantity": 14,
+            "hiring": 0,
+            "wages": 45,
+            "duty": ["chef"],
+            "slots": 1,
+            "stock": 15,
+            "cash": 105,
+            "quota": 6,
+            "staffState": {
+              "helper": {
+                "worked": 0,
+                "rest": 0
+              },
+              "prep": {
+                "worked": 0,
+                "rest": 0
+              },
+              "chef": {
+                "worked": 0,
+                "rest": 0
+              }
+            },
+            "equipment": {
+              "board": {
+                "count": 1,
+                "level": 1
+              },
+              "pot": {
+                "count": 1,
+                "level": 1
+              },
+              "grill": {
+                "count": 1,
+                "level": 1
+              },
+              "warmer": {
+                "count": 0,
+                "level": 1
+              },
+              "kitchen": {
+                "count": 1,
+                "level": 1
+              }
+            },
+            "equipmentCost": 0,
+            "equipmentPurchases": [],
+            "vitamins": [
+              {
+                "item": "move",
+                "target": "human"
+              },
+              {
+                "item": "cook",
+                "target": "human"
+              }
+            ],
+            "training": {
+              "human": {
+                "move": 4,
+                "cook": 2
+              }
+            },
+            "vitaminCost": 90,
+            "layout": {
+              "crate": "crate",
+              "board": "board",
+              "plates": "plates",
+              "serve": "serve",
+              "pot": "pot",
+              "grill": "grill"
+            },
+            "error": ""
+          },
+          "stock_price": 8,
+          "applicants": [
+            {
+              "id": "runner",
+              "name": "配膳係のソラ",
+              "icon": "⚡",
+              "color": "#4f9fd8",
+              "role": "runner",
+              "description": "運搬と盛り付け専門。足が速い。",
+              "capabilities": ["serve"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 20,
+              "maxConsecutive": 2,
+              "restShifts": 1,
+              "cost": 135,
+              "decisionMs": 1400,
+              "speed": 1.18,
+              "chop": 1.15,
+              "cook": 1
+            },
+            {
+              "id": "sous",
+              "name": "副料理長のリン",
+              "icon": "⏱️",
+              "color": "#3f9e7d",
+              "role": "expediter",
+              "description": "全工程に対応。締切を優先。",
+              "capabilities": ["prep", "cook", "serve"],
+              "canDash": false,
+              "employment": "正社員",
+              "wage": 60,
+              "maxConsecutive": 2,
+              "restShifts": 2,
+              "cost": 270,
+              "decisionMs": 500,
+              "speed": 1.05,
+              "chop": 0.8,
+              "cook": 0.9
+            },
+            {
+              "id": "sprinter",
+              "name": "特急配膳のレオ",
+              "icon": "💨",
+              "color": "#e08a3c",
+              "role": "runner",
+              "description": "配膳専門。ダッシュで届ける。",
+              "capabilities": ["serve"],
+              "canDash": true,
+              "employment": "アルバイト",
+              "wage": 32,
+              "maxConsecutive": 2,
+              "restShifts": 1,
+              "cost": 225,
+              "decisionMs": 1200,
+              "speed": 1.2,
+              "chop": 1,
+              "cook": 1
+            }
+          ],
+          "roster": [
+            {
+              "id": "helper",
+              "name": "見習いのハル",
+              "icon": "🐣",
+              "color": "#f0b03b",
+              "role": "allrounder",
+              "description": "切る・盛る担当。煮る・焼くはあなた。",
+              "capabilities": ["prep", "serve"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 12,
+              "maxConsecutive": 4,
+              "restShifts": 1,
+              "cost": 0,
+              "decisionMs": 1800,
+              "speed": 1,
+              "chop": 1,
+              "cook": 1,
+              "worked": 0,
+              "rest": 0
+            },
+            {
+              "id": "prep",
+              "name": "仕込み係のミオ",
+              "icon": "🥬",
+              "color": "#8cbf4d",
+              "role": "chef",
+              "description": "切る専門。手際がいい。",
+              "capabilities": ["prep"],
+              "canDash": false,
+              "employment": "アルバイト",
+              "wage": 16,
+              "maxConsecutive": 3,
+              "restShifts": 1,
+              "cost": 90,
+              "decisionMs": 2000,
+              "speed": 1,
+              "chop": 0.55,
+              "cook": 1,
+              "worked": 0,
+              "rest": 0
+            },
+            {
+              "id": "chef",
+              "name": "料理人のナギ",
+              "icon": "🔪",
+              "color": "#d1583c",
+              "role": "chef",
+              "description": "仕込みと加熱専門。配膳はしない。",
+              "capabilities": ["prep", "cook"],
+              "canDash": false,
+              "employment": "正社員",
+              "wage": 45,
+              "maxConsecutive": 3,
+              "restShifts": 2,
+              "cost": 180,
+              "decisionMs": 900,
+              "speed": 0.9,
+              "chop": 0.55,
+              "cook": 0.75,
+              "worked": 0,
+              "rest": 0
+            }
+          ]
+        },
+        "screen": {
+          "modal": "result-3",
+          "title": "Lv.7 設備投資",
+          "status": null,
+          "items": [
+            {
+              "id": "shift",
+              "text": "SIDEKICK   Lv.6    11 / 7皿    0:00"
+            },
+            {
+              "text": "Ⅱ",
+              "label": "ゲームを一時停止",
+              "disabled": true
+            },
+            {
+              "text": "≡",
+              "label": "メニューを開く"
+            },
+            {
+              "id": "score",
+              "text": "4231点   352 コイン"
+            },
+            {
+              "id": "roster",
+              "text": "🐣 ハル  待\n🥬 ミオ  待\n🔪 ナギ  出",
+              "label": "勤務一覧：🐣 ハル  待、🥬 ミオ  待、🔪 ナギ  出"
+            },
+            {
+              "id": "food-11",
+              "text": null,
+              "recipe": "soup"
+            },
+            {
+              "id": "order-11",
+              "text": "トマトスープ\nあと 27 秒"
+            },
+            {
+              "id": "food-12",
+              "text": null,
+              "recipe": "dish"
+            },
+            {
+              "id": "order-12",
+              "text": "トマトサラダ\nあと 36 秒"
+            },
+            {
+              "id": "title",
+              "text": "Lv.7 設備投資"
+            },
+            {
+              "text": "仕入れへ"
+            },
+            {
+              "text": "配置",
+              "label": "設備の配置を変更"
+            },
+            {
+              "text": "この準備で開店"
+            },
+            {
+              "text": "‹",
+              "label": "前の設備ページ",
+              "disabled": true
+            },
+            {
+              "id": "equipment-page",
+              "text": "1 / 4"
+            },
+            {
+              "text": "›",
+              "label": "次の設備ページ"
+            },
+            {
+              "id": "equipment-label-board",
+              "text": "まな板\n1台 Lv1・時間-0%"
+            },
+            {
+              "text": "資金不足",
+              "label": "まな板の増設（費用270コイン）",
+              "disabled": true
+            },
+            {
+              "text": "資金不足",
+              "label": "まな板の改良（費用135コイン）",
+              "disabled": true
+            },
+            {
+              "id": "equipment-label-pot",
+              "text": "スープ鍋\n1台 Lv1・時間-0%"
+            },
+            {
+              "text": "Lv8から",
+              "label": "スープ鍋の増設（スープ鍋の増設はLv8からです）",
+              "disabled": true
+            },
+            {
+              "text": "資金不足",
+              "label": "スープ鍋の改良（費用180コイン）",
+              "disabled": true
+            },
+            {
+              "id": "equipment-summary",
+              "text": "設備枠 0/1  投資 🪙90 / 残り 🪙105"
+            }
+          ]
+        }
+      },
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "Invest remaining coins before opening. Choose vitamin_move_human when available, then vitamin_cook_human. With multiple cooks, prioritize a second board. Otherwise upgrade useful equipment or regular crew. Choose open_shift when saving for necessary equipment or no useful upgrade is affordable.",
+          "criteria": {
+            "vitamin_move_human": "タウリンをプレイヤー（全営業に出勤）に使う（45コイン）",
+            "vitamin_move_helper": "タウリンを見習いのハル（控え）に使う（45コイン）",
+            "vitamin_move_prep": "タウリンを仕込み係のミオ（控え）に使う（45コイン）",
+            "vitamin_move_chef": "タウリンを料理人のナギ（出勤予定）に使う（45コイン）",
+            "vitamin_cook_human": "インドメタシンをプレイヤー（全営業に出勤）に使う（45コイン）",
+            "vitamin_cook_helper": "インドメタシンを見習いのハル（控え）に使う（45コイン）",
+            "vitamin_cook_prep": "インドメタシンを仕込み係のミオ（控え）に使う（45コイン）",
+            "vitamin_cook_chef": "インドメタシンを料理人のナギ（出勤予定）に使う（45コイン）",
+            "vitamin_undo": "直前の育成を取り消す",
+            "open_shift": "採用・配置・仕入れを確定し、次の営業を始める"
+          }
+        }
+      },
+      "expected": ["vitamin_move_human", "vitamin_cook_human"]
+    }
+  ]
+}
