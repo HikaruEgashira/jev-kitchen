@@ -1799,6 +1799,333 @@
       ]
     },
     {
+      "trial": "midgame-realtime",
+      "revision": "1c5866d0d9ab714dd2e8cc8287b621e99fcb3b33",
+      "dirty": false,
+      "startedAt": "2026-09-19T15:51:13.586Z",
+      "runtime": "node, real time, 60 Hz tick, no renderer",
+      "status": "failed",
+      "requests": 2087,
+      "staleResponses": 24,
+      "errors": 0,
+      "meanMs": 255,
+      "p95Ms": 323,
+      "clearedLevels": 22,
+      "wallMs": 2015073,
+      "activeMs": 2014994,
+      "finalShift": {
+        "level": 23,
+        "elapsedMs": 90000,
+        "served": 9,
+        "playerServed": 5,
+        "partnerServed": 4,
+        "quota": 10,
+        "score": 2319
+      },
+      "shiftResults": [
+        {
+          "level": 1,
+          "served": 1,
+          "quota": 1,
+          "cash": 205,
+          "stock": null,
+          "duty": []
+        },
+        {
+          "level": 2,
+          "served": 10,
+          "quota": 7,
+          "cash": 266,
+          "stock": 2,
+          "duty": ["veteran"]
+        },
+        {
+          "level": 3,
+          "served": 10,
+          "quota": 6,
+          "cash": 385,
+          "stock": 2,
+          "duty": ["veteran"]
+        },
+        {
+          "level": 4,
+          "served": 7,
+          "quota": 6,
+          "cash": 222,
+          "stock": 0,
+          "duty": ["sous"]
+        },
+        {
+          "level": 5,
+          "served": 8,
+          "quota": 7,
+          "cash": 240,
+          "stock": 0,
+          "duty": ["sous"]
+        },
+        {
+          "level": 6,
+          "served": 8,
+          "quota": 6,
+          "cash": 340,
+          "stock": 0,
+          "duty": ["sous"]
+        },
+        {
+          "level": 7,
+          "served": 10,
+          "quota": 6,
+          "cash": 344,
+          "stock": 1,
+          "duty": ["sous"]
+        },
+        {
+          "level": 8,
+          "served": 11,
+          "quota": 8,
+          "cash": 375,
+          "stock": 1,
+          "duty": ["sous", "chef"]
+        },
+        {
+          "level": 9,
+          "served": 9,
+          "quota": 8,
+          "cash": 338,
+          "stock": 2,
+          "duty": ["sous", "chef"]
+        },
+        {
+          "level": 10,
+          "served": 9,
+          "quota": 8,
+          "cash": 442,
+          "stock": 1,
+          "duty": ["sous", "chef"]
+        },
+        {
+          "level": 11,
+          "served": 10,
+          "quota": 8,
+          "cash": 368,
+          "stock": 3,
+          "duty": ["chef", "runner"]
+        },
+        {
+          "level": 12,
+          "served": 9,
+          "quota": 8,
+          "cash": 357,
+          "stock": 4,
+          "duty": ["helper", "prep", "runner"]
+        },
+        {
+          "level": 13,
+          "served": 10,
+          "quota": 8,
+          "cash": 533,
+          "stock": 2,
+          "duty": ["helper", "sous", "sprinter"]
+        },
+        {
+          "level": 14,
+          "served": 11,
+          "quota": 8,
+          "cash": 415,
+          "stock": 0,
+          "duty": ["sous", "chef", "sprinter"]
+        },
+        {
+          "level": 15,
+          "served": 13,
+          "quota": 9,
+          "cash": 649,
+          "stock": 0,
+          "duty": ["prep", "chef", "runner"]
+        },
+        {
+          "level": 16,
+          "served": 16,
+          "quota": 9,
+          "cash": 675,
+          "stock": 0,
+          "duty": ["prep", "chef", "runner", "sprinter"]
+        },
+        {
+          "level": 17,
+          "served": 10,
+          "quota": 9,
+          "cash": 420,
+          "stock": 2,
+          "duty": ["helper", "sous", "prep", "sprinter"]
+        },
+        {
+          "level": 18,
+          "served": 13,
+          "quota": 9,
+          "cash": 679,
+          "stock": 0,
+          "duty": ["helper", "sous", "runner"]
+        },
+        {
+          "level": 19,
+          "served": 14,
+          "quota": 9,
+          "cash": 675,
+          "stock": 0,
+          "duty": ["prep", "chef", "runner", "sprinter"]
+        },
+        {
+          "level": 20,
+          "served": 15,
+          "quota": 10,
+          "cash": 571,
+          "stock": 0,
+          "duty": ["helper", "prep", "chef", "sprinter"]
+        },
+        {
+          "level": 21,
+          "served": 16,
+          "quota": 10,
+          "cash": 782,
+          "stock": 0,
+          "duty": ["helper", "sous", "chef", "runner"]
+        },
+        {
+          "level": 22,
+          "served": 11,
+          "quota": 10,
+          "cash": 869,
+          "stock": 0,
+          "duty": ["sous", "prep", "runner", "sprinter"]
+        },
+        {
+          "level": 23,
+          "served": 9,
+          "quota": 10,
+          "cash": 1006,
+          "stock": 3,
+          "duty": ["helper", "prep", "sprinter"]
+        }
+      ],
+      "investmentChanges": [
+        {
+          "level": 1,
+          "hired": ["helper"],
+          "equipment": {
+            "board": {
+              "count": 1,
+              "level": 1
+            },
+            "pot": {
+              "count": 1,
+              "level": 1
+            },
+            "grill": {
+              "count": 1,
+              "level": 1
+            },
+            "warmer": {
+              "count": 0,
+              "level": 1
+            },
+            "kitchen": {
+              "count": 1,
+              "level": 1
+            }
+          },
+          "training": {}
+        },
+        {
+          "level": 2,
+          "hired": ["helper", "veteran"]
+        },
+        {
+          "level": 4,
+          "hired": ["helper", "sous"]
+        },
+        {
+          "level": 5,
+          "hired": ["helper", "sous", "prep"]
+        },
+        {
+          "level": 7,
+          "hired": ["helper", "sous", "prep", "chef"]
+        },
+        {
+          "level": 8,
+          "hired": ["helper", "sous", "prep", "chef", "runner"]
+        },
+        {
+          "level": 9,
+          "equipment": {
+            "board": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 11,
+          "hired": ["helper", "sous", "prep", "chef", "runner", "sprinter"]
+        },
+        {
+          "level": 12,
+          "equipment": {
+            "pot": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 14,
+          "equipment": {
+            "board": {
+              "count": 2,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 16,
+          "equipment": {
+            "board": {
+              "count": 2,
+              "level": 3
+            }
+          }
+        },
+        {
+          "level": 17,
+          "equipment": {
+            "pot": {
+              "count": 1,
+              "level": 3
+            }
+          }
+        },
+        {
+          "level": 19,
+          "equipment": {
+            "grill": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 20,
+          "equipment": {
+            "grill": {
+              "count": 1,
+              "level": 3
+            }
+          }
+        }
+      ]
+    },
+    {
       "trial": "midgame-calibration",
       "revision": "1c5866d0d9ab714dd2e8cc8287b621e99fcb3b33",
       "dirty": false,
@@ -2298,6 +2625,1271 @@
         },
         {
           "level": 23,
+          "equipment": {
+            "pot": {
+              "count": 2,
+              "level": 3
+            }
+          }
+        }
+      ]
+    },
+    {
+      "trial": "neutral-repeat",
+      "revision": "64ac6da47b6aa0bdb671244cacfccc3f614fad7d",
+      "dirty": false,
+      "startedAt": "2026-09-19T16:24:20.824Z",
+      "runtime": "node, accelerated travel and waits, real response latency, 60 Hz game tick, no renderer",
+      "status": "failed",
+      "requests": 1054,
+      "staleResponses": 11,
+      "errors": 0,
+      "meanMs": 255,
+      "p95Ms": 319,
+      "clearedLevels": 11,
+      "wallMs": 323639,
+      "activeMs": 323542,
+      "finalShift": {
+        "level": 12,
+        "elapsedMs": 90000,
+        "served": 7,
+        "playerServed": 5,
+        "partnerServed": 2,
+        "quota": 8,
+        "score": 1976
+      },
+      "shiftResults": [
+        {
+          "level": 1,
+          "served": 1,
+          "quota": 1,
+          "cash": 205,
+          "stock": null,
+          "duty": []
+        },
+        {
+          "level": 2,
+          "served": 10,
+          "quota": 7,
+          "cash": 266,
+          "stock": 2,
+          "duty": ["veteran"]
+        },
+        {
+          "level": 3,
+          "served": 11,
+          "quota": 6,
+          "cash": 410,
+          "stock": 0,
+          "duty": ["veteran"]
+        },
+        {
+          "level": 4,
+          "served": 8,
+          "quota": 6,
+          "cash": 316,
+          "stock": 0,
+          "duty": ["chef"]
+        },
+        {
+          "level": 5,
+          "served": 10,
+          "quota": 7,
+          "cash": 332,
+          "stock": 2,
+          "duty": ["chef"]
+        },
+        {
+          "level": 6,
+          "served": 8,
+          "quota": 6,
+          "cash": 306,
+          "stock": 4,
+          "duty": ["chef"]
+        },
+        {
+          "level": 7,
+          "served": 8,
+          "quota": 6,
+          "cash": 287,
+          "stock": 2,
+          "duty": ["chef"]
+        },
+        {
+          "level": 8,
+          "served": 9,
+          "quota": 8,
+          "cash": 431,
+          "stock": 4,
+          "duty": ["chef", "runner"]
+        },
+        {
+          "level": 9,
+          "served": 10,
+          "quota": 8,
+          "cash": 350,
+          "stock": 0,
+          "duty": ["chef", "sous"]
+        },
+        {
+          "level": 10,
+          "served": 11,
+          "quota": 8,
+          "cash": 463,
+          "stock": 2,
+          "duty": ["chef", "sous"]
+        },
+        {
+          "level": 11,
+          "served": 9,
+          "quota": 8,
+          "cash": 355,
+          "stock": 0,
+          "duty": ["chef", "sprinter"]
+        },
+        {
+          "level": 12,
+          "served": 7,
+          "quota": 8,
+          "cash": 305,
+          "stock": 5,
+          "duty": ["helper", "runner", "prep"]
+        }
+      ],
+      "investmentChanges": [
+        {
+          "level": 1,
+          "hired": ["helper"],
+          "equipment": {
+            "board": {
+              "count": 1,
+              "level": 1
+            },
+            "pot": {
+              "count": 1,
+              "level": 1
+            },
+            "grill": {
+              "count": 1,
+              "level": 1
+            },
+            "warmer": {
+              "count": 0,
+              "level": 1
+            },
+            "kitchen": {
+              "count": 1,
+              "level": 1
+            }
+          },
+          "training": {}
+        },
+        {
+          "level": 2,
+          "hired": ["helper", "veteran"]
+        },
+        {
+          "level": 4,
+          "hired": ["helper", "chef"],
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 1
+            }
+          }
+        },
+        {
+          "level": 5,
+          "hired": ["helper", "chef", "runner"]
+        },
+        {
+          "level": 6,
+          "hired": ["helper", "chef", "runner", "prep"],
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 2
+            }
+          }
+        },
+        {
+          "level": 7,
+          "equipment": {
+            "pot": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 9,
+          "hired": ["helper", "chef", "runner", "prep", "sous"]
+        },
+        {
+          "level": 10,
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 3
+            }
+          }
+        },
+        {
+          "level": 11,
+          "hired": ["helper", "chef", "runner", "prep", "sous", "sprinter"],
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 4
+            }
+          }
+        },
+        {
+          "level": 12,
+          "equipment": {
+            "board": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "trial": "menu-workload-calibration",
+      "revision": "90beff2f18a2f49eefc3b812aea8c767e10fdbee",
+      "dirty": false,
+      "startedAt": "2026-09-19T16:29:11.983Z",
+      "runtime": "node, accelerated travel and waits, real response latency, 60 Hz game tick, no renderer",
+      "status": "failed",
+      "requests": 1970,
+      "staleResponses": 25,
+      "errors": 0,
+      "meanMs": 251,
+      "p95Ms": 321,
+      "clearedLevels": 21,
+      "wallMs": 597068,
+      "activeMs": 597034,
+      "finalShift": {
+        "level": 22,
+        "elapsedMs": 90000,
+        "served": 6,
+        "playerServed": 4,
+        "partnerServed": 2,
+        "quota": 9,
+        "score": 1470
+      },
+      "shiftResults": [
+        {
+          "level": 1,
+          "served": 1,
+          "quota": 1,
+          "cash": 205,
+          "stock": null,
+          "duty": []
+        },
+        {
+          "level": 2,
+          "served": 9,
+          "quota": 7,
+          "cash": 241,
+          "stock": 3,
+          "duty": ["veteran"]
+        },
+        {
+          "level": 3,
+          "served": 10,
+          "quota": 6,
+          "cash": 366,
+          "stock": 2,
+          "duty": ["veteran"]
+        },
+        {
+          "level": 4,
+          "served": 9,
+          "quota": 6,
+          "cash": 265,
+          "stock": 3,
+          "duty": ["chef"]
+        },
+        {
+          "level": 5,
+          "served": 9,
+          "quota": 7,
+          "cash": 270,
+          "stock": 2,
+          "duty": ["chef"]
+        },
+        {
+          "level": 6,
+          "served": 7,
+          "quota": 6,
+          "cash": 265,
+          "stock": 0,
+          "duty": ["chef"]
+        },
+        {
+          "level": 7,
+          "served": 9,
+          "quota": 6,
+          "cash": 384,
+          "stock": 2,
+          "duty": ["chef"]
+        },
+        {
+          "level": 8,
+          "served": 9,
+          "quota": 8,
+          "cash": 307,
+          "stock": 1,
+          "duty": ["chef", "sprinter"]
+        },
+        {
+          "level": 9,
+          "served": 9,
+          "quota": 8,
+          "cash": 396,
+          "stock": 4,
+          "duty": ["chef", "sprinter"]
+        },
+        {
+          "level": 10,
+          "served": 9,
+          "quota": 8,
+          "cash": 509,
+          "stock": 3,
+          "duty": ["chef", "sprinter"]
+        },
+        {
+          "level": 11,
+          "served": 11,
+          "quota": 9,
+          "cash": 383,
+          "stock": 2,
+          "duty": ["chef", "sous"]
+        },
+        {
+          "level": 12,
+          "served": 10,
+          "quota": 7,
+          "cash": 351,
+          "stock": 3,
+          "duty": ["helper", "prep", "sous"]
+        },
+        {
+          "level": 13,
+          "served": 7,
+          "quota": 7,
+          "cash": 335,
+          "stock": 4,
+          "duty": ["helper", "runner", "prep"]
+        },
+        {
+          "level": 14,
+          "served": 9,
+          "quota": 8,
+          "cash": 483,
+          "stock": 3,
+          "duty": ["chef", "runner", "sprinter"]
+        },
+        {
+          "level": 15,
+          "served": 12,
+          "quota": 9,
+          "cash": 435,
+          "stock": 2,
+          "duty": ["chef", "sprinter", "sous"]
+        },
+        {
+          "level": 16,
+          "served": 12,
+          "quota": 10,
+          "cash": 560,
+          "stock": 3,
+          "duty": ["helper", "chef", "prep", "sous"]
+        },
+        {
+          "level": 17,
+          "served": 8,
+          "quota": 8,
+          "cash": 366,
+          "stock": 0,
+          "duty": ["helper", "runner", "prep", "sprinter"]
+        },
+        {
+          "level": 18,
+          "served": 8,
+          "quota": 8,
+          "cash": 464,
+          "stock": 3,
+          "duty": ["helper", "runner", "prep", "sprinter"]
+        },
+        {
+          "level": 19,
+          "served": 14,
+          "quota": 9,
+          "cash": 516,
+          "stock": 0,
+          "duty": ["helper", "chef", "sous"]
+        },
+        {
+          "level": 20,
+          "served": 18,
+          "quota": 10,
+          "cash": 825,
+          "stock": 0,
+          "duty": ["chef", "runner", "sprinter", "sous"]
+        },
+        {
+          "level": 21,
+          "served": 18,
+          "quota": 11,
+          "cash": 771,
+          "stock": 2,
+          "duty": ["chef", "runner", "prep", "sprinter"]
+        },
+        {
+          "level": 22,
+          "served": 6,
+          "quota": 9,
+          "cash": 423,
+          "stock": 5,
+          "duty": ["helper", "prep"]
+        }
+      ],
+      "investmentChanges": [
+        {
+          "level": 1,
+          "hired": ["helper"],
+          "equipment": {
+            "board": {
+              "count": 1,
+              "level": 1
+            },
+            "pot": {
+              "count": 1,
+              "level": 1
+            },
+            "grill": {
+              "count": 1,
+              "level": 1
+            },
+            "warmer": {
+              "count": 0,
+              "level": 1
+            },
+            "kitchen": {
+              "count": 1,
+              "level": 1
+            }
+          },
+          "training": {}
+        },
+        {
+          "level": 2,
+          "hired": ["helper", "veteran"]
+        },
+        {
+          "level": 4,
+          "hired": ["helper", "chef"],
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 1
+            }
+          }
+        },
+        {
+          "level": 5,
+          "hired": ["helper", "chef", "runner"]
+        },
+        {
+          "level": 6,
+          "hired": ["helper", "chef", "runner", "prep"],
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 2
+            }
+          }
+        },
+        {
+          "level": 7,
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 3
+            }
+          }
+        },
+        {
+          "level": 8,
+          "hired": ["helper", "chef", "runner", "prep", "sprinter"]
+        },
+        {
+          "level": 9,
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 4
+            }
+          }
+        },
+        {
+          "level": 10,
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 5
+            }
+          }
+        },
+        {
+          "level": 11,
+          "hired": ["helper", "chef", "runner", "prep", "sprinter", "sous"]
+        },
+        {
+          "level": 12,
+          "equipment": {
+            "pot": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 13,
+          "equipment": {
+            "board": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 15,
+          "equipment": {
+            "board": {
+              "count": 1,
+              "level": 3
+            }
+          }
+        },
+        {
+          "level": 17,
+          "equipment": {
+            "board": {
+              "count": 2,
+              "level": 3
+            }
+          }
+        },
+        {
+          "level": 19,
+          "equipment": {
+            "grill": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 21,
+          "equipment": {
+            "pot": {
+              "count": 1,
+              "level": 3
+            }
+          }
+        },
+        {
+          "level": 22,
+          "equipment": {
+            "grill": {
+              "count": 1,
+              "level": 3
+            }
+          }
+        }
+      ]
+    },
+    {
+      "trial": "menu-workload-realtime",
+      "revision": "90beff2f18a2f49eefc3b812aea8c767e10fdbee",
+      "dirty": false,
+      "startedAt": "2026-09-19T16:29:13.159Z",
+      "runtime": "node, real time, 60 Hz tick, no renderer",
+      "status": "stopped",
+      "requests": 1303,
+      "staleResponses": 16,
+      "errors": 0,
+      "meanMs": 251,
+      "p95Ms": 320,
+      "clearedLevels": 14,
+      "wallMs": 1214522,
+      "activeMs": 1214498,
+      "finalShift": {
+        "level": 15,
+        "elapsedMs": 18565,
+        "served": 1,
+        "playerServed": 0,
+        "partnerServed": 1,
+        "quota": 9,
+        "score": 227
+      },
+      "shiftResults": [
+        {
+          "level": 1,
+          "served": 1,
+          "quota": 1,
+          "cash": 205,
+          "stock": null,
+          "duty": []
+        },
+        {
+          "level": 2,
+          "served": 10,
+          "quota": 7,
+          "cash": 266,
+          "stock": 3,
+          "duty": ["veteran"]
+        },
+        {
+          "level": 3,
+          "served": 11,
+          "quota": 6,
+          "cash": 426,
+          "stock": 2,
+          "duty": ["veteran"]
+        },
+        {
+          "level": 4,
+          "served": 9,
+          "quota": 6,
+          "cash": 317,
+          "stock": 4,
+          "duty": ["chef"]
+        },
+        {
+          "level": 5,
+          "served": 9,
+          "quota": 7,
+          "cash": 330,
+          "stock": 2,
+          "duty": ["chef"]
+        },
+        {
+          "level": 6,
+          "served": 9,
+          "quota": 6,
+          "cash": 292,
+          "stock": 3,
+          "duty": ["chef"]
+        },
+        {
+          "level": 7,
+          "served": 8,
+          "quota": 6,
+          "cash": 392,
+          "stock": 3,
+          "duty": ["chef"]
+        },
+        {
+          "level": 8,
+          "served": 9,
+          "quota": 8,
+          "cash": 317,
+          "stock": 4,
+          "duty": ["chef", "sprinter"]
+        },
+        {
+          "level": 9,
+          "served": 9,
+          "quota": 8,
+          "cash": 330,
+          "stock": 3,
+          "duty": ["chef", "sprinter"]
+        },
+        {
+          "level": 10,
+          "served": 10,
+          "quota": 8,
+          "cash": 460,
+          "stock": 3,
+          "duty": ["chef", "sprinter"]
+        },
+        {
+          "level": 11,
+          "served": 12,
+          "quota": 9,
+          "cash": 375,
+          "stock": 0,
+          "duty": ["chef", "sous"]
+        },
+        {
+          "level": 12,
+          "served": 9,
+          "quota": 7,
+          "cash": 464,
+          "stock": 5,
+          "duty": ["helper", "prep", "sous"]
+        },
+        {
+          "level": 13,
+          "served": 7,
+          "quota": 7,
+          "cash": 337,
+          "stock": 0,
+          "duty": ["helper", "prep", "runner"]
+        },
+        {
+          "level": 14,
+          "served": 14,
+          "quota": 8,
+          "cash": 622,
+          "stock": 0,
+          "duty": ["chef", "prep", "sprinter"]
+        }
+      ],
+      "investmentChanges": [
+        {
+          "level": 1,
+          "hired": ["helper"],
+          "equipment": {
+            "board": {
+              "count": 1,
+              "level": 1
+            },
+            "pot": {
+              "count": 1,
+              "level": 1
+            },
+            "grill": {
+              "count": 1,
+              "level": 1
+            },
+            "warmer": {
+              "count": 0,
+              "level": 1
+            },
+            "kitchen": {
+              "count": 1,
+              "level": 1
+            }
+          },
+          "training": {}
+        },
+        {
+          "level": 2,
+          "hired": ["helper", "veteran"]
+        },
+        {
+          "level": 4,
+          "hired": ["helper", "chef"],
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 1
+            }
+          }
+        },
+        {
+          "level": 5,
+          "hired": ["helper", "chef", "prep"],
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 2
+            }
+          }
+        },
+        {
+          "level": 6,
+          "hired": ["helper", "chef", "prep", "runner"],
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 3
+            }
+          }
+        },
+        {
+          "level": 7,
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 4
+            }
+          }
+        },
+        {
+          "level": 8,
+          "hired": ["helper", "chef", "prep", "runner", "sprinter"]
+        },
+        {
+          "level": 9,
+          "equipment": {
+            "board": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 10,
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 5
+            }
+          }
+        },
+        {
+          "level": 11,
+          "hired": ["helper", "chef", "prep", "runner", "sprinter", "sous"]
+        },
+        {
+          "level": 13,
+          "equipment": {
+            "board": {
+              "count": 2,
+              "level": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "trial": "staff-outlook-calibration",
+      "revision": "9cc17d7ad4f627c5ea2a3df9dfe0ba6230563d4f",
+      "dirty": false,
+      "startedAt": "2026-09-19T16:48:28.580Z",
+      "runtime": "node, accelerated travel and waits, real response latency, 60 Hz game tick, no renderer",
+      "status": "stopped",
+      "requests": 2753,
+      "staleResponses": 43,
+      "errors": 0,
+      "meanMs": 246,
+      "p95Ms": 311,
+      "clearedLevels": 30,
+      "wallMs": 822405,
+      "activeMs": 822319,
+      "finalShift": {
+        "level": 30,
+        "elapsedMs": 90000,
+        "served": 15,
+        "playerServed": 8,
+        "partnerServed": 7,
+        "quota": 12,
+        "score": 5380
+      },
+      "shiftResults": [
+        {
+          "level": 1,
+          "served": 1,
+          "quota": 1,
+          "cash": 205,
+          "stock": null,
+          "duty": []
+        },
+        {
+          "level": 2,
+          "served": 10,
+          "quota": 7,
+          "cash": 266,
+          "stock": 2,
+          "duty": ["veteran"]
+        },
+        {
+          "level": 3,
+          "served": 11,
+          "quota": 6,
+          "cash": 410,
+          "stock": 2,
+          "duty": ["veteran"]
+        },
+        {
+          "level": 4,
+          "served": 8,
+          "quota": 6,
+          "cash": 266,
+          "stock": 6,
+          "duty": ["chef"]
+        },
+        {
+          "level": 5,
+          "served": 8,
+          "quota": 7,
+          "cash": 270,
+          "stock": 2,
+          "duty": ["chef"]
+        },
+        {
+          "level": 6,
+          "served": 9,
+          "quota": 6,
+          "cash": 285,
+          "stock": 2,
+          "duty": ["chef"]
+        },
+        {
+          "level": 7,
+          "served": 8,
+          "quota": 6,
+          "cash": 377,
+          "stock": 3,
+          "duty": ["chef"]
+        },
+        {
+          "level": 8,
+          "served": 9,
+          "quota": 8,
+          "cash": 318,
+          "stock": 2,
+          "duty": ["chef", "sprinter"]
+        },
+        {
+          "level": 9,
+          "served": 9,
+          "quota": 8,
+          "cash": 325,
+          "stock": 4,
+          "duty": ["chef", "sprinter"]
+        },
+        {
+          "level": 10,
+          "served": 10,
+          "quota": 8,
+          "cash": 463,
+          "stock": 2,
+          "duty": ["chef", "sprinter"]
+        },
+        {
+          "level": 11,
+          "served": 9,
+          "quota": 9,
+          "cash": 314,
+          "stock": 4,
+          "duty": ["sous"]
+        },
+        {
+          "level": 12,
+          "served": 10,
+          "quota": 7,
+          "cash": 416,
+          "stock": 1,
+          "duty": ["chef", "prep", "sous"]
+        },
+        {
+          "level": 13,
+          "served": 8,
+          "quota": 7,
+          "cash": 335,
+          "stock": 4,
+          "duty": ["chef", "runner", "sprinter"]
+        },
+        {
+          "level": 14,
+          "served": 9,
+          "quota": 8,
+          "cash": 483,
+          "stock": 3,
+          "duty": ["chef", "runner", "sprinter"]
+        },
+        {
+          "level": 15,
+          "served": 14,
+          "quota": 9,
+          "cash": 509,
+          "stock": 0,
+          "duty": ["helper", "prep", "sous"]
+        },
+        {
+          "level": 16,
+          "served": 15,
+          "quota": 10,
+          "cash": 491,
+          "stock": 0,
+          "duty": ["helper", "runner", "sprinter", "sous"]
+        },
+        {
+          "level": 17,
+          "served": 11,
+          "quota": 8,
+          "cash": 396,
+          "stock": 2,
+          "duty": ["helper", "chef", "runner", "prep"]
+        },
+        {
+          "level": 18,
+          "served": 13,
+          "quota": 8,
+          "cash": 662,
+          "stock": 0,
+          "duty": ["helper", "chef", "prep", "sprinter"]
+        },
+        {
+          "level": 19,
+          "served": 14,
+          "quota": 9,
+          "cash": 499,
+          "stock": 0,
+          "duty": ["chef", "runner", "sprinter", "sous"]
+        },
+        {
+          "level": 20,
+          "served": 14,
+          "quota": 10,
+          "cash": 707,
+          "stock": 0,
+          "duty": ["helper", "runner", "prep", "sous"]
+        },
+        {
+          "level": 21,
+          "served": 14,
+          "quota": 11,
+          "cash": 618,
+          "stock": 0,
+          "duty": ["helper", "prep", "sprinter"]
+        },
+        {
+          "level": 22,
+          "served": 10,
+          "quota": 9,
+          "cash": 701,
+          "stock": 1,
+          "duty": ["chef", "runner", "prep", "sprinter"]
+        },
+        {
+          "level": 23,
+          "served": 14,
+          "quota": 9,
+          "cash": 972,
+          "stock": 0,
+          "duty": ["helper", "chef", "runner", "sous"]
+        },
+        {
+          "level": 24,
+          "served": 14,
+          "quota": 10,
+          "cash": 1178,
+          "stock": 0,
+          "duty": ["helper", "prep", "sprinter", "sous"]
+        },
+        {
+          "level": 25,
+          "served": 14,
+          "quota": 11,
+          "cash": 661,
+          "stock": 0,
+          "duty": ["chef", "runner", "prep", "sprinter"]
+        },
+        {
+          "level": 26,
+          "served": 17,
+          "quota": 12,
+          "cash": 949,
+          "stock": 0,
+          "duty": ["helper", "chef", "runner", "prep"]
+        },
+        {
+          "level": 27,
+          "served": 18,
+          "quota": 10,
+          "cash": 792,
+          "stock": 0,
+          "duty": ["helper", "chef", "sprinter", "sous"]
+        },
+        {
+          "level": 28,
+          "served": 13,
+          "quota": 10,
+          "cash": 967,
+          "stock": 5,
+          "duty": ["helper", "runner", "sprinter", "sous"]
+        },
+        {
+          "level": 29,
+          "served": 11,
+          "quota": 11,
+          "cash": 1198,
+          "stock": 1,
+          "duty": ["helper", "runner", "prep"]
+        },
+        {
+          "level": 30,
+          "served": 15,
+          "quota": 12,
+          "cash": 1454,
+          "stock": 0,
+          "duty": ["chef", "prep", "sprinter"]
+        }
+      ],
+      "investmentChanges": [
+        {
+          "level": 1,
+          "hired": ["helper"],
+          "equipment": {
+            "board": {
+              "count": 1,
+              "level": 1
+            },
+            "pot": {
+              "count": 1,
+              "level": 1
+            },
+            "grill": {
+              "count": 1,
+              "level": 1
+            },
+            "warmer": {
+              "count": 0,
+              "level": 1
+            },
+            "kitchen": {
+              "count": 1,
+              "level": 1
+            }
+          },
+          "training": {}
+        },
+        {
+          "level": 2,
+          "hired": ["helper", "veteran"]
+        },
+        {
+          "level": 4,
+          "hired": ["helper", "chef"],
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 1
+            }
+          }
+        },
+        {
+          "level": 5,
+          "hired": ["helper", "chef", "runner"]
+        },
+        {
+          "level": 6,
+          "hired": ["helper", "chef", "runner", "prep"],
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 2
+            }
+          }
+        },
+        {
+          "level": 7,
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 3
+            }
+          }
+        },
+        {
+          "level": 8,
+          "hired": ["helper", "chef", "runner", "prep", "sprinter"]
+        },
+        {
+          "level": 9,
+          "equipment": {
+            "board": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 10,
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 4
+            }
+          }
+        },
+        {
+          "level": 11,
+          "hired": ["helper", "chef", "runner", "prep", "sprinter", "sous"]
+        },
+        {
+          "level": 12,
+          "training": {
+            "chef": {
+              "move": 0,
+              "cook": 5
+            }
+          }
+        },
+        {
+          "level": 13,
+          "equipment": {
+            "pot": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 15,
+          "equipment": {
+            "board": {
+              "count": 2,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 16,
+          "equipment": {
+            "board": {
+              "count": 2,
+              "level": 3
+            }
+          }
+        },
+        {
+          "level": 17,
+          "equipment": {
+            "grill": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 19,
+          "equipment": {
+            "grill": {
+              "count": 1,
+              "level": 3
+            }
+          }
+        },
+        {
+          "level": 21,
+          "equipment": {
+            "pot": {
+              "count": 1,
+              "level": 3
+            }
+          }
+        },
+        {
+          "level": 25,
+          "equipment": {
+            "kitchen": {
+              "count": 1,
+              "level": 2
+            }
+          }
+        },
+        {
+          "level": 27,
           "equipment": {
             "pot": {
               "count": 2,
