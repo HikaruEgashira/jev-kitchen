@@ -79,23 +79,24 @@ test('work and navigation pages expose every legal human control', () => {
   }
 });
 
-test('player instructions distinguish starting prep, serving hot food and discarding an unordered dish', () => {
+test('player context describes food and hand state without prescribing an action', () => {
   const g = createGame({ level: 7, stock: 12, hired: ['chef'], duty: ['chef'] });
   g.orders = [{ recipe: 'soup', deadline: 30000 }];
   const instruction = () =>
     buildQuestions(buildCandidates(g, 'human'), 'human', g).next_action.instructions;
   assert.match(instruction(), /No food is ready to plate/);
   g.stations.pot.state = 'ready';
-  assert.match(instruction(), /Fetch a plate/);
+  assert.match(instruction(), /Ordered food is ready/);
   g.human.carrying = 'plate';
-  assert.match(instruction(), /Choose plate_soup/);
+  assert.match(instruction(), /Held item: plate/);
   g.stations.pot.state = 'cooking';
-  assert.match(instruction(), /Keep your plate/);
+  assert.match(instruction(), /Ordered food is cooking/);
   g.stations.pot.state = 'idle';
-  assert.match(instruction(), /Return your plate/);
+  assert.match(instruction(), /No ordered food is ready or cooking/);
   g.human.carrying = 'dish';
-  assert.match(instruction(), /Discard it now/);
+  assert.match(instruction(), /has no current order and cannot be served/);
   assert.ok(buildCandidates(g, 'human').some((c) => c.id === 'discard'));
+  assert.doesNotMatch(instruction(), /Prefer|Avoid|Discard it now|Choose plate|Keep your plate/);
 });
 
 test('playing context keeps active station facts without duplicated UI and campaign data', () => {
@@ -532,7 +533,7 @@ test('benchmark E uses the same handoff and rejects a partner who moved away', (
   assert.equal(g.human.carrying, null);
 });
 
-test('investment considers the pending second board before recommending further upgrades', () => {
+test('investment facts reflect the pending board without choosing an upgrade', () => {
   const g = createGame({
     level: 7,
     cash: 1500,
@@ -546,7 +547,7 @@ test('investment considers the pending second board before recommending further 
   const instruction = () =>
     benchRequest(s, { preparing: true, plan, candidates: preparationCandidates(s, plan) }).questions
       .next_action.instructions;
-  assert.match(instruction(), /only one board/);
+  assert.match(instruction(), /2 staff, 1 boards/);
   plan.equipmentPurchases = ['add_board'];
   const pending = preparationCandidates(s, plan);
   assert.ok(!pending.some((c) => c.id === 'equipment_add_board'));
@@ -554,15 +555,15 @@ test('investment considers the pending second board before recommending further 
     pending.find((c) => c.id === 'equipment_cancel_add_board').equipmentPurchases,
     [],
   );
-  assert.doesNotMatch(instruction(), /only one board/);
-  assert.match(instruction(), /assigned cook/);
+  assert.doesNotMatch(instruction(), /2 staff, 1 boards/);
+  assert.match(instruction(), /2 staff, 2 boards/);
   const request = benchRequest(s, { preparing: true, plan, candidates: pending });
   assert.equal(request.state.preparation.equipment.board.count, 2);
   assert.equal(request.state.equipment, undefined);
   assert.equal(request.state.preparation.bill, undefined);
 });
 
-test('staffing recommends the rested cook while keeping every legal roster available', () => {
+test('staffing describes available cooks while keeping every legal roster available', () => {
   const g = createGame({
     level: 15,
     cash: 1000,
@@ -577,7 +578,7 @@ test('staffing recommends the rested cook while keeping every legal roster avail
   assert.ok(candidates.some((c) => c.id === 'crew_chef_sous'));
   assert.match(candidates.find((c) => c.id === 'crew_chef').label, /連勤2\/3/);
   const request = benchRequest(s, { preparing: true, plan, candidates });
-  assert.match(request.questions.next_action.instructions, /Assign sous as the ONLY heat cook/);
+  assert.match(request.questions.next_action.instructions, /Available heat cooks: chef, sous/);
 });
 
 test('bounded action feedback flags unproductive cycles, not cooking waits or sales', () => {

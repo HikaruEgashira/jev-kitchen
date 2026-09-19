@@ -63,7 +63,7 @@ export const RECIPES = {
   roast: { name: '焼きトマト', points: 180 },
 };
 
-// Stock survives the shift: keep selling after quota, without spending payroll.
+// Estimate stock from quota and previous sales, preserving the next payroll.
 export function recommendedStock(g) {
   const quota = levelConfig(g.level + 1).quota;
   const target = Math.max(quota + 6, g.served + 4);
@@ -514,7 +514,7 @@ function boostAvailable(g, st) {
 
 function tryBoost(g, who, st) {
   if (who !== 'human') return { ok: false, reason: '相棒は自動で仕上げるよ' };
-  if (!boostAvailable(g, st)) return { ok: false, reason: '仕上げの合図を待とう' };
+  if (!boostAvailable(g, st)) return { ok: false, reason: 'まだ仕上げのタイミングではありません' };
   st.busyUntil = Math.min(
     st.busyUntil,
     g.time + Math.max(350, Math.round((st.busyUntil - g.time) * 0.45)),
@@ -672,7 +672,7 @@ export function interact(g, who, stationId) {
         if (g.stock !== null) g.stock++;
         return success('トマトを戻した');
       }
-      return { ok: false, reason: '先に手元の食材を使おう' };
+      return { ok: false, reason: '手がふさがっています' };
     case 'plates':
       if (e.carrying === 'chopped') {
         const denied = capabilityFailure(g, who, 'serve');
@@ -725,7 +725,8 @@ export function interact(g, who, stationId) {
       }
       return {
         ok: false,
-        reason: st.state === 'idle' ? 'トマトを持ってこよう' : '手を空けるか、お皿を持ってこよう',
+        reason:
+          st.state === 'idle' ? 'トマトを持ってこよう' : '手を空けるか、盛り付けにはお皿が必要です',
       };
     case 'pot':
       if (st.state === 'burnt' && !e.carrying) {
@@ -754,12 +755,12 @@ export function interact(g, who, stationId) {
         ok: false,
         reason:
           st.state === 'cooking'
-            ? '煮込み中。別の仕事をしよう'
+            ? '煮込み中です'
             : st.state === 'burnt'
-              ? '鍋を片づけよう'
+              ? '鍋が焦げています'
               : st.state === 'ready'
-                ? 'お皿を持ってこよう'
-                : '切ったトマトを持ってこよう',
+                ? '盛り付けにはお皿が必要です'
+                : '切ったトマトが必要です',
       };
     case 'grill':
       if (st.state === 'burnt' && !e.carrying) {
@@ -788,17 +789,17 @@ export function interact(g, who, stationId) {
         ok: false,
         reason:
           st.state === 'cooking'
-            ? '焼き上がりを待とう'
+            ? '焼いています'
             : st.state === 'burnt'
-              ? 'グリルを片づけよう'
+              ? 'グリルが焦げています'
               : st.state === 'ready'
-                ? 'お皿を持ってこよう'
-                : '切ったトマトを持ってこよう',
+                ? '盛り付けにはお皿が必要です'
+                : '切ったトマトが必要です',
       };
     case 'serve': {
       const denied = capabilityFailure(g, who, 'serve');
       if (denied) return denied;
-      if (!RECIPES[e.carrying]) return { ok: false, reason: '完成した料理を持ってこよう' };
+      if (!RECIPES[e.carrying]) return { ok: false, reason: '完成した料理が必要です' };
       advance(g);
       const index = g.orders.findIndex((o) => o.recipe === e.carrying);
       if (index < 0) return { ok: false, reason: 'この料理の注文はまだないよ' };
@@ -1092,73 +1093,71 @@ export function repeatsActions(decisions, g) {
 export function cookingAdvice(g, cands = buildCandidates(g, 'human')) {
   const held = g?.human.carrying;
   const ordered = (recipe) => g?.orders.some((o) => o.recipe === recipe);
-  const plating =
-    g &&
-    activeStationIds(g).filter((id) => {
-      const kind = stationKind(id);
-      const recipe =
-        kind === 'board' ? 'dish' : kind === 'pot' ? 'soup' : kind === 'grill' ? 'roast' : null;
-      return (
-        recipe && ordered(recipe) && ['chopped', 'ready', 'cooking'].includes(g.stations[id].state)
-      );
-    });
-  const plateAction = cands.find((c) => /^plate(?:_|$)/.test(c.id) && plating?.includes(c.station));
-  const emptyHands = plating?.length
-    ? {
-        instructions: `Ordered food at ${plating.join(', ')} needs a plate. Fetch a plate to serve it before preparing more ingredients.`,
-        hint: '注文の料理を盛るため、お皿を取ろう',
-      }
-    : cands.some((c) => c.id === 'collect')
+  const plating = g
+    ? activeStationIds(g).filter((id) => {
+        const recipe = { board: 'dish', pot: 'soup', grill: 'roast' }[stationKind(id)];
+        return (
+          recipe &&
+          ordered(recipe) &&
+          ['chopped', 'ready', 'cooking'].includes(g.stations[id].state)
+        );
+      })
+    : [];
+  const ready = plating.filter((id) => g.stations[id].state !== 'cooking');
+  if (RECIPES[held])
+    return ordered(held)
       ? {
-          instructions:
-            'Chopped ingredients are available. Collect them and prepare an ordered soup or roast.',
-          hint: '切った食材を取り、注文に合わせて加熱しよう',
+          instructions: 'The held dish matches a current order. Serving completes one order.',
+          hint: '手持ちの料理に対応する注文があります。配膳で1皿分の注文が完了します。',
         }
-      : cands.some((c) => c.id === 'clean_pot' || c.id === 'clean_grill')
-        ? {
-            instructions: 'Burnt cookware is blocking production. Clean it with your empty hands.',
-            hint: '手ぶらで焦げた鍋・グリルを片づけよう',
-          }
-        : {
-            instructions:
-              'No food is ready to plate. Fetch a tomato and chop it to start an order.',
-            hint: 'トマトを取り、切って次の注文を作ろう',
-          };
-  const objective = RECIPES[held]
-    ? g.orders.some((o) => o.recipe === held)
-      ? { instructions: 'Serve your finished dish now.', hint: '完成した料理を配膳口へ届けよう' }
       : {
-          instructions: 'Your finished dish has NO order. Discard it now (Q) to free your hands.',
-          hint: '注文のない料理です。Qで片づけよう',
-        }
-    : ({
-        tomato: {
           instructions:
-            'Chop your tomato at an idle board. Return it only if all boards are occupied.',
-          hint: '空いたまな板で切ろう。全部使用中なら戻そう',
-        },
-        chopped: {
-          instructions:
-            'Cook or grill your chopped tomato for a visible order. Assemble salad only if a salad is ordered.',
-          hint: '注文を見て煮る・焼く。サラダは注文がある時だけ',
-        },
-        plate: plateAction
-          ? {
-              instructions: `Ordered food is ready. Choose ${plateAction.id} or its dash_ version to plate it now. Do not return your plate.`,
-              hint: 'お皿を返さず、注文の料理を盛り付けよう',
-            }
-          : plating?.length
-            ? {
-                instructions: `Ordered food is cooking at ${plating.join(', ')}. Keep your plate and wait for it; do not return the plate.`,
-                hint: '注文の料理を加熱中。お皿を持って待とう',
-              }
-            : {
-                instructions:
-                  'No ordered food is ready or cooking. Return your plate to free your hands and prepare ingredients.',
-                hint: '盛る料理がありません。お皿を戻して仕込もう',
-              },
-      }[held] ?? emptyHands);
-  return objective;
+            'The held dish has no current order and cannot be served. Q discards the held item and frees the hands.',
+          hint: '注文のない料理を持っています。現在は配膳できません。Qは手持ちを捨て、手を空ける操作です。',
+        };
+  if (held === 'tomato')
+    return {
+      instructions:
+        'Raw tomatoes can be chopped at an idle board or returned to stock. Occupied boards cannot start another task.',
+      hint: 'トマトは空いたまな板で切るか、食材置場へ戻せます。使用中のまな板では別の作業を始められません。',
+    };
+  if (held === 'chopped')
+    return {
+      instructions:
+        'Chopped tomato is the shared ingredient for salad, soup and roast. Each finished dish matches only its own recipe order.',
+      hint: '切ったトマトはサラダ・スープ・焼きトマト共通の材料です。完成品は同じ料理の注文にだけ配膳できます。',
+    };
+  if (ready.length)
+    return {
+      instructions: `Ordered food is ready at ${ready.join(', ')}. Plating requires a plate; heated food eventually burns. Held item: ${held ?? 'none'}.`,
+      hint: `${ready.map((id) => STATIONS[id].name).join('・')}に注文の料理があります。盛り付けには皿が必要です。加熱済みの料理は時間が経つと焦げます。手持ち：${ITEM_NAMES[held] ?? 'なし'}。`,
+    };
+  if (plating.length)
+    return {
+      instructions: `Ordered food is cooking at ${plating.join(', ')}. Heating continues without an actor at the station. Held item: ${held ?? 'none'}.`,
+      hint: `${plating.map((id) => STATIONS[id].name).join('・')}で注文の料理を加熱中です。加熱はその場にいなくても進みます。手持ち：${ITEM_NAMES[held] ?? 'なし'}。`,
+    };
+  if (held === 'plate')
+    return {
+      instructions:
+        'No ordered food is ready or cooking. A held plate occupies the hands; it can be returned to the plate station.',
+      hint: '注文の料理は完成・加熱中ともにありません。皿を持つと他の材料は持てません。皿は皿置場へ返せます。',
+    };
+  if (cands.some((c) => c.id === 'collect'))
+    return {
+      instructions: 'Chopped ingredients are available. They can become salad, soup or roast.',
+      hint: 'まな板に切った食材があります。サラダ・スープ・焼きトマトの材料になります。',
+    };
+  if (cands.some((c) => c.id === 'clean_pot' || c.id === 'clean_grill'))
+    return {
+      instructions:
+        'Burnt cookware cannot cook another dish until cleaned. Cleaning requires empty hands.',
+      hint: '焦げた鍋・グリルは片づけが済むまで使えません。片づけには手ぶらの状態が必要です。',
+    };
+  return {
+    instructions: 'No food is ready to plate. All recipes start from chopped tomato.',
+    hint: '盛り付けられる料理はまだありません。どの料理も切ったトマトが材料です。',
+  };
 }
 
 export function buildQuestions(cands, who = 'ai', g) {
@@ -1168,8 +1167,8 @@ export function buildQuestions(cands, who = 'ai', g) {
       type: 'choice',
       instructions:
         who === 'human'
-          ? `You control the HUMAN player. ${objective} Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item.`
-          : 'You control the AI sous-chef. Choose one feasible action that complements the human and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Clean burnt cookware before reusing it. Respect the collaboration policy, including Japanese. Keep useful raw ingredients; discard finished dishes without orders. Work ahead while food cooks.',
+          ? `You control the HUMAN player. ${objective} Choose one available action. Cooking actions include walking and working on arrival; dash_ increases movement speed. E transfers a held item to a nearby empty-handed partner.`
+          : 'You control the AI sous-chef. Choose one feasible action that complements the human and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Burnt cookware is unavailable until cleaned. Respect the collaboration policy, including Japanese. Finished dishes without matching orders cannot be served; Q discards held items. Heating continues without an actor at the station.',
       criteria: Object.fromEntries(cands.map((c) => [c.id, c.label])),
     },
   };
@@ -1375,52 +1374,54 @@ export function actionHint(g, id) {
   const kind = stationKind(id);
   if (id === 'crate') {
     if (item === 'tomato') return 'トマトを戻す';
-    return item ? '手元を空ける' : 'トマトを取る';
+    return item ? '手がふさがっています' : 'トマトを取る';
   }
   if (id === 'plates') {
     if (item === 'chopped') return 'サラダを盛る';
     if (item === 'plate') return 'お皿を戻す';
-    if (item === 'tomato') return 'まな板へ運ぶ';
-    if (RECIPES[item]) return '配膳口へ運ぶ';
+    if (item === 'tomato') return 'トマトを持っています';
+    if (RECIPES[item]) return '完成した料理を持っています';
     return 'お皿を取る';
   }
   if (kind === 'board') {
     const board = g.stations[id] ?? g.stations.board;
     if (board.state === 'chopping') {
-      return !item && boostAvailable(g, board) ? '仕上げる' : '切り終わるまで待つ';
+      return !item && boostAvailable(g, board) ? '仕上げる' : 'カット中';
     }
     if (board.state === 'chopped') {
       if (item === 'plate') return 'サラダを盛る';
       if (!item) return '切ったトマトを取る';
-      return '手元を空ける';
+      return '手がふさがっています';
     }
     if (item === 'tomato') return 'トマトを切る';
-    if (item === 'chopped') return 'お皿の台へ運ぶ';
-    return 'トマトを取ってこよう';
+    if (item === 'chopped') return '切ったトマトを持っています';
+    return 'トマトが必要です';
   }
   if (kind === 'pot') {
     const pot = g.stations[id] ?? g.stations.pot;
     if (pot.state === 'cooking') {
-      return !item && boostAvailable(g, pot) ? '仕上げる' : '煮込み中、別の仕事へ';
+      return !item && boostAvailable(g, pot) ? '仕上げる' : '煮込み中';
     }
-    if (pot.state === 'burnt') return !item ? '焦げを片づける' : '鍋を片づけよう';
-    if (pot.state === 'ready') return item === 'plate' ? 'スープを盛る' : 'お皿を持ってくる';
+    if (pot.state === 'burnt') return !item ? '焦げを片づける' : '鍋が焦げています';
+    if (pot.state === 'ready')
+      return item === 'plate' ? 'スープを盛る' : '盛り付けにはお皿が必要です';
     if (item === 'chopped') return 'スープを煮る';
-    if (RECIPES[item]) return '配膳口へ運ぶ';
-    return '切ったトマトを持ってこよう';
+    if (RECIPES[item]) return '完成した料理を持っています';
+    return '切ったトマトが必要です';
   }
   if (kind === 'grill') {
     const grill = g.stations[id] ?? g.stations.grill;
     if (grill.state === 'cooking') {
-      return !item && boostAvailable(g, grill) ? '仕上げる' : '焼き上がりを待とう';
+      return !item && boostAvailable(g, grill) ? '仕上げる' : '焼いています';
     }
-    if (grill.state === 'burnt') return !item ? '焦げを片づける' : 'グリルを片づけよう';
-    if (grill.state === 'ready') return item === 'plate' ? '焼きトマトを盛る' : 'お皿を持ってくる';
+    if (grill.state === 'burnt') return !item ? '焦げを片づける' : 'グリルが焦げています';
+    if (grill.state === 'ready')
+      return item === 'plate' ? '焼きトマトを盛る' : '盛り付けにはお皿が必要です';
     if (item === 'chopped') return 'トマトを焼く';
-    return '切ったトマトを持ってこよう';
+    return '切ったトマトが必要です';
   }
   if (RECIPES[item]) {
-    return g.orders.some((order) => order.recipe === item) ? '配膳する' : '注文なし：Qで片づけ';
+    return g.orders.some((order) => order.recipe === item) ? '配膳する' : '注文なし';
   }
-  return '完成した料理を持ってこよう';
+  return '完成した料理が必要です';
 }

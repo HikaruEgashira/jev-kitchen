@@ -113,7 +113,7 @@ export function purchase(g, view) {
       ? `あと${quota - stock}個の仕入れが必要`
       : levelConfig(g.level + 1).partner &&
           (duty.length !== 1 || duty[0] !== levelConfig(g.level + 1).partner)
-        ? 'この営業は指定の相棒と出勤しよう'
+        ? 'この営業の相棒は店長です'
         : duty.length > slots
           ? `このレベルの勤務上限は${slots}人`
           : !available
@@ -179,80 +179,41 @@ export function editPreparation(view, values, label) {
 
 export function loopHint(preparing) {
   return preparing
-    ? '同じ購入予定に戻っています。必要な購入を残し、準備が整ったら開店しよう。'
-    : '同じ操作が続き、仕入れ消費・配膳が進んでいません。注文と相棒の作業を見て、別の仕事や調理待ちを選ぼう。';
+    ? '同じ購入予定に戻っています。購入と取消が繰り返されています。'
+    : '同じ操作が続き、仕入れ消費・配膳が進んでいません。';
 }
 
 export function preparationAdvice(g, plan) {
   const bill = purchase(g, plan);
-  const restedCrew = [
-    ...Object.entries(bill.staffState)
-      .filter(([, schedule]) => schedule.rest === 0)
-      .map(([id]) => id),
-    ...(plan.selected ? [plan.selected] : []),
-  ];
-  const cook = restedCrew
-    .filter((id) => STAFF[id].capabilities.includes('cook'))
-    .sort((a, b) => (bill.staffState[a]?.worked ?? 0) - (bill.staffState[b]?.worked ?? 0))[0];
+  const available = Object.entries(bill.staffState)
+    .filter(([, schedule]) => schedule.rest === 0)
+    .map(([id]) => id);
+  if (plan.selected && !available.includes(plan.selected)) available.push(plan.selected);
+  const cooks = available.filter((id) => STAFF[id].capabilities.includes('cook'));
+  const training = bill.training.human ?? { move: 0, cook: 0 };
   return (
     {
-      hiring:
-        g.level >= 8 &&
-        Object.keys(bill.staffState).filter((id) => STAFF[id].capabilities.includes('cook'))
-          .length < 2
-          ? {
-              instructions:
-                'Hire another heat cook (chef or sous) if affordable. Two cooks are needed to alternate shifts and avoid forced rest leaving the kitchen without a cook. Prefer hiring the cook over skipping or hiring another role.',
-              hint: '料理人をもう1人採用し、交代で休ませよう。加熱担当の不在を防げます。',
-            }
-          : restedCrew.length < Math.min(2, bill.slots)
-            ? {
-                instructions:
-                  'Too few hired crew are available next shift because of rest. Recruit an affordable helper to cover the gap. A server frees the human to cook; a cook frees the human to serve. Prefer hiring over skipping.',
-                hint: '休養で勤務人数が不足しています。採用で補おう。配膳係がいれば自分は調理に、料理人がいれば配膳に集中できます。',
-              }
-            : {
-                instructions:
-                  'Choose one affordable recruit or skip. First hire a chef or sous for cooking. Later recruit only to fill an available slot or cover forced rest from Lv9. Skip redundant hires when the next crew is covered: preserve money for stock and permanent upgrades. Hiring alone does not assign duty.',
-                hint: 'まず加熱できる料理人を採用しよう。その後は空き枠・休養に備え、仕入れと強化の資金も残そう。採用後は勤務への配置が必要です。',
-              },
-      staffing: cook
-        ? {
-            instructions: `Assign ${cook} as the ONLY heat cook; rest the other cooks to reset their consecutive shifts. Fill remaining useful slots with prep and serving staff. Each option is the complete roster, not an individual addition.`,
-            hint: `${STAFF[cook].name}を加熱担当にし、他の料理人は休ませよう。連勤がリセットされます。残りの枠は仕込み・配膳で補おう。`,
-          }
-        : {
-            instructions:
-              'No available crew can heat food. The human must cook. Assign available prep and serving staff to help; choose the strongest affordable complete roster. Do not choose crew_solo when staff can work.',
-            hint: '加熱できるスタッフがいないため、自分で調理しよう。出勤できる仕込み・配膳スタッフを配置すると作業を分担できます。',
-          },
+      hiring: {
+        instructions: `${available.length} hired staff are available next shift; ${cooks.length} can heat food. Hiring has a one-time cost; assigned staff also receive wages each shift. Hiring and duty assignment are separate. Unspent coins carry over.`,
+        hint: `次に出勤できる在籍者は${available.length}人、うち加熱担当は${cooks.length}人です。採用費は初回、給与は出勤ごとにかかります。採用と勤務への配置は別です。残金は持ち越せます。`,
+      },
+      staffing: {
+        instructions: `The next shift has ${bill.slots} staff slots. Available heat cooks: ${cooks.join(', ') || 'none'}. Each option is a complete roster. ${levelConfig(g.level + 1).fatigueEnabled ? 'Consecutive work leads to mandatory rest; a shift off resets the consecutive count.' : ''} Staff capabilities determine which tasks they can perform.`,
+        hint: `次の勤務枠は${bill.slots}人。出勤できる加熱担当：${cooks.map((id) => STAFF[id].name).join('・') || 'なし'}。${levelConfig(g.level + 1).fatigueEnabled ? '続けて働くと休養が必要です。休むと連勤数が戻ります。' : ''}担当できる作業は役割ごとに異なります。`,
+      },
       stock: {
         instructions:
-          'Choose the purchase quantity or confirm the pending amount. recommended_purchase is an estimate, not a requirement. One tomato makes one dish, unsold stock carries over, and purchases share the same cash balance with wages and upgrades.',
+          'recommended_purchase is an estimate, not a requirement. One tomato makes one dish, unsold stock carries over, and purchases share the same cash balance with wages and upgrades. The purchase quantity is editable.',
         hint: `推奨仕入れは${recommendedStock(g)}個（前回${g.served}皿販売・残在庫${g.stock ?? 0}個）。トマト1個で1皿、仕入れは1個${STOCK_PRICE}コイン。残りは次へ持ち越せます。仕入れ量は変更できます。`,
       },
-      investment:
-        bill.duty.length >= 2 && bill.equipment.board.count < 2
-          ? {
-              instructions:
-                'Multiple crew share only one board. Prioritize equipment_add_board if affordable. Otherwise open_shift and save for that expansion; do not spend its budget on smaller upgrades.',
-              hint: '複数人でまな板1台を共有しています。2台目を優先し、足りなければ小さな強化を控えて資金を残そう。',
-            }
-          : bill.training.human?.move === MAX_TRAINING && bill.training.human?.cook === MAX_TRAINING
-            ? {
-                instructions:
-                  'Human training is complete. First train movement of the assigned cook (vitamin_move_chef or vitamin_move_sous) to maximum. Then invest for the next recipe mix: add a second pot for soup-heavy days, a second grill for roast-heavy days, then upgrade them. Train movement of other working crew with spare coins. Keep pending purchases; open when useful upgrades are unaffordable.',
-                hint: '自分の育成は完了。出勤する料理人の移動を鍛え、スープの日は鍋、焼き物の日はグリルの2台目・強化を検討しよう。余裕があれば他の出勤者も育成。購入予定を保ち、資金不足なら開店しよう。',
-              }
-            : {
-                instructions:
-                  'Invest remaining coins before opening. Choose vitamin_move_human when available, then vitamin_cook_human. With multiple cooks, prioritize a second board. Otherwise upgrade useful equipment or regular crew. Choose open_shift when saving for necessary equipment or no useful upgrade is affordable.',
-                hint: '残額で自分の移動、次に調理を育成しよう。複数人で調理するなら2台目のまな板を優先。設備・いつも働く相棒にも投資し、必要な増設に備える時は貯金しよう。',
-              },
+      investment: {
+        instructions: `Pending plan: ${bill.duty.length} staff, ${bill.equipment.board.count} boards. A station serves one actor at a time. Human training: move ${training.move}/${MAX_TRAINING}, cook ${training.cook}/${MAX_TRAINING}. Vitamins permanently improve one actor: movement +4% or cooking time -4% per level, ${VITAMINS.move.cost} coins each. Equipment additions allow parallel work; board, pot and grill upgrades reduce cooking time. Cash remaining already deducts all pending purchases, stock and wages; it carries over. Purchases become final at open_shift.`,
+        hint: `購入予定後は出勤${bill.duty.length}人・まな板${bill.equipment.board.count}台。同じ作業台を同時に使えるのは1人です。自分の育成：移動${training.move}/${MAX_TRAINING}・調理${training.cook}/${MAX_TRAINING}。育成は1個${VITAMINS.move.cost}コインで1人の移動＋4%／調理時間−4%、効果は持続します。設備を増やすと並行作業ができます。まな板・鍋・グリルの強化で調理が速くなります。残金は購入予定・仕入れ・給与を差し引いた額で、持ち越せます。購入は開店時に確定します。`,
+      },
     }[plan.stage] ?? {
       instructions:
-        'Prepare the next shift within cash: hire, assign rested staff, buy surplus stock and invest, then open_shift. Each choice edits a pending plan.',
-      hint: '採用・勤務・余裕を持った仕入れ・投資を計画し、開店時にまとめて支払います。',
+        'Hiring, staffing, stock and upgrades share the available cash. Each choice edits a pending plan; open_shift commits it.',
+      hint: '採用・勤務・仕入れ・投資は同じ所持金から支払われ、開店時にまとめて確定します。',
     }
   );
 }
@@ -519,8 +480,8 @@ export function screen(s, view, width, height) {
     } else if (!practice && (!narrow || !portrait)) {
       const advice =
         s.benchFeedback?.loop || repeatsActions(g.human.lastActions ?? [], g)
-          ? '同じ操作が続いています。ヒントで確認しよう'
-          : cookingAdvice(g).hint;
+          ? '同じ操作が続いています。ヒントに履歴があります。'
+          : `${cookingAdvice(g).hint.split('。')[0]}。`;
       const w = Math.min(width - 24, 520);
       button(
         'advice',
@@ -834,7 +795,7 @@ export function screen(s, view, width, height) {
         text += `\n在庫${bill.stock}個（仕入れ${bill.quantity}個）・支払後${bill.cash}コイン`;
         text += `\n設備枠${capacity.used}/${capacity.limit}。増設の枠が足りない時は厨房を拡張できます。`;
       } else {
-        text += `${cookingAdvice(g).hint}\n作業台をタップすると移動して作業します。ダッシュも活用し、相手の役割を見て受け渡そう。\nノルマは合格に必要な皿数です。売上は次の営業資金になり、残在庫は持ち越せます。`;
+        text += `${cookingAdvice(g).hint}\n作業台をタップすると移動して作業します。ダッシュは移動を速めます。手持ちは近くの手ぶらの相棒へEで渡せます。\nノルマは合格に必要な皿数です。売上は次の営業資金になり、残在庫は持ち越せます。`;
         text += `\n在庫${g.stock ?? '無制限'}・配膳${g.served}/${g.quota}皿`;
       }
       if (history.length) text += `\n最近の操作（古い順）\n${history.slice(-6).join('\n')}`;
@@ -984,7 +945,7 @@ export function screen(s, view, width, height) {
       title('営業失敗');
       copy(
         'result',
-        `${g.served} / ${g.quota}皿   ・   ${g.score}点\n資金・在庫・疲労・設備配置を営業前へ戻せます。`,
+        `${g.served} / ${g.quota}皿   ・   ${g.score}点\nもう一度、開店前から。`,
         62,
         54,
         { size: narrow ? 13 : 16 },
@@ -1104,13 +1065,7 @@ export function screen(s, view, width, height) {
           pressed: view.selected === null,
           size: 13,
         });
-      } else
-        copy(
-          'all-hired',
-          '応募者は全員採用済みです。\n次のページで出勤する相棒を選べます。',
-          90,
-          90,
-        );
+      } else copy('all-hired', '今日の応募はありません。', 90, 90);
       primary('仕入れと配置へ', 'page', { value: 2 });
     } else if (view.page === 2) {
       title(`Lv.${g.level + 1} 仕入れ・勤務表`);
@@ -1137,7 +1092,7 @@ export function screen(s, view, width, height) {
         const onDuty = duty.includes(id);
         const availability =
           id === 'veteran' && g.level < 3
-            ? 'Lv3で退職'
+            ? '店長'
             : fatigueVisible
               ? projected.rest > 0
                 ? `休${projected.rest}`

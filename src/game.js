@@ -1080,9 +1080,13 @@ export function tick(delta) {
     dt = Math.min(MAX_FRAME_DELTA, Math.max(0, Number.isFinite(delta) ? delta : 0));
   const practice = g.practice;
   const missed = g.missed;
+  const previousSeconds = Math.ceil((g.duration - g.time) / 1000);
   advance(g, dt * 1000);
+  const seconds = Math.ceil((g.duration - g.time) / 1000);
+  if (!practice && seconds >= 1 && seconds <= 5 && seconds < previousSeconds)
+    playSound('countdown');
   if (!practice && g.missed > missed) {
-    notify('注文がタイムアウト。次のひと皿で取り返そう！');
+    notify('お客さまをお待たせしました。');
     playSound('failure');
   }
   if ((practice && g.served >= g.quota) || (!practice && g.time >= g.duration)) {

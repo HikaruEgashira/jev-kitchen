@@ -65,18 +65,18 @@ function unlockLabel(level) {
     return ['サラダランチ', 'スープの日', 'グリルの日', 'ミックス営業', '週末ラッシュ'][
       (level - 11) % 5
     ];
-  if (level >= 16) return '4人で連携';
-  if (level >= 12) return '3人で分担';
-  if (level >= FEATURE_LEVELS.rush) return 'ラッシュ注文';
-  if (level >= FEATURE_LEVELS.fatigue) return '連勤と休み';
-  if (level >= 8) return '2人で役割分担';
-  if (level >= FEATURE_LEVELS.grill) return 'グリルと鍋を並行';
-  if (level >= FEATURE_LEVELS.burning) return '仕上げブーストと焦げ';
-  if (level === 5) return '同じ厨房で7皿';
-  if (level === 4) return '店長退職・ハルと営業';
-  if (level >= FEATURE_LEVELS.pot) return '店長とスープを覚えよう';
+  if (level >= 16) return 'にぎわう厨房';
+  if (level >= 12) return 'いつもの仲間と';
+  if (level >= FEATURE_LEVELS.rush) return 'ランチのピーク';
+  if (level >= FEATURE_LEVELS.fatigue) return 'ひと息つきながら';
+  if (level >= 8) return '相棒が増えました';
+  if (level >= FEATURE_LEVELS.grill) return 'グリルの香り';
+  if (level >= FEATURE_LEVELS.burning) return '仕上げのひと手間';
+  if (level === 5) return 'なじみの厨房';
+  if (level === 4) return 'ハルとふたりで';
+  if (level >= FEATURE_LEVELS.pot) return '店長のスープ';
   if (level === 2) return '店長と初めての営業';
-  return '時間無制限で一皿';
+  return 'はじめてのひと皿';
 }
 
 export function levelConfig(level = FIRST_LEVEL) {

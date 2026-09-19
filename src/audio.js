@@ -6,6 +6,7 @@ const PATTERNS = Object.freeze({
   finish: { notes: [784, 659, 523], step: 0.16, duration: 0.28, gain: 0.05 },
   applause: { notes: [0], step: 0, duration: 3, gain: 0.18 },
   dash: { notes: [220, 330], step: 0.04, duration: 0.08, gain: 0.03 },
+  countdown: { notes: [880], step: 0, duration: 0.09, gain: 0.045 },
 });
 
 const MAX_VOICES = 12;

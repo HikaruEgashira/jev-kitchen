@@ -509,7 +509,7 @@ test('failed shift gives explicit recovery choices and gates previous level', ()
   assert.equal(ui.items.find((item) => item.id === 'retry').text, '同じ条件で再挑戦');
   assert.equal(ui.items.find((item) => item.id === 'review').text, '開店準備から見直す');
   assert.equal(ui.items.find((item) => item.id === 'previous').disabled, false);
-  assert.match(ui.items.find((item) => item.id === 'result').text, /資金・在庫・疲労/);
+  assert.match(ui.items.find((item) => item.id === 'result').text, /開店前から/);
 });
 
 test('phone station buttons stay below the kitchen and respect onboarding restrictions', () => {
@@ -711,7 +711,15 @@ test('human hints share stock facts, cooking advice and bounded preparation hist
   assert.ok(text.includes(preparationAdvice(game, { ...view, stage: 'stock' }).hint));
   assert.match(text, /前回11皿/);
   assert.match(text, /次の注文/);
-  assert.doesNotMatch(text, /ノルマ後も売/);
+  assert.doesNotMatch(text, /ノルマ後も売|しよう|優先|選ぼう/);
+  for (const stage of ['hiring', 'staffing', 'stock', 'investment']) {
+    const advice = preparationAdvice(game, { ...view, stage });
+    assert.doesNotMatch(advice.hint, /しよう|優先|選ぼう/);
+    assert.doesNotMatch(
+      advice.instructions,
+      /Prioritize|Prefer|First train|Assign .*ONLY|Invest remaining/,
+    );
+  }
   view = editPreparation(view, { equipmentPurchases: ['upgrade_board'] }, 'まな板を強化');
   view = editPreparation(view, { equipmentPurchases: [] }, 'まな板の強化を取消');
   assert.equal(view.looping, true);

@@ -923,14 +923,14 @@ test('the rule companion can finish soup and stale station targets are rejected'
   assert.equal(dash(g), true);
 });
 
-test('action hints explain the next useful step for each station state', () => {
+test('station hints describe available interactions and unmet requirements', () => {
   const g = createGame({ level: 3, stock: 99 });
 
-  assert.equal(actionHint(g, 'board'), 'トマトを取ってこよう');
+  assert.equal(actionHint(g, 'board'), 'トマトが必要です');
   g.human.carrying = 'tomato';
   assert.equal(actionHint(g, 'board'), 'トマトを切る');
   g.stations.board.state = 'chopping';
-  assert.equal(actionHint(g, 'board'), '切り終わるまで待つ');
+  assert.equal(actionHint(g, 'board'), 'カット中');
   g.stations.board.state = 'chopped';
   g.human.carrying = 'plate';
   assert.equal(actionHint(g, 'board'), 'サラダを盛る');
@@ -938,16 +938,16 @@ test('action hints explain the next useful step for each station state', () => {
   g.human.carrying = 'chopped';
   assert.equal(actionHint(g, 'pot'), 'スープを煮る');
   g.stations.pot.state = 'cooking';
-  assert.equal(actionHint(g, 'pot'), '煮込み中、別の仕事へ');
+  assert.equal(actionHint(g, 'pot'), '煮込み中');
   g.stations.pot.state = 'ready';
-  assert.equal(actionHint(g, 'pot'), 'お皿を持ってくる');
+  assert.equal(actionHint(g, 'pot'), '盛り付けにはお皿が必要です');
   g.human.carrying = 'plate';
   assert.equal(actionHint(g, 'pot'), 'スープを盛る');
 
   g.human.carrying = 'dish';
   assert.equal(actionHint(g, 'serve'), '配膳する');
   g.orders = g.orders.map((order) => ({ ...order, recipe: 'soup' }));
-  assert.equal(actionHint(g, 'serve'), '注文なし：Qで片づけ');
+  assert.equal(actionHint(g, 'serve'), '注文なし');
 });
 
 test('boosts, burning and the one-time rush activate only at their level milestones', () => {
@@ -960,7 +960,7 @@ test('boosts, burning and the one-time rush activate only at their level milesto
       buildCandidates(g, 'human').some((c) => c.id === 'boost_board'),
       level === 6,
     );
-    assert.equal(actionHint(g, 'board'), level === 6 ? '仕上げる' : '切り終わるまで待つ');
+    assert.equal(actionHint(g, 'board'), level === 6 ? '仕上げる' : 'カット中');
     assert.equal(interact(g, 'human', 'board').ok, level === 6);
   }
   for (const level of [5, 6]) {

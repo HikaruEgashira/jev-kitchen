@@ -96,7 +96,7 @@ test('Lv5 repeats Lv4 conditions with a seven-dish quota', () => {
     ...levelConfig(4),
     level: 5,
     quota: 7,
-    unlockLabel: '同じ厨房で7皿',
+    unlockLabel: 'なじみの厨房',
   });
   assert.equal(quotaForLevel(6), 7);
   assert.equal(quotaForLevel(7), 6);

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createAudio } from '../src/audio.js';
+import { createGame } from '../src/model.js';
+import { useKitchen, tick } from '../src/game.js';
 
 class FakeGain {
   constructor() {
@@ -210,5 +212,46 @@ test('audio remains optional when the browser has no AudioContext', () => {
   } finally {
     globalThis.AudioContext = previous;
     globalThis.webkitAudioContext = webkit;
+  }
+});
+
+test('countdown sounds once at 5 through 1 seconds, respects pause and mute, and skips practice', () => {
+  const previous = globalThis.AudioContext;
+  const saved = useKitchen.getState();
+  globalThis.AudioContext = FakeAudioContext;
+  FakeAudioContext.instances = [];
+  try {
+    const game = createGame({ level: 4, stock: 1, hired: [], duty: [] });
+    game.time = 84000;
+    useKitchen.setState({ game, phase: 'playing', benchmark: true, sound: true });
+    const beeps = () =>
+      FakeAudioContext.instances
+        .flatMap((c) => c.oscillators)
+        .filter((o) => o.frequency.value === 880).length;
+    tick(0.5);
+    assert.equal(beeps(), 0);
+    tick(0.5);
+    assert.equal(beeps(), 1);
+    useKitchen.setState({ phase: 'paused' });
+    tick(1);
+    assert.equal(beeps(), 1);
+    useKitchen.setState({ phase: 'playing' });
+    for (let second = 4; second >= 0; second--) {
+      tick(0.5);
+      tick(0.5);
+      assert.equal(beeps(), Math.min(5, 6 - second));
+    }
+    game.time = 84000;
+    useKitchen.setState({ phase: 'playing', sound: false });
+    tick(1);
+    assert.equal(beeps(), 5);
+    game.time = 84000;
+    game.practice = true;
+    useKitchen.setState({ sound: true });
+    tick(1);
+    assert.equal(beeps(), 5);
+  } finally {
+    globalThis.AudioContext = previous;
+    useKitchen.setState(saved, true);
   }
 });

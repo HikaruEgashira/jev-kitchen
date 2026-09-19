@@ -23,7 +23,7 @@ import { EQUIPMENT, equipmentCapacity, quoteEquipment } from './equipment.js';
 import { VITAMINS, quoteVitamins } from './training.js';
 import { preparation, purchase, preparationAdvice, preparationKey } from './ui.js';
 
-export const BENCH_PROTOCOL = 'jev-bench-v3';
+export const BENCH_PROTOCOL = 'jev-bench-v4';
 
 // Single source of truth for preparation parity. Every action the human
 // preparation sheet can render (see `screen()`) must be classified here: either
@@ -475,8 +475,8 @@ export function benchRequest(
       ...(looping
         ? {
             loop_warning: preparing
-              ? 'You returned to the same purchase plan. Stop the purchase/cancel cycle. Keep useful pending purchases and open when ready.'
-              : 'Possible loop: recent actions repeat without using stock or serving food. Check current orders and crew work; choose a productive action or wait for cooking instead of repeating the cycle.',
+              ? 'The same purchase plan has been revisited; purchases and cancellations are repeating.'
+              : 'Possible loop: recent actions repeat without using stock or serving food.',
           }
         : {}),
     },
