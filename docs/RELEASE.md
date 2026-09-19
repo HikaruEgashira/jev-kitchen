@@ -2,17 +2,25 @@
 
 ## 2026-09-19 Three UI移行
 
-状態: ローカル受入確認中。本番配信はこの節の配信記録で判定する。以下の旧記録は移行前の履歴である。
+状態: ローカル受入確認済み、mainからの配信確認待ち。本番配信はこの節の配信記録で判定する。以下の旧記録は移行前の履歴である。
 
 - ラベル → HUD・メニュー・採用・仕入れ → Glyph・商品モデル・立体タイトルの順に移行した。ネイティブ要素は数値編集・キーボード・読み上げを担当する。
 - タイトル画面は上部の立体ロゴと下部の開店操作だけにし、中央の厨房を隠さない。注文・Lv・スタッフ・在庫は開始後に表示する。スマホ幅では文字を20%縮小し、操作領域は44px以上を維持する。
 - Chrome/WebGPUで開始、初回サラダの5工程、通常営業への移行、メニュー・手引き・Escape、数値入力を確認。ローカルの検証用状態で採用、99個購入時の資金不足、2個の確定、次レベル、失敗時の復元、Lv100完走画面を確認した。
 - 採用・仕入れの検証値: 600コインから料理人180コインとトマト2個16コインを支払い、残金404・在庫14でLv4を開始。リトライも同じ残金・在庫へ復元した。
 - GlyphのフォントはCanvas単位で共有し、共有GPUバッファの解放は所有者に揃える互換patchを適用する。フォントの早期破棄とGPUバッファ共有の問題、および回帰確認手順をADR 003に記録した。
-- API修正 `4be43a1` も統合対象。healthは`answers.ok`を検証し、decideは`next_action`だけを返す。直接APIとWorkers AIの両経路を自動検査する。
-- 自動検査: 70テスト、型検査、format/lint、production build。ビルド時にフォント未収録文字も拒否する。
+- API修正 `4be43a1` も統合した。healthは`answers.ok`を検証し、decideは`next_action`だけを返す。直接APIとWorkers AIの両経路を自動検査する。
+- 継続プレイ: production buildで90秒営業が7/6皿・2070点で終了し、クリア画面へ移行。途中のメニュー開閉と320px幅への変更を含め、Console errorは0件。
+- 自動検査: 71テスト、型検査、format/lint、production build。ビルド時にフォント未収録文字も拒否する。
 - 既知の制約: WebGPU必須。実機スマホ・低速回線での性能測定は未実施。Kitchenの圧縮後JSは約565kB、文字組みWASMは約506kB、フォントatlasは非圧縮約2.5MB。
 - 配信前rollback候補: `a3a46661-5531-4325-9744-218bcb799772`（2026-09-19 03:18:46 UTC）。復旧コマンドは `pnpm exec wrangler rollback a3a46661-5531-4325-9744-218bcb799772`。
+
+### 統合後の品質確認
+
+- `pnpm test`は71 pass／0 fail、typecheck、check（39 files／lint23、警告なし）、build、`git diff --check`がpass。Kitchen chunkは2,046.10kB／gzip563.84kBである。
+- 別ブランチ`475199e`の再接続ガードを統合し、Glyphフォントのリセットも同じ排他区間に含めた。回帰テストでdispose待機中の連打、古い世代の完了、待機終了後の再試行を検証する。
+- Chrome実GPUの`device.destroy()`後に営業が停止し、再接続後も386点・経過24,349.7msを保持した。CanvasとFiber rootは各1個。意図的な切断のログ以外にConsole errorは発生していない。
+- 本番への配信と認証済みURLの確認は、下記の配信記録に記す。WebGLは受入対象外とする。
 
 ### 視覚職能報告の証拠区分
 
@@ -26,7 +34,14 @@
 
 MVPを短い協力料理ゲームとして本番公開するための判定台帳である。肩書きや計画ではなく、実行した変更・検証結果・証拠・採否を記録する。
 
-> 現行iterationは自動検査のQA報告を受領済みだが、実ブラウザ受入・配信確認は未完了である。`7ec116a`の旧MVP証拠は履歴であり、現行版のリリース済みを意味しない。
+## 2026-09-19 health修正の配信前検証
+
+- 本番mainの`7ec116a`を基準に、Workerと回帰テストだけを変更する。並行中のThree.js置換、厨房登場演出、従業員・シフトの別ブランチは含めず、公開画面を変更しない。
+- `runJev`は共通の通信・エラー検証を担当し、行動判断の投影は`/api/decide`で行う。healthは`answers.ok`のNoul形式を検証し、公開応答は`ok`／`engine`／`via`／`model`／`upstreamMs`に限定する。
+- TypeSafe直APIとWorkers AIの両経路で、実際の応答形式に合わせたstubによる成功、異常値の拒否、answers・usage・非公開metadataの非露出、行動判断の検証維持を確認。実Jev応答と本番確認は別の検証である。
+- 配信用ツリーで`pnpm test`は46 pass／0 fail、`pnpm typecheck`、`pnpm check`（23 files／lint12、警告なし）、`pnpm build`がpass。frozen/offline installもpass。並行開発中の共有ツリーのテスト件数と混同しない。
+- `Kitchen` chunkは1,499.93kB／gzip406.11kB。既知のサイズ警告であり、今回のWorker修正による描画性能の検証を意味しない。
+- mainへのpushでWorkers Buildsから配信する。配信前の100% versionは`b0d3ab8a-30a3-4ffe-a2e9-39d4d784e27d`。復旧時は`pnpm exec wrangler rollback b0d3ab8a-30a3-4ffe-a2e9-39d4d784e27d`を使用する。Cloudflare Accessを解除しない。
 
 ## 出荷判定
 

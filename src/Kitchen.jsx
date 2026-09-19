@@ -723,6 +723,7 @@ export default function Kitchen() {
   const canvasRef = useRef(null);
   const rendererRef = useRef(null);
   const rendererDisposeRef = useRef(null);
+  const retryInFlight = useRef(false);
   const graphicsGeneration = useRef(0);
   const lifecycleGeneration = useRef(0);
   useEffect(() => {
@@ -740,15 +741,22 @@ export default function Kitchen() {
     };
   }, []);
   const retryGraphics = async () => {
-    graphicsGeneration.current += 1;
-    const disposeRenderer = rendererDisposeRef.current;
-    rendererDisposeRef.current = null;
-    await disposeRenderer?.();
-    rendererRef.current = null;
-    initialization.current = null;
-    resetFont();
-    setError(false);
-    setGraphicsKey((key) => key + 1);
+    if (retryInFlight.current) return;
+    retryInFlight.current = true;
+    const generation = ++graphicsGeneration.current;
+    try {
+      const disposeRenderer = rendererDisposeRef.current;
+      rendererDisposeRef.current = null;
+      await disposeRenderer?.();
+      if (generation !== graphicsGeneration.current) return;
+      rendererRef.current = null;
+      initialization.current = null;
+      resetFont();
+      setError(false);
+      setGraphicsKey((key) => key + 1);
+    } finally {
+      retryInFlight.current = false;
+    }
   };
   return (
     <GraphicsBoundary key={graphicsKey} onRetry={retryGraphics}>
