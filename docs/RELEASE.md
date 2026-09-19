@@ -26,6 +26,15 @@ MVPを短い協力料理ゲームとして本番公開するための判定台�
 - Access、秘密、課金、外部送信、他repoの権限は本台帳の対象外であり、変更しない。
 - 部門間で競合する変更は、directorがMVPの遊びやすさ・安全性・復旧性を優先して採否を決める。
 
+## 2026-09-20 一般公開（Access解除・ticket保護・検証順位）配信
+
+- `wrangler secret put TICKET_SECRET`（乱数32バイトhex）を設定した。`wrangler secret list`に`TICKET_SECRET`と`TYPESAFE_API_KEY`を確認。課金ルートはrun ticketで保護される。
+- `pnpm deploy`で配信し、その後main pushでWorkers Buildsが配信した。本番100% versionは`1c71e228-9e65-42d1-afa4-54989ca162f3`（2026-09-19T15:30:50Z）。Durable Object `GameStore`は`new_sqlite_classes` migration v1で作成した（KVベースはアカウントで拒否されたため）。
+- `egahika.dev`のPR #241でCloudflare Accessアプリを削除し、mainマージでapplyした（plan: 0 add / 0 change / 1 destroy、custom domainは維持）。公開URL `https://jev-kitchen.egahika.dev` は非認証で到達可能になった。
+- 配信後の本番確認: `GET /api/health`は200で`configured.sessions`と`configured.rateLimit`が両方true。`POST /api/session`（bench）は200でticketと`ranked.protocol=jev-ranked-v2`を返し、Durable Objectのrun作成が通る。非認証`POST /api/decide`は401。`GET /api/leaderboard`は検証済みエントリを返す。
+- 復旧の注意: Accessを外した後は、ticket保護の無い旧versionへrollbackすると課金ルートが無防備になる。旧versionへ戻す場合はAccessを再追加するか、`wrangler secret delete TICKET_SECRET`で課金ルートを閉じる。
+- 未実施: AI Gateway／TypeSafeのspend limitは口座側で別途設定する。実ブラウザでの/bench完走と順位表示は未確認。運用上のrun単位call予算とTurnstileは未実装。
+
 ## 2026-09-20 ベンチ提出時の自動検証とキャンペーン順位（未配信）
 
 - ユーザーに検証操作を求めない。Bench画面の`runBenchmark`が終わると自動で`POST /api/runs/finish`を呼び、サーバが全キャンペーンを再実行して検証済みスコアを登録する。専用の「検証ラン」ボタンは削除した。

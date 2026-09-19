@@ -19,6 +19,7 @@ import {
   clearHands,
   nextShift,
   retryShift,
+  resetGame,
   CHECKPOINT_KEY,
 } from '../src/game.js';
 import {
@@ -57,6 +58,7 @@ const installTestStorage = () => {
     value: {
       getItem: (key) => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, String(value)),
+      removeItem: (key) => storage.delete(key),
     },
   });
 };
@@ -116,6 +118,32 @@ test('reopening the menu starts at the first page', () => {
   assert.equal(useKitchen.getState().menuPage, 'diagnostics');
   setMenuPage('nonsense');
   assert.equal(useKitchen.getState().menuPage, 'diagnostics');
+});
+
+test('menu reset wipes saved progress and returns to a fresh Lv1 kitchen', () => {
+  startShift();
+  const playing = useKitchen.getState().game;
+  assert.equal(playing.level, 3);
+  useKitchen.setState({ best: 999, celebration: 5 });
+  storage.set('sidekick-stages-v1', JSON.stringify({ 3: {} }));
+  storage.set('sidekick-best-v2', '999');
+
+  resetGame();
+
+  const s = useKitchen.getState();
+  assert.equal(s.phase, 'ready');
+  assert.equal(s.game.level, 1);
+  assert.equal(s.game.cash, 180);
+  assert.equal(s.checkpoint, null);
+  assert.equal(s.rollback, null);
+  assert.deepEqual(s.stages, {});
+  assert.equal(s.best, 0);
+  assert.equal(s.menuOpen, false);
+  assert.equal(s.celebration, 0);
+  assert.equal(s.ready, true);
+  assert.equal(storage.has(CHECKPOINT_KEY), false);
+  assert.equal(storage.has('sidekick-stages-v1'), false);
+  assert.equal(storage.has('sidekick-best-v2'), false);
 });
 
 test('keyboard movement keeps equal speed in screen and grid modes', () => {

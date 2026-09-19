@@ -289,11 +289,8 @@ function writeCheckpoint(value, completed = false) {
 
 const initialCheckpoint = readCheckpoint();
 
-export const useKitchen = create(() => ({
-  game:
-    initialCheckpoint && !initialCheckpoint.completed
-      ? createGame(initialCheckpoint)
-      : createGame(),
+const freshState = (checkpoint) => ({
+  game: checkpoint && !checkpoint.completed ? createGame(checkpoint) : createGame(),
   phase: 'ready',
   benchmark: false,
   benchPreparation: null,
@@ -311,9 +308,9 @@ export const useKitchen = create(() => ({
   sound: true,
   backgroundMode: true,
   best: savedBest(),
-  checkpoint: initialCheckpoint,
-  stages: readStages(initialCheckpoint),
-  rollback: initialCheckpoint?.rollback ?? null,
+  checkpoint,
+  stages: readStages(checkpoint),
+  rollback: checkpoint?.rollback ?? null,
   reviewing: false,
   cleared: false,
   applicants: [],
@@ -323,6 +320,7 @@ export const useKitchen = create(() => ({
   toastUntil: 0,
   celebration: 0,
   lastPoints: 0,
+  movingTo: null,
   hud: {
     action: '一緒に、開店の準備をしよう。',
     latency: null,
@@ -333,7 +331,9 @@ export const useKitchen = create(() => ({
   },
   log: [],
   fallback: false,
-}));
+});
+
+export const useKitchen = create(() => freshState(initialCheckpoint));
 
 const keys = new Set();
 let target = null,
@@ -554,6 +554,34 @@ export function setMenuOpen(open) {
   target = null;
   // Reopening the menu always starts at the first page.
   update({ menuOpen: Boolean(open), ...(open ? { menuPage: null } : {}) });
+}
+
+/** Wipe saved progress and return to a brand-new Lv1 kitchen. */
+export function resetGame() {
+  const current = state();
+  invalidate();
+  keys.clear();
+  target = null;
+  shiftSnapshot = null;
+  frozenApplicants = null;
+  applicantsRandom = null;
+  retryAt = 0;
+  policyChangedAt = -Infinity;
+  lastPublish = 0;
+  audio?.stop();
+  try {
+    for (const key of [BEST_KEY, CHECKPOINT_KEY, STAGES_KEY])
+      globalThis.localStorage?.removeItem(key);
+  } catch {
+    /* Storage is optional; the in-memory reset still applies. */
+  }
+  update({
+    ...freshState(null),
+    best: 0,
+    stages: {},
+    ready: current.ready,
+    revision: current.revision + 1,
+  });
 }
 
 const MENU_PAGES = new Set(['settings', 'help', 'controls', 'diagnostics', 'hints', 'stages']);
