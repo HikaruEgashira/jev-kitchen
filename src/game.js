@@ -296,6 +296,8 @@ const freshState = (checkpoint) => ({
       : createGame({ cash: STARTING_CASH }),
   phase: 'ready',
   benchmark: false,
+  autoMode: false,
+  autoStatus: '',
   benchPreparation: null,
   benchFeedback: null,
   preparationPreview: null,
@@ -472,7 +474,7 @@ function beginShift({
     benchFeedback: null,
     preparationPreview: null,
     phase: 'playing',
-    tutorial: game.practice && !state().benchmark ? 0 : null,
+    tutorial: game.practice && !state().benchmark && !state().autoMode ? 0 : null,
     cleared: false,
     applicants: [],
     campaignComplete: false,
@@ -518,8 +520,9 @@ export function startBenchmark() {
 }
 
 export function benchmarkAction(candidate) {
-  const { game, phase, benchmark } = state();
-  if (!benchmark || phase !== 'playing' || !isFeasible(game, candidate, 'human')) return false;
+  const { game, phase, benchmark, autoMode } = state();
+  if ((!benchmark && !autoMode) || phase !== 'playing' || !isFeasible(game, candidate, 'human'))
+    return false;
   const selected = buildCandidates(game, 'human').find((c) => c.id === candidate.id);
   if (selected.id === 'continue') return true;
   if (selected.id === 'dash') return dash(game);
@@ -529,7 +532,7 @@ export function benchmarkAction(candidate) {
   }
   if (selected.id === 'interact' || selected.partner) {
     game.human.intent = null;
-    humanInteract();
+    humanInteract(false, false, true);
     return true;
   }
   if (selected.id.startsWith('visit_')) {
@@ -538,6 +541,14 @@ export function benchmarkAction(candidate) {
   }
   game.human.intent = { ...selected, startedAt: game.time };
   return true;
+}
+
+export function setAutoMode(enabled) {
+  if (state().benchmark) return;
+  invalidate();
+  keys.clear();
+  target = null;
+  update({ autoMode: Boolean(enabled), autoStatus: '', ...(enabled ? { tutorial: null } : {}) });
 }
 
 export function togglePause() {
@@ -778,7 +789,7 @@ function tutorialStep() {
 
 export function goTo(id) {
   const current = state();
-  if (current.phase !== 'playing' || current.menuOpen || !STATIONS[id]) return;
+  if (current.phase !== 'playing' || current.menuOpen || current.autoMode || !STATIONS[id]) return;
   if (!activeStationIds(current.game).includes(id)) return;
   const step = tutorialStep();
   if (state().tutorial === TUTORIAL_STEPS.length) return;
@@ -797,7 +808,8 @@ export function goTo(id) {
   publish();
 }
 
-export function humanInteract(automatic = false, stationOnly = false) {
+export function humanInteract(automatic = false, stationOnly = false, automated = false) {
+  if (state().autoMode && !automated) return;
   if (state().phase !== 'playing') return;
   const g = state().game,
     near = stationAt(g, 'human');
@@ -854,7 +866,7 @@ export function humanInteract(automatic = false, stationOnly = false) {
 }
 
 export function clearHands() {
-  if (state().phase !== 'playing' || state().tutorial !== null) return;
+  if (state().autoMode || state().phase !== 'playing' || state().tutorial !== null) return;
   if (discard(state().game, 'human')) {
     notify('手を空けたよ。コンボはリセット');
     publish();
@@ -862,7 +874,7 @@ export function clearHands() {
 }
 
 export function humanDash() {
-  if (state().phase === 'playing' && dash(state().game)) playSound('dash');
+  if (!state().autoMode && state().phase === 'playing' && dash(state().game)) playSound('dash');
 }
 
 export function installControls() {
@@ -879,7 +891,7 @@ export function installControls() {
       togglePause();
       return;
     }
-    if (state().phase !== 'playing') return;
+    if (state().phase !== 'playing' || state().autoMode) return;
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
       e.preventDefault();
       state().game.human.intent = null;
@@ -1042,10 +1054,10 @@ export function tick(delta) {
       Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup')),
     target,
     movementMode: state().movementMode,
-    benchmark: state().benchmark,
+    benchmark: state().benchmark || state().autoMode,
     stillPlaying: () => state().phase === 'playing',
     onTargetArrive: () => humanInteract(true),
-    onHumanArrive: (intent) => humanInteract(intent.automatic, true),
+    onHumanArrive: (intent) => humanInteract(intent.automatic, true, true),
     onRecord: record,
   });
   const seconds = Math.ceil((g.duration - g.time) / 1000);

@@ -17,6 +17,7 @@ import {
   setMenuOpen,
   setMenuPage,
   resetGame,
+  setAutoMode,
   setCameraMode,
   setMovementMode,
   setPreparationPreview,
@@ -250,7 +251,9 @@ function Screen() {
   const s = useKitchen();
   const { size, gl } = useThree();
   const [localView, setView] = useState(() => preparation(s.game, s.reviewing));
-  const view = s.benchmark && s.benchPreparation ? s.benchPreparation : localView;
+  const view = s.benchPreparation
+    ? { ...s.benchPreparation, resetArmed: localView.resetArmed }
+    : localView;
   const [focus, setFocus] = useState(null);
   const [hover, setHover] = useState(null);
   const controls = useRef(new Map());
@@ -264,7 +267,7 @@ function Screen() {
   const previewLayoutKey = JSON.stringify(previewBill?.layout ?? null);
   const latest = useRef();
   const updateView = (values, label) => {
-    if (s.benchmark && s.benchPreparation)
+    if (s.benchPreparation)
       useKitchen.setState({ benchPreparation: editPreparation(view, values, label) });
     else setView((v) => editPreparation(v, values, label));
   };
@@ -312,9 +315,14 @@ function Screen() {
       case 'close-menu':
         setMenuOpen(false);
         break;
+      case 'auto-mode':
+        if (!s.autoMode && s.phase === 'finished' && s.cleared)
+          useKitchen.setState({ benchPreparation: view });
+        setAutoMode(!s.autoMode);
+        break;
       case 'reset':
         if (view.resetArmed) resetGame();
-        else patch({ resetArmed: true });
+        else setView((v) => ({ ...v, resetArmed: true }));
         break;
       case 'sound':
         toggleSound();

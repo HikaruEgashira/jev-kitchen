@@ -48,6 +48,7 @@ export default function Bench() {
   const [board, setBoard] = useState([]);
   useEffect(() => {
     document.title = 'jev-bench | SIDEKICK kitchen';
+    useKitchen.setState({ benchmark: true });
     const controller = new AbortController();
     fetch('/api/bench/models', { signal: controller.signal })
       .then(async (response) => {
