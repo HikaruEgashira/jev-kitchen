@@ -51,7 +51,7 @@ test('every sheet keeps distinct, reachable 44px controls in portrait and landsc
   ]) {
     for (const phase of ['ready', 'playing', 'paused', 'finished']) {
       for (const cleared of [false, true]) {
-        for (const menuPage of [null, 'settings', 'help', 'diagnostics']) {
+        for (const menuPage of [null, 'settings', 'controls', 'help', 'diagnostics']) {
           for (const page of [0, 1, 2]) {
             const ui = screen(
               { ...base, phase, cleared, menuOpen: menuPage !== null },
@@ -103,6 +103,107 @@ test('the stock field rejects incomplete, non-integer and unaffordable purchases
   }
   assert.match(purchase(g, { ...view, selected: 'veteran' }).error, /コイン/);
   assert.equal(purchase({ ...g, stock: 20 }, { ...view, quantity: 0 }).error, '');
+});
+
+test('camera settings expose the three modes as Three UI controls with matching semantics', () => {
+  for (const mode of ['auto', 'follow', 'overview']) {
+    const s = {
+      ...useKitchen.getState(),
+      menuOpen: true,
+      phase: 'paused',
+      cameraMode: mode,
+      movementMode: 'grid',
+    };
+    const ui = screen(s, { ...preparation(s.game), menuPage: 'controls' }, 320, 568);
+    const controls = ui.items.filter((item) => item.action === 'camera');
+    assert.deepEqual(
+      controls.map((item) => item.value),
+      ['auto', 'follow', 'overview'],
+    );
+    assert.deepEqual(
+      controls.filter((item) => item.pressed).map((item) => item.value),
+      [mode],
+    );
+    assert.ok(controls.every((item) => item.kind === 'button' && item.label.includes('カメラ')));
+    assert.ok(controls.every((item) => [...item.text].length * item.size <= item.w - 8));
+    const movement = ui.items.filter((item) => item.action === 'movement');
+    assert.deepEqual(
+      movement.map((item) => item.value),
+      ['screen', 'grid'],
+    );
+    assert.deepEqual(
+      movement.filter((item) => item.pressed).map((item) => item.value),
+      ['grid'],
+    );
+  }
+});
+
+test('preparation screen exposes multi-person duty selection and fatigue status', () => {
+  const game = createGame({ level: 24, cash: 900, stock: 12, hired: ['helper', 'runner', 'chef'] });
+  Object.assign(game, {
+    duty: ['helper', 'runner'],
+    staffState: {
+      helper: { worked: 1, rest: 0 },
+      runner: { worked: 0, rest: 1 },
+      chef: { worked: 0, rest: 0 },
+    },
+  });
+  const state = {
+    ...useKitchen.getState(),
+    game,
+    phase: 'finished',
+    cleared: true,
+    ready: true,
+    applicants: ['veteran'],
+  };
+  const view = { ...preparation(game), page: 2, selected: 'veteran', duty: ['helper', 'runner'] };
+  const ui = screen(state, view, 320, 568);
+  assert.ok(ui.items.find((item) => item.id === 'duty-helper')?.pressed);
+  assert.ok(ui.items.find((item) => item.id === 'duty-runner')?.pressed);
+  assert.match(ui.items.find((item) => item.id === 'duty-runner').text, /あと2勤/);
+  assert.ok(ui.items.find((item) => item.id === 'duty-chef'));
+  assert.ok(ui.items.find((item) => item.id === 'duty-summary').text.includes('出勤'));
+  assert.ok(ui.items.find((item) => item.id === 'quantity'));
+  assert.equal(preparation(game, true).page, 1);
+});
+
+test('three order previews stay below the compact staff roster', () => {
+  const game = createGame({
+    level: 30,
+    hired: ['helper', 'runner', 'chef'],
+    duty: ['helper', 'runner', 'chef'],
+  });
+  game.orders.push({ id: 99, recipe: 'roast', deadline: 20_000, duration: 20_000 });
+  const ui = screen(
+    { ...useKitchen.getState(), game, phase: 'playing', ready: true, tutorial: null },
+    preparation(game),
+    768,
+    390,
+  );
+  const roster = ui.items.find((item) => item.id === 'roster-board');
+  const tickets = ui.items.filter((item) => item.id.startsWith('ticket-'));
+  assert.equal(tickets.length, 3);
+  assert.ok(tickets.every((item) => item.y >= roster.y + roster.h));
+  assert.equal(roster.h, 42);
+  assert.equal(ui.items.find((item) => item.id === 'roster').color, '#fff9e8');
+  assert.equal(ui.items.find((item) => item.id === 'roster').text, 'ハル  ソラ\nナギ');
+});
+
+test('failed shift gives explicit recovery choices and gates previous level', () => {
+  const game = createGame({ level: 2 });
+  const state = {
+    ...useKitchen.getState(),
+    game,
+    phase: 'finished',
+    cleared: false,
+    ready: true,
+    rollback: { preparation: {}, previous: { snapshot: { level: 1 } } },
+  };
+  const ui = screen(state, preparation(game), 320, 568);
+  assert.equal(ui.items.find((item) => item.id === 'retry').text, '同じ条件で再挑戦');
+  assert.equal(ui.items.find((item) => item.id === 'review').text, '仕入れ・採用から見直す');
+  assert.equal(ui.items.find((item) => item.id === 'previous').disabled, false);
+  assert.match(ui.items.find((item) => item.id === 'result').text, /資金・在庫・疲労/);
 });
 
 test('phone station buttons stay below the kitchen and respect onboarding restrictions', () => {

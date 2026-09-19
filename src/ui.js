@@ -7,37 +7,75 @@ import {
   actionHint,
   STATIONS,
   activeStationIds,
+  levelConfig,
 } from './model.js';
-import { STAFF } from './staff.js';
+import { STAFF, nextStaffState, payroll, staffAvailable } from './staff.js';
 import { TUTORIAL_STEPS } from './game.js';
 
 export const compactControls = (width, height) => width < 600 || height < 500;
 
-export function preparation(g) {
+export function preparation(g, reviewing = false) {
+  const duty = [...new Set(Array.isArray(g.duty) ? g.duty : [])];
   return {
-    page: 0,
+    page: reviewing ? 1 : 0,
     applicantIndex: 0,
     selected: null,
-    assigned: g.staffId,
+    duty,
     quantity: Math.max(0, quotaForLevel(g.level + 1) + 2 - (g.stock ?? 0)),
   };
+}
+
+function staffStateOf(g, id) {
+  return g.staffState?.[id] ?? { worked: 0, rest: 0 };
+}
+
+function staffSlots(level) {
+  return levelConfig(level).staffSlots;
+}
+
+function forecastStaffState(g) {
+  return levelConfig(g.level + 1).fatigueEnabled ? nextStaffState(g) : g.staffState;
+}
+
+function staffIds(g, view) {
+  return [
+    ...new Set([
+      ...(Array.isArray(g.hired) ? g.hired : []),
+      ...(view.selected ? [view.selected] : []),
+    ]),
+  ].filter((id) => STAFF[id]);
+}
+
+function staffShortName(id) {
+  return STAFF[id]?.name?.split('の').at(-1) ?? id;
 }
 
 export function purchase(g, view) {
   const quantity = Number(view.quantity);
   const valid = /^\d{1,2}$/.test(String(view.quantity)) && Number.isInteger(quantity);
   const hiring = view.selected ? (STAFF[view.selected]?.cost ?? Infinity) : 0;
+  const duty = [...new Set(Array.isArray(view.duty) ? view.duty : [])].filter((id) => STAFF[id]);
+  const slots = staffSlots(g.level + 1);
+  const wages = payroll(duty);
+  const staffState = forecastStaffState(g);
+  const available = duty.every(
+    (id) => (!g.staffState?.[id] && id === view.selected) || staffAvailable(staffState, id),
+  );
   const stock = (g.stock ?? 0) + quantity;
-  const cash = g.cash - hiring - quantity * STOCK_PRICE;
+  const cash = g.cash - hiring - quantity * STOCK_PRICE - wages;
   const quota = quotaForLevel(g.level + 1);
   const error = !valid
     ? '仕入れは0〜99個で入力'
     : stock < quota
       ? `あと${quota - stock}個の仕入れが必要`
-      : cash < 0
-        ? `コインが${-cash}不足`
-        : '';
-  return { quantity, hiring, stock, cash, quota, error };
+      : duty.length > slots
+        ? `このレベルの勤務上限は${slots}人`
+        : !available
+          ? '休養中の相棒は配置できません'
+          : cash < 0
+            ? `コインが${-cash}不足`
+            : '';
+  return { quantity, hiring, wages, duty, slots, stock, cash, quota, staffState, error };
 }
 
 // One layout describes both Three meshes and their keyboard/screen-reader controls.
@@ -87,45 +125,90 @@ export function screen(s, view, width, height) {
     disabled: !s.ready || !['playing', 'paused'].includes(s.phase),
   });
   button('menu', '≡', width - 60, 16, 48, 'menu', { label: 'メニューを開く' });
-  panel('score-board', 12, 74, narrow ? width - 24 : 288, 34);
+  const rosterIds = staffIds(g, { selected: null });
+  const rosterW = narrow ? Math.min(124, width - 132) : 230;
+  const scoreW = narrow ? Math.max(140, width - rosterW - 28) : 288;
+  panel('score-board', 12, 74, scoreW, 34);
   label(
     'score',
-    `${g.score}点   ${g.cash} コイン${g.burned ? `   焦げ ${g.burned}` : ''}`,
+    narrow
+      ? `${g.score}点  🪙${g.cash}${g.burned ? `  焦${g.burned}` : ''}`
+      : `${g.score}点   ${g.cash} コイン${g.burned ? `   焦げ ${g.burned}` : ''}`,
     16,
     77,
-    narrow ? width - 32 : 280,
+    scoreW - 8,
     28,
-    { size: 14 },
+    { size: narrow ? 12 : 14 },
   );
-  const ow = narrow ? 132 : 180;
-  g.orders.slice(0, 2).forEach((o, i) => {
+  const duty = new Set(Array.isArray(g.duty) ? g.duty : []);
+  const rosterLines = rosterIds.reduce((lines, id) => {
+    const staff = STAFF[id];
+    const state = staffStateOf(g, id);
+    const status = state.rest > 0 ? `休${state.rest}` : duty.has(id) ? '出' : '待';
+    if (narrow) {
+      lines.push(`${staff.icon ?? '👤'}${status}`);
+    } else {
+      lines.push(`${staff.icon ?? '👤'} ${staffShortName(id)}  ${status}`);
+    }
+    return lines;
+  }, []);
+  const onDutyNames = rosterIds
+    .filter((id) => duty.has(id))
+    .slice(0, 4)
+    .map(staffShortName);
+  const narrowRoster = onDutyNames.length
+    ? onDutyNames.reduce((lines, name, index) => {
+        const row = Math.floor(index / 2);
+        lines[row] = `${lines[row] ? `${lines[row]}  ` : ''}${name}`;
+        return lines;
+      }, [])
+    : ['ひとりで営業'];
+  const rosterH = narrow ? 42 : Math.max(42, Math.min(112, rosterLines.length * 23 + 12));
+  panel('roster-board', width - rosterW - 12, 74, rosterW, rosterH, {
+    color: narrow ? '#397864' : undefined,
+  });
+  label(
+    'roster',
+    narrow ? narrowRoster.join('\n') : rosterLines.join('\n') || '勤務なし',
+    width - rosterW - 8,
+    78,
+    rosterW - 8,
+    rosterH - 8,
+    {
+      size: narrow ? 12 : 13,
+      color: narrow ? '#fff9e8' : undefined,
+      label: `勤務一覧：${rosterLines.join('、') || 'ひとりで営業'}`,
+    },
+  );
+  const orderTop = compactHud ? 74 + rosterH + 8 : 16;
+  const orderCount = Math.min(3, g.orders.length);
+  const orderGap = narrow ? 4 : 10;
+  const orderWidth = narrow
+    ? (width - 24 - orderGap * Math.max(0, orderCount - 1)) / Math.max(1, orderCount)
+    : compactHud
+      ? 160
+      : 180;
+  const orderTotal = orderCount * orderWidth + Math.max(0, orderCount - 1) * orderGap;
+  g.orders.slice(0, 3).forEach((o, i) => {
     const left = practice ? null : Math.max(0, Math.ceil((o.deadline - g.time) / 1000));
-    const x = width / 2 - ow - 5 + i * (ow + 10);
-    const y = compactHud ? 120 : 16;
-    panel(`ticket-${o.id}`, x, y, ow, 76);
-    add('food', `food-${o.id}`, '', x + 2, y + 6, 50, 60, { recipe: o.recipe });
+    const x = width / 2 - orderTotal / 2 + i * (orderWidth + orderGap);
+    const y = orderTop;
+    const orderHeight = narrow ? 64 : 76;
+    const shortRecipe = { dish: 'サラダ', soup: 'スープ', roast: '焼き' }[o.recipe] ?? '料理';
+    panel(`ticket-${o.id}`, x, y, orderWidth, orderHeight);
+    add('food', `food-${o.id}`, '', x + 2, y + 4, narrow ? 40 : 50, narrow ? 52 : 60, {
+      recipe: o.recipe,
+    });
     label(
       `order-${o.id}`,
-      `${RECIPES[o.recipe].name}\n${left === null ? 'おためし' : `あと ${left} 秒`}`,
-      x + 48,
+      `${narrow ? shortRecipe : RECIPES[o.recipe].name}\n${left === null ? 'おためし' : `あと ${left} 秒`}`,
+      x + (narrow ? 40 : 48),
       y + 8,
-      ow - 52,
-      58,
-      { size: 12, color: left !== null && left <= 10 ? '#a1372f' : '#245e50' },
+      orderWidth - (narrow ? 44 : 52),
+      orderHeight - 12,
+      { size: narrow ? 10 : 12, color: left !== null && left <= 10 ? '#a1372f' : '#245e50' },
     );
   });
-  if (!compactHud) {
-    panel('roster-board', width - 242, 82, 230, g.hired.length * 26 + 16);
-    label(
-      'roster',
-      g.hired.map((id) => `${STAFF[id].name}${id === g.staffId ? '  出勤中' : ''}`).join('\n'),
-      width - 238,
-      90,
-      224,
-      g.hired.length * 26,
-      { size: 13 },
-    );
-  }
   const near = stationAt(g, 'human');
   const step = TUTORIAL_STEPS[s.tutorial];
   const reached = near.inReach && (!practice || near.id === step?.station);
@@ -240,11 +323,13 @@ export function screen(s, view, width, height) {
       ? 400
       : s.phase === 'finished' && s.cleared && !s.campaignComplete
         ? 384
-        : welcome
-          ? narrow
-            ? 136
-            : 178
-          : 256,
+        : s.phase === 'finished' && !s.cleared && !s.campaignComplete
+          ? 296
+          : welcome
+            ? narrow
+              ? 136
+              : 178
+            : 256,
   );
   const x = (width - pw) / 2,
     y = welcome ? 20 : (height - ph) / 2;
@@ -268,15 +353,54 @@ export function screen(s, view, width, height) {
     title(
       view.menuPage === 'help'
         ? 'キッチンの手引き'
-        : view.menuPage === 'diagnostics'
-          ? '診断情報'
-          : 'ひと休み',
+        : view.menuPage === 'controls'
+          ? '操作設定'
+          : view.menuPage === 'diagnostics'
+            ? '診断情報'
+            : 'ひと休み',
     );
     const page = view.menuPage ?? 'settings';
-    if (page === 'help') {
+    if (page === 'controls') {
+      const bw = (inside - 16) / 3;
+      label('camera-heading', 'カメラ', x + 16, y + 54, inside, 20, {
+        size: narrow ? 12 : 14,
+        color: '#245e50',
+      });
+      [
+        ['auto', '自動'],
+        ['follow', '追従'],
+        ['overview', '全体'],
+      ].forEach(([mode, text], index) =>
+        button(`camera-${mode}`, text, x + 16 + index * (bw + 8), y + 74, bw, 'camera', {
+          value: mode,
+          pressed: s.cameraMode === mode,
+          size: 13,
+          label: mode === 'auto' ? 'カメラ：自動（縦は追従、横は全体）' : `カメラ：${text}`,
+        }),
+      );
+      const mw = (inside - 8) / 2;
+      label('movement-heading', '移動基準', x + 16, y + 118, inside, 20, {
+        size: narrow ? 12 : 14,
+        color: '#245e50',
+      });
+      [
+        ['screen', '画面基準'],
+        ['grid', 'マス目基準'],
+      ].forEach(([mode, text], index) =>
+        button(`movement-${mode}`, text, x + 16 + index * (mw + 8), y + 138, mw, 'movement', {
+          value: mode,
+          pressed: (s.movementMode ?? 'screen') === mode,
+          size: 13,
+          label: `移動：${text}`,
+        }),
+      );
+      button('back', '設定に戻る', x + 16, footerY - 54, inside, 'menu-page', {
+        value: 'settings',
+      });
+    } else if (page === 'help') {
       copy(
         'help',
-        '作業台をタップ、または WASD で移動\nE で作業・Shift でダッシュ・Q で片づけ\n切る → お皿をとる → 盛る → 配膳\nLv.2 でスープ、Lv.3 でグリルが登場',
+        '作業台をタップ、または WASD で移動\nE で作業・Shift でダッシュ・Q で片づけ\n切る → お皿をとる → 盛る → 配膳\nLv.5 でスープ、Lv.10 でグリルが登場',
         62,
         110,
         { size: narrow ? 12 : 16 },
@@ -289,30 +413,34 @@ export function screen(s, view, width, height) {
         'diagnostics',
         `${s.backend} / ${s.hud.via}\n応答 ${s.hud.latency ?? '—'} ms  ・  判断 ${s.hud.decisions}回\n古い回答の破棄 ${s.hud.dropped}回${s.fallback ? '\n接続待ち：固定ルールで営業を続けます' : ''}`,
         60,
-        106,
+        ph < 340 ? 68 : 106,
         { size: narrow ? 12 : 15 },
+      );
+      copy(
+        'privacy',
+        '相棒の判断にゲーム状態を\nTypeSafe または Cloudflare へ送信します。',
+        ph < 340 ? 136 : 180,
+        ph < 340 ? 42 : 54,
+        { size: 12 },
       );
       button('back', '設定に戻る', x + 16, footerY - 54, inside, 'menu-page', {
         value: 'settings',
       });
     } else {
-      const bw = (inside - 16) / 3;
+      const bw = (inside - 8) / 2;
       button('sound', s.sound ? '音オン' : '音オフ', x + 16, y + 64, bw, 'sound', {
         pressed: s.sound,
         size: 13,
       });
-      button('help', '遊び方', x + 24 + bw, y + 64, bw, 'menu-page', { value: 'help', size: 13 });
-      button('diagnostics', '診断', x + 32 + bw * 2, y + 64, bw, 'menu-page', {
+      button('controls', '操作設定', x + 24 + bw, y + 64, bw, 'menu-page', {
+        value: 'controls',
+        size: 13,
+      });
+      button('help', '遊び方', x + 16, y + 116, bw, 'menu-page', { value: 'help', size: 13 });
+      button('diagnostics', '診断', x + 24 + bw, y + 116, bw, 'menu-page', {
         value: 'diagnostics',
         size: 13,
       });
-      copy(
-        'privacy',
-        '相棒の判断にゲーム状態を\nTypeSafe または Cloudflare へ送信します。',
-        120,
-        54,
-        { size: 12 },
-      );
       const lw = (inside - 8) / 2;
       button('license', 'ライセンス', x + 16, footerY - 54, lw, 'link', {
         href: '/licenses.md',
@@ -337,18 +465,37 @@ export function screen(s, view, width, height) {
     copy('paused', '営業の時計は止まっています。', 66, 70, { size: 18 });
     primary('再開する', 'pause');
   } else if (!s.cleared || s.campaignComplete) {
-    title(s.campaignComplete ? '全100レベル、完走！' : 'もう一度、同じ厨房で');
-    copy(
-      'result',
-      `${g.served} / ${g.quota}皿   ・   ${g.score}点\n${s.campaignComplete ? '見事なチームワークでした。' : '開店時の資金と在庫に戻して再挑戦。'}`,
-      70,
-      70,
-      { size: 17 },
-    );
-    primary(
-      s.campaignComplete ? '最初から再挑戦' : '同じ営業をやり直す',
-      s.campaignComplete ? 'start' : 'retry',
-    );
+    if (s.campaignComplete) {
+      title('全100レベル、完走！');
+      copy(
+        'result',
+        `${g.served} / ${g.quota}皿   ・   ${g.score}点\n見事なチームワークでした。`,
+        70,
+        70,
+        {
+          size: 17,
+        },
+      );
+      primary('最初から再挑戦', 'start');
+    } else {
+      title('営業失敗');
+      copy(
+        'result',
+        `${g.served} / ${g.quota}皿   ・   ${g.score}点\n資金・在庫・疲労は営業前の状態に戻せます。`,
+        62,
+        54,
+        { size: narrow ? 13 : 16 },
+      );
+      button('retry', '同じ条件で再挑戦', x + 16, y + 126, inside, 'retry', { size: 14 });
+      button('review', '仕入れ・採用から見直す', x + 16, y + 174, inside, 'review', {
+        size: 14,
+        disabled: !s.rollback?.preparation,
+      });
+      button('previous', '前のステージへ戻る', x + 16, y + 222, inside, 'previous', {
+        size: 14,
+        disabled: g.level <= 1 || !s.rollback?.previous,
+      });
+    }
   } else {
     const bill = purchase(g, view);
     const stars = STAR_SCORES.map((n) => (g.score >= n ? '★' : '☆')).join(' ');
@@ -389,7 +536,7 @@ export function screen(s, view, width, height) {
         });
         copy(
           'applicant-description',
-          `${staff.description}\n速さ ×${staff.speed}  ・  判断 ${(staff.decisionMs / 1000).toFixed(1)}秒ごと${staff.canDash ? ' ・ ダッシュ' : ''}\n採用 ${staff.cost}コイン / お財布 ${g.cash}`,
+          `${staff.description}\n速さ ×${staff.speed}  ・  判断 ${(staff.decisionMs / 1000).toFixed(1)}秒ごと${staff.canDash ? ' ・ ダッシュ' : ''}\n採用 ${staff.cost}  ・ 給与 ${staff.wage ?? 0}/営業 / お財布 ${g.cash}`,
           short ? 112 : 126,
           62,
           { size: narrow ? 12 : 14 },
@@ -417,50 +564,95 @@ export function screen(s, view, width, height) {
         );
       primary('仕入れと配置へ', 'page', { value: 2 });
     } else {
-      title(`Lv.${g.level + 1} 仕入れ帳`);
-      const roster = [
-        ...g.hired,
-        ...(view.selected && !g.hired.includes(view.selected) ? [view.selected] : []),
-      ];
-      const rowY = bodyTop;
-      button('previous-staff', '‹', x + 16, rowY, 44, 'staff', {
-        value: -1,
-        label: '前の相棒を配置',
-        disabled: roster.length < 2,
+      title(`Lv.${g.level + 1} 仕入れ・勤務表`);
+      const roster = staffIds(g, view);
+      const duty = [...new Set(Array.isArray(view.duty) ? view.duty : [])].filter((id) =>
+        roster.includes(id),
+      );
+      const columns = 4;
+      const gap = 4;
+      const cellW = (inside - gap * (columns - 1)) / columns;
+      const dutyY = short ? y + 56 : y + 72;
+      const nextState = bill.staffState;
+      const fatigueVisible = levelConfig(g.level + 1).fatigueEnabled;
+      roster.forEach((id, index) => {
+        const staff = STAFF[id];
+        const projected = nextState[id] ?? { worked: 0, rest: 0 };
+        const available =
+          (!g.staffState?.[id] && id === view.selected) || staffAvailable(nextState, id);
+        const onDuty = duty.includes(id);
+        const availability = fatigueVisible
+          ? projected.rest > 0
+            ? `休${projected.rest}`
+            : `あと${staff.maxConsecutive - projected.worked}勤`
+          : onDuty
+            ? '出勤'
+            : '待機';
+        const employment = staff.employment ?? '雇用';
+        const wage = staff.wage ?? 0;
+        const row = Math.floor(index / columns);
+        const col = index % columns;
+        button(
+          `duty-${id}`,
+          narrow
+            ? `${staffShortName(id)}\n${availability}`
+            : `${staff.icon ?? '👤'} ${staffShortName(id)}\n${availability}`,
+          x + 16 + col * (cellW + gap),
+          dutyY + row * 48,
+          cellW,
+          'duty',
+          {
+            value: id,
+            pressed: onDuty,
+            disabled: (!available && !onDuty) || (!onDuty && duty.length >= bill.slots),
+            label: `${staff.name}（${employment}、給与${wage}/営業、連勤上限${staff.maxConsecutive}回、休養${staff.restShifts}営業）。現在${onDuty ? '出勤中' : '待機中'}。${
+              available ? (onDuty ? '勤務から外す' : '勤務に入れる') : '休養中で配置不可'
+            }`,
+            size: narrow ? 13 : 11,
+          },
+        );
       });
-      label('assigned', `出勤：${STAFF[view.assigned].name}`, x + 66, rowY, pw - 132, 44, {
-        size: 14,
-      });
-      button('next-staff', '›', x + pw - 60, rowY, 44, 'staff', {
-        value: 1,
-        label: '次の相棒を配置',
-        disabled: roster.length < 2,
-      });
-      const sy = short ? y + 118 : y + 138;
-      label('stock-label', `${STOCK_PRICE} / 個`, x + 16, sy, inside - 168, 44, { size: 13 });
-      button('less', '−', x + pw - 180, sy, 44, 'quantity', {
+      const dutyRows = Math.max(1, Math.ceil(roster.length / columns));
+      const sy = short ? y + 56 + dutyRows * 48 + 4 : y + 86 + dutyRows * 48;
+      label(
+        'duty-summary',
+        bill.error && short
+          ? bill.error
+          : duty.length === 0
+            ? `ひとりで営業  ・  給与 🪙0${short ? `  残り🪙${bill.cash}` : ''}`
+            : `出勤 ${duty.length}/${bill.slots}人  ・  勤務給与 🪙${bill.wages}${short ? `  残り🪙${bill.cash}` : ''}`,
+        x + 16,
+        sy - 4,
+        inside,
+        28,
+        { size: 11, color: bill.error && short ? '#a1372f' : undefined },
+      );
+      const stockY = sy + 22;
+      label('stock-label', `${STOCK_PRICE} / 個`, x + 16, stockY, inside - 168, 44, { size: 13 });
+      button('less', '−', x + pw - 180, stockY, 44, 'quantity', {
         value: -1,
         label: '仕入れを1個減らす',
         disabled: bill.quantity <= 0,
       });
-      add('number', 'quantity', String(view.quantity), x + pw - 132, sy, 64, 44, {
+      add('number', 'quantity', String(view.quantity), x + pw - 132, stockY, 64, 44, {
         label: '仕入れ個数',
         action: 'quantity-input',
       });
-      button('more', '＋', x + pw - 64, sy, 44, 'quantity', {
+      button('more', '＋', x + pw - 64, stockY, 44, 'quantity', {
         value: 1,
         label: '仕入れを1個増やす',
         disabled: bill.quantity >= 99,
       });
-      copy(
-        'bill',
-        `在庫 ${g.stock ?? 0} → ${Number.isFinite(bill.stock) ? bill.stock : '—'}個 / ノルマ ${bill.quota}皿\n採用 ${bill.hiring} ＋ 仕入れ ${Number.isFinite(bill.quantity) ? bill.quantity * STOCK_PRICE : '—'} / 残り ${Number.isFinite(bill.cash) ? bill.cash : '—'}コイン`,
-        short ? 168 : 204,
-        short ? 36 : 48,
-        { size: 12 },
-      );
-      if (bill.error || view.error)
-        copy('error', view.error || bill.error, short ? 205 : 260, 26, {
+      if (!short)
+        copy(
+          'bill',
+          `在庫 ${g.stock ?? 0} → ${Number.isFinite(bill.stock) ? bill.stock : '—'}個 / ノルマ ${bill.quota}皿\n採用 ${bill.hiring} ＋ 仕入れ ${Number.isFinite(bill.quantity) ? bill.quantity * STOCK_PRICE : '—'} ＋ 給与 ${bill.wages} / 残り ${Number.isFinite(bill.cash) ? bill.cash : '—'}コイン`,
+          stockY + 48 - y,
+          42,
+          { size: 12 },
+        );
+      if ((bill.error || view.error) && !short)
+        copy('error', view.error || bill.error, short ? stockY + 82 - y : stockY + 102 - y, 26, {
           color: '#a1372f',
           size: 12,
           live: true,

@@ -1,4 +1,7 @@
-import { STAFF } from './staff.js';
+import { STAFF, staffAvailable } from './staff.js';
+import { levelConfig } from './progression.js';
+
+export { levelConfig, quotaForLevel, MAX_LEVEL } from './progression.js';
 
 // Both cooks use the same mechanics. Jev selects only from feasible actions.
 export const REACH = 68;
@@ -10,7 +13,6 @@ export const POT_BURN_MS = 12_000;
 export const GRILL_BURN_MS = 7000;
 export const SHIFT_MS = 90_000;
 export const STAR_SCORES = [600, 1800, 3600];
-export const MAX_LEVEL = 100;
 export const STOCK_PRICE = 8;
 export const BOOST_MIN = 0.25;
 export const BOOST_MAX = 0.65;
@@ -44,29 +46,6 @@ export const RECIPES = {
   soup: { name: 'トマトスープ', points: 140 },
   roast: { name: '焼きトマト', points: 180 },
 };
-export function levelConfig(level = 1) {
-  const numericLevel = Number(level);
-  const normalized = Number.isFinite(numericLevel)
-    ? Math.min(MAX_LEVEL, Math.max(1, Math.floor(numericLevel)))
-    : 1;
-  const kitchenTier = Math.min(3, normalized);
-  const progress = Math.max(0, (normalized - 3) / (MAX_LEVEL - 3));
-  const soup = kitchenTier >= 2 ? 0.4 - 0.05 * progress : 0;
-  const roast = kitchenTier >= 3 ? 0.2 + 0.1 * progress : 0;
-  return Object.freeze({
-    level: normalized,
-    kitchenTier,
-    stockFinite: normalized >= 2,
-    quota: 4 + 2 * kitchenTier + Math.round(4 * Math.sqrt(progress)),
-    orderWindowMs: Math.round((18 + 18 / (1 + 0.7 * Math.log2(normalized))) * 1000),
-    recipeMix: { dish: 1 - soup - roast, soup, roast },
-  });
-}
-
-export function quotaForLevel(level) {
-  return levelConfig(level).quota;
-}
-
 function stockAmount(value) {
   const amount = Number(value);
   return Number.isFinite(amount) ? Math.max(0, Math.floor(amount)) : 0;
@@ -103,12 +82,52 @@ function syncConfig(g) {
   return g.level;
 }
 
-function staffProfile(g) {
-  return STAFF[g.staffId] ?? STAFF.helper;
+function staffSlotsFor(level, practice = false) {
+  const slots = levelConfig(practice ? 1 : level).staffSlots;
+  return Number.isSafeInteger(slots) && slots >= 0 ? slots : Infinity;
+}
+
+function normalizeDuty(g) {
+  if (!Array.isArray(g.duty)) return [];
+  const limit = staffSlotsFor(g.level, g.practice);
+  const duty = [...new Set(g.duty)].filter(
+    (id) => Object.hasOwn(g.crew ?? {}, id) && staffAvailable(g.staffState, id),
+  );
+  g.duty = Number.isFinite(limit) ? duty.slice(0, limit) : duty;
+  return g.duty;
+}
+
+function resolveWho(g, who) {
+  return who ?? g.duty?.[0] ?? null;
+}
+
+function makeActor(x, y) {
+  return {
+    x,
+    y,
+    carrying: null,
+    station: null,
+    action: null,
+    quality: false,
+    lastActions: [],
+    intent: null,
+    dashUntil: 0,
+    dashReadyAt: 0,
+  };
+}
+
+export function actor(g, who) {
+  const id = who === 'ai' ? (g?.staffId ?? g?.duty?.[0]) : resolveWho(g, who);
+  return id === 'human' ? (g?.human ?? null) : (g?.crew?.[id] ?? null);
+}
+
+export function staffProfile(g, who) {
+  const id = who === 'ai' ? (g?.staffId ?? g?.duty?.[0]) : who;
+  return id && id !== 'human' ? (STAFF[id] ?? null) : null;
 }
 
 function canOperate(g, who, capability) {
-  return who === 'human' || staffProfile(g).capabilities?.includes(capability);
+  return who === 'human' || staffProfile(g, who)?.capabilities?.includes(capability);
 }
 
 function capabilityFailure(g, who, capability) {
@@ -127,11 +146,13 @@ function actionCapability(id) {
 
 function cookDuration(g, who, stationId) {
   const base = stationId === 'grill' ? GRILL_MS : COOK_MS;
-  return who === 'ai' ? Math.round(base * staffProfile(g).cook) : base;
+  const profile = staffProfile(g, who);
+  return profile ? Math.round(base * profile.cook) : base;
 }
 
 function chopDuration(g, who) {
-  return who === 'ai' ? Math.round(CHOP_MS * staffProfile(g).chop) : CHOP_MS;
+  const profile = staffProfile(g, who);
+  return profile ? Math.round(CHOP_MS * profile.chop) : CHOP_MS;
 }
 
 export function activeStationIds(g) {
@@ -159,6 +180,8 @@ export function createGame({
   cash = 120,
   staffId = 'helper',
   hired = ['helper'],
+  duty,
+  staffState = {},
   stock = null,
 } = {}) {
   const initialConfig = levelConfig(practice ? 1 : level);
@@ -166,23 +189,46 @@ export function createGame({
   const initialCash = Number.isFinite(Number(cash)) ? Math.max(0, Math.floor(Number(cash))) : 120;
   const initialStaff = Object.hasOwn(STAFF, staffId) ? staffId : 'helper';
   const roster = Array.isArray(hired) ? hired : [];
-  const initialHired = [
-    ...new Set(['helper', initialStaff, ...roster.filter((id) => Object.hasOwn(STAFF, id))]),
-  ];
+  const requestedDuty = Array.isArray(duty) ? duty : [initialStaff];
+  const initialHired = [...new Set(['helper', ...roster, ...requestedDuty])].filter((id) =>
+    Object.hasOwn(STAFF, id),
+  );
+  const normalizedStaffState = Object.fromEntries(
+    initialHired.map((id) => {
+      const profile = STAFF[id];
+      const supplied = staffState?.[id] ?? {};
+      if (!initialConfig.fatigueEnabled) return [id, { worked: 0, rest: 0 }];
+      const worked = Number.isSafeInteger(supplied.worked)
+        ? Math.max(0, Math.min(profile.maxConsecutive - 1, supplied.worked))
+        : 0;
+      const rest = Number.isSafeInteger(supplied.rest)
+        ? Math.max(0, Math.min(profile.restShifts, supplied.rest))
+        : 0;
+      return [id, { worked: rest > 0 ? 0 : worked, rest }];
+    }),
+  );
+  const initialDuty = [...new Set(requestedDuty)].filter(
+    (id) => initialHired.includes(id) && staffAvailable(normalizedStaffState, id),
+  );
+  const dutyLimit = staffSlotsFor(initialLevel, practice);
+  if (Number.isFinite(dutyLimit)) initialDuty.splice(dutyLimit);
   const initialStock = practice || !initialConfig.stockFinite ? null : stockAmount(stock);
   const g = {
     practice,
     level: initialLevel,
     duration: practice ? Infinity : SHIFT_MS,
+    staffId: initialDuty[0] ?? initialStaff,
     quota: practice ? 1 : initialConfig.quota,
     cash: initialCash,
-    staffId: initialStaff,
     hired: initialHired,
+    duty: initialDuty,
+    staffState: normalizedStaffState,
     stock: initialStock,
     time: 0,
     served: 0,
     score: 0,
     burned: 0,
+    rushSpawned: false,
     combo: 0,
     bestCombo: 0,
     missed: 0,
@@ -234,16 +280,14 @@ export function createGame({
       dashUntil: 0,
       dashReadyAt: 0,
     },
-    ai: {
-      x: 550,
-      y: 300,
-      carrying: null,
-      station: null,
-      action: null,
-      quality: false,
-      intent: null,
-    },
+    crew: Object.fromEntries(
+      initialDuty.map((id, index) => [
+        id,
+        makeActor(520 + (index % 3) * 60, 255 + Math.floor(index / 3) * 60),
+      ]),
+    ),
   };
+  g.ai = g.crew[g.staffId] ?? null;
   g.orders = practice
     ? [order(g, Infinity, 'dish')]
     : [order(g, initialOrderDeadline(g, 0)), order(g, initialOrderDeadline(g, 1))];
@@ -258,8 +302,9 @@ export function completeOnboarding(g) {
   const fresh = createGame({
     level: 1,
     cash: g.cash,
-    staffId: g.staffId,
     hired: g.hired,
+    duty: g.duty,
+    staffState: g.staffState,
   });
   Object.assign(g, fresh, {
     served,
@@ -270,7 +315,8 @@ export function completeOnboarding(g) {
 }
 
 export function stationAt(g, who) {
-  const e = g[who];
+  const e = actor(g, who);
+  if (!e) return { id: null, dist: Infinity, inReach: false };
   let id = null;
   let dist = Infinity;
   for (const key of activeStationIds(g)) {
@@ -298,10 +344,13 @@ export function moveToward(e, x, y, step) {
   return false;
 }
 
-export function dash(g) {
-  if ((!g.practice && g.time >= g.duration) || g.time < g.human.dashReadyAt) return false;
-  g.human.dashUntil = g.time + 220;
-  g.human.dashReadyAt = g.time + 1800;
+export function dash(g, who = 'human') {
+  const e = actor(g, who);
+  const profile = staffProfile(g, who);
+  if (!e || (who !== 'human' && !profile?.canDash)) return false;
+  if ((!g.practice && g.time >= g.duration) || g.time < e.dashReadyAt) return false;
+  e.dashUntil = g.time + 220;
+  e.dashReadyAt = g.time + 1800;
   return true;
 }
 
@@ -327,27 +376,90 @@ function startHeat(g, who, stationId, st, quality = false) {
   st.by = who;
 }
 
-function tryBoost(g, who, st) {
-  if (g.practice) return { ok: false, reason: '練習では切り終わるまで待とう' };
-  if (who !== 'human') return { ok: false, reason: '相棒は自動で仕上げるよ' };
-  if (st.boosted || !['chopping', 'cooking'].includes(st.state) || g.time < st.startedAt)
-    return { ok: false, reason: '今は仕上げられないよ' };
+function boostAvailable(g, st) {
+  if (g.practice || !levelConfig(g.level).boostEnabled) return false;
+  if (!['chopping', 'cooking'].includes(st.state) || st.boosted || !st.duration) return false;
   const progress = (g.time - st.startedAt) / st.duration;
-  if (progress < BOOST_MIN || progress > BOOST_MAX)
-    return { ok: false, reason: '仕上げの合図を待とう' };
+  return progress >= BOOST_MIN && progress <= BOOST_MAX;
+}
+
+function tryBoost(g, who, st) {
+  if (who !== 'human') return { ok: false, reason: '相棒は自動で仕上げるよ' };
+  if (!boostAvailable(g, st)) return { ok: false, reason: '仕上げの合図を待とう' };
   st.busyUntil = g.time + Math.max(350, Math.round((st.busyUntil - g.time) * 0.45));
   st.boosted = true;
   st.quality = true;
   return { ok: true, action: '調理を早めた', quality: true };
 }
 
+const EXCLUSIVE_STATIONS = new Set(['board', 'pot', 'grill']);
+
+function crewIds(g) {
+  return Array.isArray(g.duty) ? g.duty : Object.keys(g.crew ?? {});
+}
+
+function otherCrew(g, who, predicate) {
+  return crewIds(g).some((id) => id !== who && predicate(id, actor(g, id)));
+}
+
+function stationReserved(g, stationId, who) {
+  return (
+    who !== 'human' &&
+    EXCLUSIVE_STATIONS.has(stationId) &&
+    otherCrew(g, who, (_id, e) => e?.intent?.station === stationId)
+  );
+}
+
+function actionReserved(g, actionId, who) {
+  return otherCrew(g, who, (_id, e) => e?.intent?.id === actionId);
+}
+
+function canFetchTomato(g, who) {
+  if (g.stock !== null && g.stock <= 0) return false;
+  if (who === 'human') return true;
+  return (
+    !otherCrew(g, who, (_id, e) => e?.carrying === 'tomato' || e?.intent?.id === 'fetch_tomato') &&
+    g.human.carrying !== 'tomato'
+  );
+}
+
+function plateDemand(g) {
+  return [
+    g.stations.board.state === 'chopped' && g.orders.some((o) => o.recipe === 'dish'),
+    g.stations.pot.state === 'ready' && g.orders.some((o) => o.recipe === 'soup'),
+    g.stations.grill.state === 'ready' && g.orders.some((o) => o.recipe === 'roast'),
+  ].filter(Boolean).length;
+}
+
+function plateSlotsUsed(g, who) {
+  const held = [g.human, ...crewIds(g).map((id) => actor(g, id))].filter(
+    (e) => e?.carrying === 'plate',
+  ).length;
+  const reserved = crewIds(g).filter(
+    (id) => id !== who && actor(g, id)?.intent?.id === 'fetch_plate',
+  ).length;
+  return held + reserved;
+}
+
+function canFetchPlate(g, who) {
+  return plateDemand(g) > plateSlotsUsed(g, who) && !actionReserved(g, 'fetch_plate', who);
+}
+
 export function interact(g, who, stationId) {
   syncConfig(g);
-  const e = g[who],
+  normalizeDuty(g);
+  who = resolveWho(g, who);
+  const activeWho = who === 'ai' ? (g.staffId ?? g.duty[0]) : who;
+  if (activeWho !== 'human' && !g.duty.includes(activeWho))
+    return { ok: false, reason: 'その相棒は今シフトに入っていません' };
+  const e = actor(g, who),
     st = g.stations[stationId];
+  if (!e) return { ok: false, reason: '担当者が見つかりません' };
   if (!st) return { ok: false, reason: 'ここでは作業できません' };
   if (!g.practice && g.time >= g.duration) return { ok: false, reason: '営業時間外です' };
   if (!activeStationIds(g).includes(stationId)) return { ok: false, reason: 'まだ準備中です' };
+  if (who !== 'human' && stationReserved(g, stationId, who))
+    return { ok: false, reason: '相棒がその作業台を使っています' };
   const success = (action) => ({ ok: true, action });
   const boostStation =
     (stationId === 'board' && st.state === 'chopping') ||
@@ -360,6 +472,8 @@ export function interact(g, who, stationId) {
       if (!e.carrying) {
         const denied = capabilityFailure(g, who, 'prep');
         if (denied) return denied;
+        if (!canFetchTomato(g, who))
+          return { ok: false, reason: '別の担当者がトマトを運んでいます' };
         if (g.stock !== null && g.stock <= 0)
           return { ok: false, reason: 'トマトの在庫がありません' };
         e.carrying = 'tomato';
@@ -389,6 +503,8 @@ export function interact(g, who, stationId) {
       if (!e.carrying) {
         const denied = capabilityFailure(g, who, 'serve');
         if (denied) return denied;
+        if (who !== 'human' && !canFetchPlate(g, who))
+          return { ok: false, reason: '今は必要なお皿がありません' };
         e.carrying = 'plate';
         e.quality = false;
         return success('お皿を取った');
@@ -527,15 +643,18 @@ export function interact(g, who, stationId) {
 }
 
 export function discard(g, who) {
-  if (!g[who].carrying || (!g.practice && g.time >= g.duration)) return false;
-  g[who].carrying = null;
-  g[who].quality = null;
+  const e = actor(g, who);
+  if (!e?.carrying || (!g.practice && g.time >= g.duration)) return false;
+  e.carrying = null;
+  e.quality = null;
   g.combo = 0;
   return true;
 }
 
 export function advance(g, elapsed = 0) {
   syncConfig(g);
+  const config = levelConfig(g.level);
+  normalizeDuty(g);
   g.time = g.practice
     ? g.time + Math.max(0, elapsed)
     : Math.min(g.duration, g.time + Math.max(0, elapsed));
@@ -548,7 +667,7 @@ export function advance(g, elapsed = 0) {
     const st = g.stations[id];
     if (st.state === 'cooking' && g.time >= st.busyUntil) {
       st.state = 'ready';
-      st.burnAt = st.busyUntil + burnMs;
+      st.burnAt = config.burningEnabled && !g.practice ? st.busyUntil + burnMs : 0;
     }
     if (st.state === 'ready' && st.burnAt && g.time >= st.burnAt) {
       st.state = 'burnt';
@@ -568,30 +687,30 @@ export function advance(g, elapsed = 0) {
       return order(g, g.time + orderWindowMs(g));
     })
     .sort((a, b) => a.deadline - b.deadline);
+  if (config.rushEnabled && !g.rushSpawned && g.time >= SHIFT_MS / 2) {
+    g.rushSpawned = true;
+    g.orders.push(order(g, g.time + Math.round((config.orderWindowMs * 4) / 3)));
+  }
 }
 
-export function buildCandidates(g, who = 'ai') {
+export function buildCandidates(g, who) {
   syncConfig(g);
-  const e = g[who],
+  normalizeDuty(g);
+  const id = resolveWho(g, who);
+  const e = actor(g, id),
     b = g.stations.board,
     p = g.stations.pot,
     grill = g.stations.grill,
     active = activeStationIds(g);
   const out = [];
-  const add = (id, label, station) => {
-    const capability = actionCapability(id);
-    if (capability && !canOperate(g, who, capability)) return;
-    out.push({ id, label, station });
+  const add = (actionId, label, station) => {
+    const capability = actionCapability(actionId);
+    if (capability && !canOperate(g, id, capability)) return;
+    if (station && stationReserved(g, station, id)) return;
+    out.push({ id: actionId, label, station });
   };
   const needs = (recipe) => g.orders.some((o) => o.recipe === recipe);
-  const canFetchTomato = g.stock === null || g.stock > 0;
-  const canBoost = (st) => {
-    if (g.practice) return false;
-    if (!['chopping', 'cooking'].includes(st.state) || st.boosted || !st.duration) return false;
-    const progress = (g.time - st.startedAt) / st.duration;
-    return progress >= BOOST_MIN && progress <= BOOST_MAX;
-  };
-  if (g.practice || g.time < g.duration) {
+  if (e && (g.practice || g.time < g.duration)) {
     if (RECIPES[e.carrying]) {
       if (g.orders.some((o) => o.recipe === e.carrying))
         add('serve', '完成した料理を配膳する', 'serve');
@@ -618,8 +737,7 @@ export function buildCandidates(g, who = 'ai') {
       else add('return_tomato', 'トマトを戻して別の仕事を手伝う', 'crate');
     }
     if (!e.carrying) {
-      if (b.state === 'idle' && canFetchTomato && g.human.carrying !== 'tomato')
-        add('fetch_tomato', 'トマトを取る', 'crate');
+      if (b.state === 'idle' && canFetchTomato(g, id)) add('fetch_tomato', 'トマトを取る', 'crate');
       if (
         b.state === 'chopped' &&
         ((active.includes('pot') && p.state === 'idle' && needs('soup')) ||
@@ -630,27 +748,33 @@ export function buildCandidates(g, who = 'ai') {
         add('clean_pot', '焦げた鍋を片づける', 'pot');
       if (active.includes('grill') && grill.state === 'burnt')
         add('clean_grill', '焦げたグリルを片づける', 'grill');
-      if (who === 'human' && canBoost(b)) add('boost_board', 'まな板の仕上げを早める', 'board');
-      if (who === 'human' && active.includes('pot') && canBoost(p))
+      if (id === 'human' && boostAvailable(g, b))
+        add('boost_board', 'まな板の仕上げを早める', 'board');
+      if (id === 'human' && active.includes('pot') && boostAvailable(g, p))
         add('boost_pot', '鍋の仕上げを早める', 'pot');
-      if (who === 'human' && active.includes('grill') && canBoost(grill))
+      if (id === 'human' && active.includes('grill') && boostAvailable(g, grill))
         add('boost_grill', 'グリルの仕上げを早める', 'grill');
       if (
-        (b.state === 'chopped' && needs('dish')) ||
-        (active.includes('pot') && p.state === 'ready' && needs('soup')) ||
-        (active.includes('grill') && grill.state === 'ready' && needs('roast'))
+        ((b.state === 'chopped' && needs('dish')) ||
+          (active.includes('pot') && p.state === 'ready' && needs('soup')) ||
+          (active.includes('grill') && grill.state === 'ready' && needs('roast'))) &&
+        canFetchPlate(g, id)
       )
         add('fetch_plate', 'お皿を用意する', 'plates');
     }
   }
-  add('wait', '今は動かず、様子を見る', null);
+  out.push({ id: 'wait', label: '今は動かず、様子を見る', station: null });
   return out;
 }
 
 // Execution and candidate generation share the same preconditions.
-export function isFeasible(g, cand, who = 'ai') {
+export function isFeasible(g, cand, who) {
+  const id = resolveWho(g, who);
   return (
-    !!cand && buildCandidates(g, who).some((c) => c.id === cand.id && c.station === cand.station)
+    !!cand &&
+    buildCandidates(g, id).some(
+      (candidate) => candidate.id === cand.id && candidate.station === cand.station,
+    )
   );
 }
 
@@ -665,8 +789,47 @@ export function buildQuestions(cands) {
   };
 }
 
-export function observe(g, policy) {
+function actorObservation(e) {
+  return e
+    ? {
+        carrying: e.carrying,
+        at_station: e.station,
+        last_action: e.action,
+        recent_actions: e.lastActions?.slice(-4).map((a) => a.label) ?? [],
+        intent: e.intent ? { id: e.intent.id, station: e.intent.station } : null,
+        quality: e.quality,
+      }
+    : null;
+}
+
+function staffObservation(g, id) {
+  const profile = staffProfile(g, id);
+  if (!profile) return null;
+  return {
+    id,
+    name: profile.name,
+    role: profile.role,
+    employment: profile.employment,
+    wage: profile.wage,
+    max_consecutive: profile.maxConsecutive,
+    rest_shifts: profile.restShifts,
+    worked: g.staffState?.[id]?.worked ?? 0,
+    rest: g.staffState?.[id]?.rest ?? 0,
+    speed: profile.speed,
+    chop: profile.chop,
+    cook: profile.cook,
+    capabilities: profile.capabilities,
+    can_dash: profile.canDash,
+    decision_interval_ms: profile.decisionMs,
+  };
+}
+
+export function observe(g, policy, who) {
   syncConfig(g);
+  const id = resolveWho(g, who);
+  const crew = Object.fromEntries(
+    crewIds(g).map((crewId) => [crewId, actorObservation(actor(g, crewId))]),
+  );
   return {
     practice: g.practice,
     level: g.level,
@@ -675,25 +838,13 @@ export function observe(g, policy) {
     duration_seconds: Number.isFinite(g.duration) ? Math.ceil(g.duration / 1000) : null,
     cash: g.cash,
     hired: g.hired,
-    staff: {
-      id: g.staffId,
-      name: staffProfile(g).name,
-      role: staffProfile(g).role,
-      speed: staffProfile(g).speed,
-      chop: staffProfile(g).chop,
-      cook: staffProfile(g).cook,
-      capabilities: staffProfile(g).capabilities,
-      can_dash: staffProfile(g).canDash,
-      decision_interval_ms: staffProfile(g).decisionMs,
-    },
+    duty: g.duty,
+    staff_state: g.staffState,
+    staff: staffObservation(g, id),
+    actor: actorObservation(actor(g, id)),
+    crew,
     policy: policy?.trim() || null,
-    human: {
-      carrying: g.human.carrying,
-      at_station: g.human.station,
-      last_action: g.human.action,
-      recent_actions: g.human.lastActions.slice(-4).map((a) => a.label),
-    },
-    ai: { carrying: g.ai.carrying, last_action: g.ai.action },
+    human: actorObservation(g.human),
     board: g.stations.board.state,
     pot: g.stations.pot.state,
     grill: g.stations.grill.state,
@@ -706,7 +857,12 @@ export function observe(g, policy) {
         ? Math.max(0, Math.ceil((g.stations.grill.burnAt - g.time) / 1000))
         : null,
     burned: g.burned,
-    quality: { human: g.human.quality, ai: g.ai.quality },
+    quality: {
+      human: g.human.quality,
+      ...Object.fromEntries(
+        crewIds(g).map((crewId) => [crewId, actor(g, crewId)?.quality ?? false]),
+      ),
+    },
     board_operator: g.stations.board.state === 'chopping' ? g.stations.board.by : null,
     orders: g.orders.map((o) => ({
       recipe: o.recipe,
@@ -717,10 +873,11 @@ export function observe(g, policy) {
   };
 }
 
-export function rulePick(g, cands) {
+export function rulePick(g, cands, who) {
+  const id = resolveWho(g, who);
   const h = g.human;
   const leadRecipe = [...g.orders].sort((a, b) => a.deadline - b.deadline)[0]?.recipe;
-  const role = staffProfile(g).role;
+  const role = staffProfile(g, id)?.role ?? 'allrounder';
   const rolePriority =
     role === 'runner'
       ? [
@@ -789,6 +946,7 @@ export function rulePick(g, cands) {
   priority.push('fetch_tomato', 'return_plate', 'return_tomato', 'discard', 'wait');
   const usable = cands.filter((c) => {
     if (c.station && c.station === h.station) return false;
+    if (c.station && stationReserved(g, c.station, id)) return false;
     if (c.id === 'fetch_tomato' && h.carrying === 'tomato') return false;
     if (c.id === 'fetch_plate' && h.carrying === 'plate') return false;
     return true;
@@ -816,10 +974,7 @@ export function actionHint(g, id) {
   if (id === 'board') {
     const board = g.stations.board;
     if (board.state === 'chopping') {
-      const progress = board.duration ? (g.time - board.startedAt) / board.duration : 0;
-      return !item && !board.boosted && progress >= BOOST_MIN && progress <= BOOST_MAX
-        ? '仕上げる'
-        : '切り終わるまで待つ';
+      return !item && boostAvailable(g, board) ? '仕上げる' : '切り終わるまで待つ';
     }
     if (board.state === 'chopped') {
       if (item === 'plate') return 'サラダを盛る';
@@ -833,10 +988,7 @@ export function actionHint(g, id) {
   if (id === 'pot') {
     const pot = g.stations.pot;
     if (pot.state === 'cooking') {
-      const progress = pot.duration ? (g.time - pot.startedAt) / pot.duration : 0;
-      return !item && !pot.boosted && progress >= BOOST_MIN && progress <= BOOST_MAX
-        ? '仕上げる'
-        : '煮込み中、別の仕事へ';
+      return !item && boostAvailable(g, pot) ? '仕上げる' : '煮込み中、別の仕事へ';
     }
     if (pot.state === 'burnt') return !item ? '焦げを片づける' : '鍋を片づけよう';
     if (pot.state === 'ready') return item === 'plate' ? 'スープを盛る' : 'お皿を持ってくる';
@@ -847,10 +999,7 @@ export function actionHint(g, id) {
   if (id === 'grill') {
     const grill = g.stations.grill;
     if (grill.state === 'cooking') {
-      const progress = grill.duration ? (g.time - grill.startedAt) / grill.duration : 0;
-      return !item && !grill.boosted && progress >= BOOST_MIN && progress <= BOOST_MAX
-        ? '仕上げる'
-        : '焼き上がりを待とう';
+      return !item && boostAvailable(g, grill) ? '仕上げる' : '焼き上がりを待とう';
     }
     if (grill.state === 'burnt') return !item ? '焦げを片づける' : 'グリルを片づけよう';
     if (grill.state === 'ready') return item === 'plate' ? '焼きトマトを盛る' : 'お皿を持ってくる';

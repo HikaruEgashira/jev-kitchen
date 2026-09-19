@@ -15,6 +15,10 @@ import {
   retryShift,
   togglePause,
   setMenuOpen,
+  setCameraMode,
+  setMovementMode,
+  rollbackToPreparation,
+  rollbackToPreviousStage,
   toggleSound,
   humanInteract,
   humanDash,
@@ -172,7 +176,7 @@ const Tile = memo(function Tile({ item, active, activate, hover }) {
 function Screen() {
   const s = useKitchen();
   const { size, gl } = useThree();
-  const [view, setView] = useState(() => preparation(s.game));
+  const [view, setView] = useState(() => preparation(s.game, s.reviewing));
   const [focus, setFocus] = useState(null);
   const [hover, setHover] = useState(null);
   const controls = useRef(new Map());
@@ -190,6 +194,12 @@ function Screen() {
       case 'retry':
         retryShift();
         break;
+      case 'review':
+        rollbackToPreparation();
+        break;
+      case 'previous':
+        rollbackToPreviousStage();
+        break;
       case 'pause':
         togglePause();
         break;
@@ -201,6 +211,12 @@ function Screen() {
         break;
       case 'sound':
         toggleSound();
+        break;
+      case 'camera':
+        setCameraMode(value);
+        break;
+      case 'movement':
+        setMovementMode(value);
         break;
       case 'menu-page':
         patch({ menuPage: value });
@@ -217,6 +233,16 @@ function Screen() {
       case 'clear':
         clearHands();
         break;
+      case 'duty': {
+        const current = [...new Set(Array.isArray(view.duty) ? view.duty : [])];
+        if (current.includes(value)) {
+          patch({ duty: current.filter((id) => id !== value) });
+        } else {
+          const slots = Number(item.slots ?? item.max ?? 0) || Number(purchase(g, view).slots ?? 1);
+          if (current.length < slots) patch({ duty: [...current, value] });
+        }
+        break;
+      }
       case 'page':
         patch({ page: value });
         break;
@@ -226,13 +252,10 @@ function Screen() {
         });
         break;
       case 'hire':
-        patch({ selected: value, assigned: value });
+        patch({ selected: value });
         break;
       case 'skip':
-        patch({
-          selected: null,
-          assigned: g.hired.includes(view.assigned) ? view.assigned : g.staffId,
-        });
+        patch({ selected: null });
         break;
       case 'quantity':
         patch({ quantity: Math.min(99, Math.max(0, (Number(view.quantity) || 0) + value)) });
@@ -240,19 +263,9 @@ function Screen() {
       case 'quantity-input':
         patch({ quantity: value });
         break;
-      case 'staff': {
-        const roster = [
-          ...g.hired,
-          ...(view.selected && !g.hired.includes(view.selected) ? [view.selected] : []),
-        ];
-        patch({
-          assigned: roster[(roster.indexOf(view.assigned) + value + roster.length) % roster.length],
-        });
-        break;
-      }
       case 'next': {
         const bill = purchase(g, view);
-        if (!bill.error && !nextShift(view.selected, bill.quantity, view.assigned))
+        if (!bill.error && !nextShift(view.selected, bill.quantity, bill.duty))
           patch({ error: '準備内容を確認してください。' });
         break;
       }

@@ -1,4 +1,6 @@
-// One active partner: hiring changes real movement, preparation and decision priorities.
+import { levelConfig } from './progression.js';
+
+// Staff profiles keep movement, capabilities, payroll, and fatigue in one table.
 export const STAFF = Object.freeze({
   helper: {
     name: '見習いのハル',
@@ -7,6 +9,10 @@ export const STAFF = Object.freeze({
     description: '切る・盛る担当。煮る・焼くはあなた。',
     capabilities: ['prep', 'serve'],
     canDash: false,
+    employment: 'アルバイト',
+    wage: 12,
+    maxConsecutive: 4,
+    restShifts: 1,
     cost: 0,
     decisionMs: 1800,
     speed: 1,
@@ -20,6 +26,10 @@ export const STAFF = Object.freeze({
     description: '運搬と盛り付け専門。足が速い。',
     capabilities: ['serve'],
     canDash: false,
+    employment: 'アルバイト',
+    wage: 20,
+    maxConsecutive: 2,
+    restShifts: 1,
     cost: 80,
     decisionMs: 1400,
     speed: 1.18,
@@ -33,6 +43,10 @@ export const STAFF = Object.freeze({
     description: '仕込みと加熱専門。配膳はしない。',
     capabilities: ['prep', 'cook'],
     canDash: false,
+    employment: '正社員',
+    wage: 45,
+    maxConsecutive: 3,
+    restShifts: 2,
     cost: 180,
     decisionMs: 900,
     speed: 0.9,
@@ -46,6 +60,10 @@ export const STAFF = Object.freeze({
     description: '全工程に対応。締切を優先。',
     capabilities: ['prep', 'cook', 'serve'],
     canDash: false,
+    employment: '正社員',
+    wage: 60,
+    maxConsecutive: 2,
+    restShifts: 2,
     cost: 260,
     decisionMs: 500,
     speed: 1.05,
@@ -59,6 +77,10 @@ export const STAFF = Object.freeze({
     description: '切る専門。手際がいい。',
     capabilities: ['prep'],
     canDash: false,
+    employment: 'アルバイト',
+    wage: 16,
+    maxConsecutive: 3,
+    restShifts: 1,
     cost: 60,
     decisionMs: 2000,
     speed: 1,
@@ -72,6 +94,10 @@ export const STAFF = Object.freeze({
     description: '配膳専門。ダッシュで届ける。',
     capabilities: ['serve'],
     canDash: true,
+    employment: 'アルバイト',
+    wage: 32,
+    maxConsecutive: 2,
+    restShifts: 1,
     cost: 200,
     decisionMs: 1200,
     speed: 1.2,
@@ -85,6 +111,10 @@ export const STAFF = Object.freeze({
     description: '全工程に対応。ダッシュもできる。',
     capabilities: ['prep', 'cook', 'serve'],
     canDash: true,
+    employment: '正社員',
+    wage: 85,
+    maxConsecutive: 2,
+    restShifts: 2,
     cost: 420,
     decisionMs: 300,
     speed: 1.15,
@@ -92,3 +122,45 @@ export const STAFF = Object.freeze({
     cook: 0.8,
   },
 });
+
+function staffStateOf(g, id) {
+  const state = g.staffState?.[id];
+  return {
+    worked: Number.isSafeInteger(state?.worked) && state.worked >= 0 ? state.worked : 0,
+    rest: Number.isSafeInteger(state?.rest) && state.rest >= 0 ? state.rest : 0,
+  };
+}
+export function staffAvailable(state, id) {
+  return Object.hasOwn(STAFF, id) && state?.[id]?.rest === 0;
+}
+
+export function payroll(duty) {
+  return [...new Set(Array.isArray(duty) ? duty : [])].reduce(
+    (total, id) => total + (STAFF[id]?.wage ?? 0),
+    0,
+  );
+}
+
+export function nextStaffState(g) {
+  if (!levelConfig(g.practice ? 1 : g.level).fatigueEnabled)
+    return Object.fromEntries(
+      (Array.isArray(g.hired) ? g.hired : [])
+        .filter((id) => Object.hasOwn(STAFF, id))
+        .map((id) => [id, { worked: 0, rest: 0 }]),
+    );
+  const duty = new Set(Array.isArray(g.duty) ? g.duty : []);
+  return Object.fromEntries(
+    (Array.isArray(g.hired) ? g.hired : [])
+      .filter((id) => Object.hasOwn(STAFF, id))
+      .map((id) => {
+        const profile = STAFF[id];
+        const current = staffStateOf(g, id);
+        if (current.rest > 0) return [id, { worked: 0, rest: Math.max(0, current.rest - 1) }];
+        if (!duty.has(id)) return [id, { worked: 0, rest: Math.max(0, current.rest - 1) }];
+        const worked = current.worked + 1;
+        return worked >= profile.maxConsecutive
+          ? [id, { worked: 0, rest: profile.restShifts }]
+          : [id, { worked, rest: 0 }];
+      }),
+  );
+}

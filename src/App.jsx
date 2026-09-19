@@ -21,7 +21,7 @@ export default function App() {
       <div id="ui-access" />
       <Suspense
         fallback={
-          <div className="graphics-error" role="status">
+          <div className="sr-only" role="status">
             キッチンを準備しています…
           </div>
         }

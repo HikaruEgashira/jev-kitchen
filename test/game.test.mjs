@@ -7,6 +7,8 @@ import {
   setPolicy,
   togglePause,
   setMenuOpen,
+  setCameraMode,
+  setMovementMode,
   tick,
   installControls,
   graphicsLost,
@@ -17,7 +19,7 @@ import {
   retryShift,
   CHECKPOINT_KEY,
 } from '../src/game.js';
-import { STATIONS, SHIFT_MS, MAX_LEVEL, quotaForLevel } from '../src/model.js';
+import { STATIONS, SHIFT_MS, MAX_LEVEL, quotaForLevel, createGame } from '../src/model.js';
 import { STAFF } from '../src/staff.js';
 
 const storage = new Map([['sidekick-onboarded-v1', '1']]);
@@ -35,7 +37,111 @@ test.beforeEach(() => {
   storage.clear();
   storage.set('sidekick-onboarded-v1', '1');
   installTestStorage();
-  useKitchen.setState({ ready: true, phase: 'ready', menuOpen: false });
+  useKitchen.setState({
+    ready: true,
+    phase: 'ready',
+    menuOpen: false,
+    cameraMode: 'auto',
+    movementMode: 'screen',
+  });
+});
+
+test('camera settings preserve the shift and do not resume a paused menu', () => {
+  setCameraMode('follow');
+  startShift();
+  assert.equal(useKitchen.getState().cameraMode, 'follow');
+  const game = useKitchen.getState().game;
+  setMenuOpen(true);
+  setCameraMode('overview');
+  assert.equal(useKitchen.getState().cameraMode, 'overview');
+  setCameraMode('invalid');
+  assert.equal(useKitchen.getState().cameraMode, 'overview');
+  tick(30);
+  assert.equal(useKitchen.getState().game, game);
+  assert.equal(game.time, 0);
+  assert.equal(useKitchen.getState().phase, 'paused');
+  setMenuOpen(false);
+  assert.equal(useKitchen.getState().phase, 'paused');
+  setCameraMode('auto');
+  assert.equal(useKitchen.getState().cameraMode, 'auto');
+});
+
+test('keyboard movement keeps equal speed in screen and grid modes', () => {
+  const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
+  const windowListeners = new Map();
+  const fakeWindow = {
+    addEventListener(type, listener) {
+      windowListeners.set(type, listener);
+    },
+    removeEventListener(type) {
+      windowListeners.delete(type);
+    },
+  };
+  const fakeDocument = {
+    hidden: false,
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const target = { closest: () => null };
+  const event = (key, repeat = false) => ({
+    key,
+    repeat,
+    target,
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    preventDefault() {},
+  });
+  globalThis.window = fakeWindow;
+  globalThis.document = fakeDocument;
+  try {
+    setMode('rule');
+    startShift();
+    const cleanup = installControls();
+    const g = useKitchen.getState().game;
+    const move = (mode, keys) => {
+      setMovementMode(mode);
+      g.human.x = 600;
+      g.human.y = 290;
+      for (const key of keys) windowListeners.get('keydown')(event(key));
+      tick(0.2);
+      for (const key of keys) windowListeners.get('keyup')(event(key));
+      return { x: g.human.x - 600, y: g.human.y - 290 };
+    };
+    const distance = ({ x, y }) => Math.hypot(x, y);
+    const screenRight = move('screen', ['d']);
+    const screenLeft = move('screen', ['a']);
+    const screenUp = move('screen', ['w']);
+    const screenDown = move('screen', ['s']);
+    const screenDiagonal = move('screen', ['d', 's']);
+    for (const displacement of [screenRight, screenLeft, screenUp, screenDown, screenDiagonal])
+      assert.ok(Math.abs(distance(displacement) - 45) < 0.001);
+    assert.ok(screenRight.y < 0);
+
+    const gridRight = move('grid', ['d']);
+    const gridDiagonal = move('grid', ['d', 's']);
+    assert.ok(Math.abs(distance(gridRight) - 45) < 0.001);
+    assert.ok(Math.abs(distance(gridDiagonal) - 45) < 0.001);
+    assert.equal(gridRight.y, 0);
+    assert.ok(gridDiagonal.x > 0 && gridDiagonal.y > 0);
+    setMovementMode('invalid');
+    assert.equal(useKitchen.getState().movementMode, 'grid');
+    const phase = useKitchen.getState().phase;
+    const time = g.time;
+    setMovementMode('screen');
+    assert.equal(useKitchen.getState().phase, phase);
+    assert.equal(g.time, time);
+    setMovementMode('grid');
+    togglePause();
+    startShift();
+    assert.equal(useKitchen.getState().movementMode, 'grid');
+    cleanup();
+  } finally {
+    globalThis.window = originalWindow;
+    globalThis.document = originalDocument;
+    if (useKitchen.getState().phase === 'playing') togglePause();
+  }
 });
 
 test('a 90-second shift clears only after its quota and offers three applicants', () => {
@@ -182,7 +288,7 @@ test('staff decision intervals apply without a hidden minimum or overlapping req
     };
     for (const staffId of ['veteran', 'helper']) {
       startShift();
-      useKitchen.getState().game.staffId = staffId;
+      useKitchen.setState({ game: createGame({ duty: [staffId], hired: ['helper', staffId] }) });
       setMode('jev');
       calls = 0;
       tick(0.01);
@@ -203,7 +309,7 @@ test('staff decision intervals apply without a hidden minimum or overlapping req
       });
     };
     startShift();
-    useKitchen.getState().game.staffId = 'veteran';
+    useKitchen.setState({ game: createGame({ duty: ['veteran'], hired: ['helper', 'veteran'] }) });
     setMode('jev');
     for (let index = 0; index < 300; index++) tick(0.01);
     assert.equal(calls, 1);
@@ -251,7 +357,7 @@ test('invalid preparation purchases are atomic and carried stock reduces the def
   assert.equal(nextShift(), true);
   const next = useKitchen.getState().game;
   assert.equal(next.stock, quotaForLevel(3) + 2);
-  assert.equal(next.cash, 300 - (quotaForLevel(3) + 2 - 4) * 8);
+  assert.equal(next.cash, 300 - (quotaForLevel(3) + 2 - 4) * 8 - STAFF.helper.wage);
 });
 
 test('opening checkpoints resume progress without farming and reject corrupt saves', async () => {
@@ -281,14 +387,14 @@ test('opening checkpoints resume progress without farming and reject corrupt sav
     JSON.stringify({ ...opening, level: MAX_LEVEL + 1 }),
     JSON.stringify({ ...opening, cash: -1 }),
     JSON.stringify({ ...opening, stock: 0 }),
-    JSON.stringify({ ...opening, staffId: 'veteran' }),
+    JSON.stringify({ ...opening, duty: ['veteran'] }),
     JSON.stringify({ ...opening, hired: ['helper', 'constructor'] }),
   ]) {
     storage.set(CHECKPOINT_KEY, bad);
     useKitchen.setState({ phase: 'ready' });
     startShift();
     assert.equal(useKitchen.getState().game.level, 1);
-    assert.equal(useKitchen.getState().game.cash, 120);
+    assert.equal(useKitchen.getState().game.cash, 120 - STAFF.helper.wage);
   }
 });
 
@@ -304,10 +410,11 @@ test('cleared shifts transact one applicant and stock for the next level', () =>
   const next = useKitchen.getState().game;
   assert.equal(next.level, 2);
   assert.equal(next.duration, SHIFT_MS);
-  assert.equal(next.stock, 10);
-  assert.equal(next.staffId, applicant);
+  assert.equal(next.stock, 8);
+  assert.equal(next.staffId, 'helper');
+  assert.deepEqual(next.duty, ['helper']);
   assert.ok(next.hired.includes(applicant));
-  assert.equal(next.cash, 1000 - STAFF[applicant].cost - 10 * 8);
+  assert.equal(next.cash, 1000 - STAFF[applicant].cost - 8 * 8 - STAFF.helper.wage);
 });
 
 test('skipping keeps the active staff and failed shifts retry from their opening snapshot', () => {
@@ -329,7 +436,7 @@ test('skipping keeps the active staff and failed shifts retry from their opening
   assert.equal(useKitchen.getState().cleared, false);
   failed.cash = 0;
   assert.equal(retryShift(), true);
-  assert.equal(useKitchen.getState().game.cash, 120);
+  assert.equal(useKitchen.getState().game.cash, 120 - STAFF.helper.wage);
   assert.equal(useKitchen.getState().game.level, 1);
 });
 
@@ -471,13 +578,13 @@ test('every campaign level keeps a 90-second clock and inactive stations stay lo
   tick(0.1);
   assert.deepEqual([g.human.x, g.human.y], [310, 300]);
 
-  g.level = 2;
+  g.level = 5;
   goTo('pot');
   tick(0.1);
   assert.notDeepEqual([g.human.x, g.human.y], [310, 300]);
 
   g.time = SHIFT_MS;
-  g.served = 8;
+  g.served = quotaForLevel(5);
   tick(1);
   assert.equal(useKitchen.getState().phase, 'finished');
   assert.equal(useKitchen.getState().cleared, true);
@@ -491,7 +598,7 @@ test('pot and grill use their full cooking time and pause freezes heating', () =
   ]) {
     startShift();
     const g = useKitchen.getState().game;
-    g.level = 3;
+    g.level = 10;
     Object.assign(g.human, { x: STATIONS[id].x, y: STATIONS[id].y, carrying: 'chopped' });
     humanInteract();
     const st = g.stations[id];
@@ -516,7 +623,7 @@ test('automatic arrival does not boost cooking, while a direct tap does', () => 
   setMode('rule');
   startShift();
   const g = useKitchen.getState().game;
-  g.level = 3;
+  g.level = 15;
   g.human.x = STATIONS.grill.x;
   g.human.y = STATIONS.grill.y;
   g.time = 500;

@@ -3,6 +3,7 @@ import { Canvas, events, useFrame, useThree } from '@react-three/fiber';
 import { WorldLabel, Typography, prepareFont, resetFont } from './Surface.jsx';
 import SceneUI from './SceneUI.jsx';
 import { compactControls } from './ui.js';
+import { cameraFraming, moveCamera } from './camera.js';
 import { Block, Ball, Cylinder, Tomato, Food } from './Food.jsx';
 import * as THREE from 'three/webgpu';
 import { graphicsLost, TUTORIAL_STEPS, useKitchen, goTo, tick } from './game.js';
@@ -13,10 +14,10 @@ import {
   POT_BURN_MS,
   GRILL_BURN_MS,
   activeStationIds,
-  kitchenBounds,
   levelConfig,
 } from './model.js';
 import { ENTRANCE_DURATION, entranceHeight } from './entrance.js';
+import { STAFF } from './staff.js';
 
 const world = (x, y, height = 0) => [(x - 450) / 65, height, (y - 270) / 65];
 const FLOOR_ROWS = 8;
@@ -254,14 +255,17 @@ function Station({ id }) {
   const working = st.state === 'chopping' || heating;
   const progress = working ? clamp01(1 - (st.busyUntil - g.time) / st.duration) : 1;
   const burnDeadline = st.burnAt;
-  const burnWindow = Number.isFinite(burnDeadline)
-    ? clamp01((burnDeadline - g.time) / (id === 'grill' ? GRILL_BURN_MS : POT_BURN_MS))
-    : null;
+  const burnWindow =
+    ready && burnDeadline > 0 && Number.isFinite(burnDeadline)
+      ? clamp01((burnDeadline - g.time) / (id === 'grill' ? GRILL_BURN_MS : POT_BURN_MS))
+      : null;
   const danger = burnt || (ready && burnWindow !== null && burnWindow < 0.35);
   const stockFinite = Number.isFinite(g.stock);
   const stockCount = stockFinite ? Math.max(0, Math.floor(g.stock)) : null;
   const crateTomatoCount = stockCount === null ? 6 : Math.min(6, stockCount);
   const boostWindow =
+    levelConfig(g.level).boostEnabled &&
+    !g.practice &&
     working &&
     (id === 'board' || id === 'pot' || id === 'grill') &&
     !st.boosted &&
@@ -483,11 +487,17 @@ function Chef({ who }) {
   const phase = useKitchen((s) => s.phase);
   const graphicsReady = useKitchen((s) => s.ready);
   const human = who === 'human',
-    color = human ? palette.coral : palette.yellow;
-  const actor = useKitchen.getState().game[who];
+    color = human
+      ? palette.coral
+      : STAFF[who]?.employment === '正社員'
+        ? palette.mint
+        : palette.yellow;
+  const game = useKitchen.getState().game;
+  const actor = human ? game.human : game.crew?.[who];
   useFrame(() => {
     const { game: g, phase } = useKitchen.getState(),
-      a = g[who];
+      a = human ? g.human : g.crew?.[who];
+    if (!a || !root.current) return;
     const station = a.station ? g.stations[a.station] : null;
     const carrying = Boolean(a.carrying);
     const working = !carrying && station?.state === 'chopping' && station.by === who;
@@ -515,6 +525,7 @@ function Chef({ who }) {
         : -walkSwing;
     previous.current = [a.x, a.y];
   });
+  if (!actor) return null;
   return (
     <group ref={root} position={world(actor.x, actor.y)}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]}>
@@ -573,9 +584,9 @@ function Chef({ who }) {
       <WorldLabel
         position={[0, 2.08, 0]}
         visible={graphicsReady && phase !== 'ready'}
-        text={`${human ? 'あなた' : '相棒'}`}
-        width={actor.carrying ? 112 : 84}
-        color={human ? '#f7c4af' : palette.yellow}
+        text={human ? 'あなた' : STAFF[who].name.split('の').at(-1)}
+        width={84}
+        color={human ? '#f7c4af' : color}
       />
     </group>
   );
@@ -638,35 +649,23 @@ function Scene() {
   const stationIds = activeStationIds(game);
   const timeline = useRef(useKitchen.getState().phase === 'ready' ? 0 : ENTRANCE_DURATION);
   const cameraTarget = useRef(new THREE.Vector3(0, 0.25, 0));
-  useEffect(() => {
-    camera.position.set(10, 15, 18);
-    camera.lookAt(cameraTarget.current);
-    camera.zoom = Math.min(size.width / 18.2, size.height / 13.5);
-    camera.updateProjectionMatrix();
-  }, [camera]);
+  const cameraInitialized = useRef(false);
   useFrame((_, delta) => {
     timeline.current = reducedMotion
       ? ENTRANCE_DURATION
       : Math.min(ENTRANCE_DURATION, timeline.current + delta);
     if (timeline.current === ENTRANCE_DURATION && !useKitchen.getState().ready)
       useKitchen.setState({ ready: true });
-    const bounds = kitchenBounds(game);
-    const center = world((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2, 0.25);
-    const fitWidth = (bounds.maxX - bounds.minX) / 65 + 7.6;
-    const fitHeight = (bounds.maxY - bounds.minY) / 65 + 10;
-    const fitZoom = Math.min(size.width / fitWidth, size.height / fitHeight);
-    const approach = (current, goal) =>
-      reducedMotion ? goal : THREE.MathUtils.damp(current, goal, 6, delta);
-    cameraTarget.current.x = approach(cameraTarget.current.x, center[0]);
-    cameraTarget.current.y = approach(cameraTarget.current.y, center[1]);
-    cameraTarget.current.z = approach(cameraTarget.current.z, center[2]);
-    camera.position.x = approach(camera.position.x, cameraTarget.current.x + 10);
-    camera.position.y = approach(camera.position.y, cameraTarget.current.y + 14.75);
-    camera.position.z = approach(camera.position.z, cameraTarget.current.z + 18);
-    camera.lookAt(cameraTarget.current);
-    camera.zoom = approach(camera.zoom, fitZoom);
-    camera.updateProjectionMatrix();
     tick(delta);
+    const current = useKitchen.getState();
+    moveCamera(
+      camera,
+      cameraTarget.current,
+      cameraFraming(current.game, current.phase, current.cameraMode, size.width, size.height),
+      delta,
+      reducedMotion || !cameraInitialized.current,
+    );
+    cameraInitialized.current = true;
   }, -1);
   return (
     <>
@@ -692,11 +691,12 @@ function Scene() {
       <Entrance timeline={timeline} delay={1.25}>
         <Chef who="human" />
       </Entrance>
-      {tutorial === null && (
-        <Entrance timeline={timeline} delay={1.4}>
-          <Chef who="ai" />
-        </Entrance>
-      )}
+      {tutorial === null &&
+        game.duty?.map((id, index) => (
+          <Entrance key={id} timeline={timeline} delay={1.4 + index * 0.1}>
+            <Chef who={id} />
+          </Entrance>
+        ))}
       <Confetti />
     </>
   );

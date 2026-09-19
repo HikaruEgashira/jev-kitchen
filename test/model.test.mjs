@@ -26,7 +26,9 @@ import {
   ITEM_EMOJI,
   activeStationIds,
   kitchenBounds,
+  actor,
 } from '../src/model.js';
+import { nextStaffState, payroll, staffAvailable } from '../src/staff.js';
 
 test('the four-step pipeline produces one served dish', () => {
   const g = createGame();
@@ -39,11 +41,11 @@ test('the four-step pipeline produces one served dish', () => {
   assert.equal(g.stations.board.state, 'chopping');
   assert.equal(g.stations.board.by, 'ai');
 
-  // In the timing window, an empty-handed cook can finish the board early.
+  // The first kitchen teaches the basic pipeline before boosts unlock.
   g.time += CHOP_MS / 2;
   advance(g);
   assert.equal(g.stations.board.state, 'chopping');
-  assert.equal(interact(g, 'human', 'board').ok, true);
+  assert.equal(interact(g, 'human', 'board').ok, false);
 
   g.time += CHOP_MS;
   advance(g);
@@ -122,8 +124,8 @@ test('each campaign level is a fixed 90-second kitchen contract', () => {
   assert.deepEqual(kitchenBounds(level1), { minX: 85, maxX: 775, minY: 175, maxY: 402 });
   assert.ok(level1.orders.every((o) => o.recipe === 'dish'));
 
-  const level2 = createGame({ level: 2, stock: 8 });
-  assert.equal(level2.quota, 8);
+  const level2 = createGame({ level: 5, stock: 8 });
+  assert.equal(level2.quota, 7);
   assert.equal(level2.duration, SHIFT_MS);
   assert.equal(level2.stock, 8);
   assert.deepEqual(
@@ -135,13 +137,13 @@ test('each campaign level is a fixed 90-second kitchen contract', () => {
   assert.equal(kitchenBounds(level2).maxX, 975);
 
   const level3 = createGame({
-    level: 3,
+    level: 10,
     cash: 200,
     staffId: 'chef',
     hired: ['helper', 'chef'],
     stock: 10,
   });
-  assert.equal(level3.quota, 10);
+  assert.equal(level3.quota, 8);
   assert.equal(level3.duration, SHIFT_MS);
   assert.equal(level3.cash, 200);
   assert.deepEqual(level3.hired, ['helper', 'chef']);
@@ -154,16 +156,16 @@ test('each campaign level is a fixed 90-second kitchen contract', () => {
   assert.equal(kitchenBounds(level3).maxX, 1175);
   assert.equal(MAX_LEVEL, 100);
   assert.deepEqual(
-    [1, 2, 3, 10, 25, 50, 75, 100].map((level) => levelConfig(level).quota),
-    [6, 8, 10, 11, 12, 13, 13, 14],
+    [1, 5, 10, 15, 20, 25, 30, 100].map((level) => levelConfig(level).quota),
+    [6, 7, 8, 9, 10, 11, 12, 14],
   );
   assert.deepEqual(
-    [1, 2, 3, 10, 25, 50, 75, 100].map((level) => levelConfig(level).orderWindowMs),
-    [36_000, 28_588, 26_533, 23_413, 22_235, 21_636, 21_358, 21_185],
+    [1, 5, 10, 15, 20, 25, 30, 100].map((level) => levelConfig(level).orderWindowMs),
+    [36_000, 30_633, 28_411, 26_705, 25_267, 24_000, 24_000, 20_000],
   );
   assert.equal(levelConfig(0).level, 1);
   assert.equal(levelConfig(101).level, MAX_LEVEL);
-  assert.equal(quotaForLevel(4), 10);
+  assert.equal(quotaForLevel(4), 6);
 });
 
 test('initial and replenished tickets share the level formula', () => {
@@ -191,7 +193,7 @@ test('all 100 levels follow a bounded curve and reproducible recipe proportions'
   for (let level = 1; level <= MAX_LEVEL; level++) {
     const config = levelConfig(level);
     assert.ok(config.quota >= previous.quota && config.quota <= 14);
-    assert.ok(config.orderWindowMs <= previous.orderWindowMs && config.orderWindowMs >= 21_000);
+    assert.ok(config.orderWindowMs <= previous.orderWindowMs && config.orderWindowMs >= 20_000);
     assert.ok(
       Math.abs(Object.values(config.recipeMix).reduce((sum, value) => sum + value, 0) - 1) < 1e-12,
     );
@@ -214,7 +216,8 @@ test('all 100 levels follow a bounded curve and reproducible recipe proportions'
 });
 
 test('human boost is a one-shot quality bonus and AI cannot farm it', () => {
-  const g = createGame();
+  const g = createGame({ level: 15, stock: 2 });
+  g.orders[0].recipe = 'dish';
   assert.equal(interact(g, 'human', 'crate').ok, true);
   assert.equal(interact(g, 'human', 'board').ok, true);
   advance(g, CHOP_MS * 0.4);
@@ -255,7 +258,7 @@ test('staff profile changes AI preparation without changing the candidate contra
   assert.equal(observe(g).staff.id, 'chef');
   assert.deepEqual(observe(g).staff.capabilities, ['prep', 'cook']);
   assert.equal(observe(g).staff.decision_interval_ms, 900);
-  g.level = 3;
+  g.level = 10;
   for (const [id, duration] of [
     ['pot', 9000],
     ['grill', 5250],
@@ -311,6 +314,79 @@ test('staff capabilities gate candidate actions and direct stale execution', () 
   assert.ok(buildCandidates(runner).some((candidate) => candidate.id === 'wait'));
 });
 
+test('crew actors obey the level cap and reserve exclusive work independently', () => {
+  const roster = ['helper', 'sous', 'runner', 'veteran'];
+  for (const [level, cap] of [
+    [9, 1],
+    [10, 2],
+    [20, 3],
+    [30, 4],
+  ]) {
+    const g = createGame({ level, stock: 20, hired: roster, duty: roster });
+    assert.deepEqual(g.duty, roster.slice(0, cap));
+  }
+  const g = createGame({ level: 20, stock: 20, hired: roster, duty: roster });
+  assert.notEqual(actor(g, 'helper'), actor(g, 'sous'));
+  actor(g, 'helper').intent = { id: 'chop', station: 'board' };
+  actor(g, 'sous').carrying = 'tomato';
+  assert.equal(isFeasible(g, { id: 'chop', station: 'board' }, 'sous'), false);
+  assert.equal(interact(g, 'sous', 'board').ok, false);
+  actor(g, 'helper').intent = null;
+  assert.equal(interact(g, 'sous', 'board').ok, true);
+  assert.equal(g.stations.board.by, 'sous');
+});
+
+test('crew reservations prevent duplicate tomato and plate pickups', () => {
+  const g = createGame({ level: 10, stock: 8, duty: ['helper', 'sous'] });
+  actor(g, 'helper').intent = { id: 'fetch_tomato', station: 'crate' };
+  assert.equal(
+    buildCandidates(g, 'sous').some((c) => c.id === 'fetch_tomato'),
+    false,
+  );
+  actor(g, 'helper').intent = { id: 'fetch_plate', station: 'plates' };
+  g.orders = [{ id: 99, recipe: 'soup', deadline: 10_000, duration: 10_000 }];
+  g.stations.pot.state = 'ready';
+  assert.equal(
+    buildCandidates(g, 'sous').some((c) => c.id === 'fetch_plate'),
+    false,
+  );
+  actor(g, 'helper').intent = null;
+  actor(g, 'helper').carrying = 'plate';
+  assert.equal(
+    buildCandidates(g, 'sous').some((c) => c.id === 'fetch_plate'),
+    false,
+  );
+});
+
+test('payroll and role-specific rest advance once per shift and only after Lv25', () => {
+  const g = createGame({
+    level: 25,
+    stock: 20,
+    hired: ['helper', 'chef', 'runner'],
+    duty: ['helper', 'chef'],
+    staffState: {
+      helper: { worked: 3, rest: 0 },
+      chef: { worked: 2, rest: 0 },
+      runner: { worked: 0, rest: 1 },
+    },
+  });
+  assert.equal(payroll(['helper', 'chef', 'helper']), 57);
+  assert.equal(payroll([]), 0);
+  const next = nextStaffState(g);
+  assert.deepEqual(next.helper, { worked: 0, rest: 1 });
+  assert.deepEqual(next.chef, { worked: 0, rest: 2 });
+  assert.deepEqual(next.runner, { worked: 0, rest: 0 });
+  assert.equal(staffAvailable(next, 'helper'), false);
+  assert.equal(staffAvailable(next, 'runner'), true);
+  const rested = nextStaffState({ ...g, duty: [], staffState: next });
+  assert.deepEqual(rested.chef, { worked: 0, rest: 1 });
+  assert.deepEqual(rested.helper, { worked: 0, rest: 0 });
+  assert.deepEqual(nextStaffState({ ...g, duty: [] }).helper, { worked: 0, rest: 0 });
+  assert.ok(
+    Object.values(nextStaffState({ ...g, level: 24 })).every((s) => s.worked === 0 && s.rest === 0),
+  );
+});
+
 test('completeOnboarding keeps tutorial progress and starts a clean campaign shift', () => {
   const g = createGame({ practice: true, cash: 200, staffId: 'sous', hired: ['helper', 'sous'] });
   interact(g, 'human', 'crate');
@@ -354,7 +430,7 @@ test('heated stations burn after their grace period and can be cleaned', () => {
     ['pot', 12_000, POT_BURN_MS],
     ['grill', 7000, GRILL_BURN_MS],
   ]) {
-    const g = createGame({ level: 3, stock: 2 });
+    const g = createGame({ level: 20, stock: 2 });
     advance(g, 1000);
     g.human.carrying = 'chopped';
     assert.equal(interact(g, 'human', id).ok, true);
@@ -425,8 +501,8 @@ test('blocked work still exposes a safe wait and hand recovery action', () => {
 });
 
 test('soup cooks asynchronously and needs a plate before serving', () => {
-  const g = createGame({ level: 2, stock: 2 });
-  assert.equal(g.level, 2);
+  const g = createGame({ level: 5, stock: 2 });
+  assert.equal(g.level, 5);
   interact(g, 'human', 'crate');
   interact(g, 'human', 'board');
   advance(g, CHOP_MS);
@@ -442,7 +518,7 @@ test('soup cooks asynchronously and needs a plate before serving', () => {
   assert.ok(interact(g, 'human', 'serve').points >= 140);
   assert.equal(g.stations.pot.state, 'idle');
   assert.equal(g.served, 1);
-  assert.equal(g.level, 2);
+  assert.equal(g.level, 5);
   assert.equal(g.duration, SHIFT_MS);
 });
 
@@ -491,7 +567,7 @@ test('orders, combos, expiry and the end of a shift have consistent boundaries',
 });
 
 test('the rule companion can finish soup and stale station targets are rejected', () => {
-  const g = createGame({ level: 2, stock: 4, staffId: 'sous', hired: ['helper', 'sous'] });
+  const g = createGame({ level: 5, stock: 4, staffId: 'sous', hired: ['helper', 'sous'] });
   g.orders = g.orders.map((order) => ({ ...order, recipe: 'soup' }));
   for (let step = 0; step < 40 && g.served < 1; step++) {
     const candidate = rulePick(g, buildCandidates(g));
@@ -533,6 +609,48 @@ test('action hints explain the next useful step for each station state', () => {
   assert.equal(actionHint(g, 'serve'), '配膳する');
   g.orders = g.orders.map((order) => ({ ...order, recipe: 'soup' }));
   assert.equal(actionHint(g, 'serve'), 'この料理の注文を待つ');
+});
+
+test('boosts, burning and the one-time rush activate only at their level milestones', () => {
+  for (const level of [14, 15]) {
+    const g = createGame({ level, stock: 2 });
+    interact(g, 'human', 'crate');
+    interact(g, 'human', 'board');
+    advance(g, CHOP_MS / 2);
+    assert.equal(
+      buildCandidates(g, 'human').some((c) => c.id === 'boost_board'),
+      level === 15,
+    );
+    assert.equal(actionHint(g, 'board'), level === 15 ? '仕上げる' : '切り終わるまで待つ');
+    assert.equal(interact(g, 'human', 'board').ok, level === 15);
+  }
+  for (const level of [19, 20]) {
+    const g = createGame({ level, stock: 2 });
+    g.human.carrying = 'chopped';
+    interact(g, 'human', 'pot');
+    advance(g, COOK_MS + POT_BURN_MS);
+    assert.equal(g.stations.pot.state, level === 20 ? 'burnt' : 'ready');
+    assert.equal(g.burned, level === 20 ? 1 : 0);
+  }
+  for (const level of [29, 30, 100]) {
+    const g = createGame({ level, stock: 20 });
+    advance(g, SHIFT_MS / 2 - 1);
+    assert.equal(g.orders.length, 2);
+    advance(g, 1);
+    const expected = level >= 30 ? 3 : 2;
+    assert.equal(g.orders.length, expected);
+    if (level >= 30)
+      assert.equal(
+        g.orders.at(-1).deadline,
+        g.time + Math.round((levelConfig(level).orderWindowMs * 4) / 3),
+      );
+    for (let second = 0; second < 40; second++) {
+      advance(g, 1000);
+      g.human.carrying = g.orders[0].recipe;
+      interact(g, 'human', 'serve');
+      assert.equal(g.orders.length, expected);
+    }
+  }
 });
 
 test('practice mode teaches one salad without timers or pressure', () => {

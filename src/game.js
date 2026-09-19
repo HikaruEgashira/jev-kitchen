@@ -17,17 +17,19 @@ import {
   kitchenBounds,
   completeOnboarding,
   quotaForLevel,
+  levelConfig,
   MAX_LEVEL,
   STOCK_PRICE,
   SPEED,
+  actor,
 } from './model.js';
 import { createAudio } from './audio.js';
-import { STAFF } from './staff.js';
+import { STAFF, nextStaffState, payroll, staffAvailable } from './staff.js';
 
 const BEST_KEY = 'sidekick-best-v2';
 const ONBOARDED_KEY = 'sidekick-onboarded-v1';
 export const CHECKPOINT_KEY = 'sidekick-campaign-v1';
-const CHECKPOINT_VERSION = 1;
+const CHECKPOINT_VERSION = 2;
 const STARTING_CASH = 120;
 
 function savedBest() {
@@ -48,31 +50,100 @@ function safeStock(value) {
   return value === null || (Number.isSafeInteger(value) && value >= 0);
 }
 
-function validateCheckpoint(value) {
+function normalizeRollbackEntry(value, allowUnreadyStock = false) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const source = value.snapshot ?? value;
+  const snapshot = validateCheckpoint(
+    { ...source, version: CHECKPOINT_VERSION, completed: false },
+    false,
+    allowUnreadyStock,
+  );
+  if (!snapshot) return null;
+  const applicants = value.snapshot
+    ? Array.isArray(value.applicants)
+      ? [...new Set(value.applicants)].filter((id) => Object.hasOwn(STAFF, id))
+      : []
+    : [];
+  return { snapshot, applicants };
+}
+
+function validateCheckpoint(value, includeRollback = true, allowUnreadyStock = false) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  if (value.version === 1) {
+    value = {
+      ...value,
+      version: CHECKPOINT_VERSION,
+      duty: [value.staffId],
+      frozenApplicants: null,
+      staffState: Object.fromEntries(
+        (Array.isArray(value.hired) ? value.hired : []).map((id) => [id, { worked: 0, rest: 0 }]),
+      ),
+    };
+  }
   if (value.version !== CHECKPOINT_VERSION || typeof value.completed !== 'boolean') return null;
   if (!Number.isSafeInteger(value.level) || value.level < 1 || value.level > MAX_LEVEL) return null;
   if (!safeMoney(value.cash) || !safeStock(value.stock)) return null;
   if ((value.level === 1) !== (value.stock === null)) return null;
-  if (value.level > 1 && value.stock < quotaForLevel(value.level)) return null;
-  if (!Object.hasOwn(STAFF, value.staffId)) return null;
+  if (!allowUnreadyStock && value.level > 1 && value.stock < quotaForLevel(value.level))
+    return null;
   if (!Array.isArray(value.hired) || value.hired.length === 0) return null;
   if (new Set(value.hired).size !== value.hired.length) return null;
   if (
     !value.hired.every((id) => typeof id === 'string' && Object.hasOwn(STAFF, id)) ||
-    !value.hired.includes('helper') ||
-    !value.hired.includes(value.staffId)
+    !value.hired.includes('helper')
   )
     return null;
-  return {
+  if (!Array.isArray(value.duty) || new Set(value.duty).size !== value.duty.length) return null;
+  const staffSlots = levelConfig(value.level).staffSlots;
+  if (Number.isSafeInteger(staffSlots) && value.duty.length > staffSlots) return null;
+  if (!value.staffState || typeof value.staffState !== 'object') return null;
+  for (const id of value.hired) {
+    const status = value.staffState[id];
+    if (
+      !status ||
+      !Number.isInteger(status.worked) ||
+      status.worked < 0 ||
+      status.worked >= STAFF[id].maxConsecutive ||
+      !Number.isInteger(status.rest) ||
+      status.rest < 0 ||
+      status.rest > STAFF[id].restShifts ||
+      (status.rest > 0 && status.worked !== 0) ||
+      (!levelConfig(value.level).fatigueEnabled && (status.rest !== 0 || status.worked !== 0))
+    )
+      return null;
+  }
+  if (!value.duty.every((id) => value.hired.includes(id) && staffAvailable(value.staffState, id)))
+    return null;
+  const frozenApplicants =
+    value.frozenApplicants == null
+      ? null
+      : Array.isArray(value.frozenApplicants) &&
+          new Set(value.frozenApplicants).size === value.frozenApplicants.length &&
+          value.frozenApplicants.every((id) => typeof id === 'string' && Object.hasOwn(STAFF, id))
+        ? [...value.frozenApplicants]
+        : null;
+  if (value.frozenApplicants != null && frozenApplicants == null) return null;
+  const record = {
     version: CHECKPOINT_VERSION,
     level: value.level,
     cash: value.cash,
     stock: value.stock,
-    staffId: value.staffId,
+    duty: [...value.duty],
+    staffState: Object.fromEntries(value.hired.map((id) => [id, { ...value.staffState[id] }])),
     hired: [...value.hired],
     completed: value.completed,
+    frozenApplicants,
   };
+  if (!includeRollback) return record;
+  if (value.rollback == null) return { ...record, rollback: null };
+  if (typeof value.rollback !== 'object' || Array.isArray(value.rollback)) return null;
+  const preparation = value.rollback.preparation
+    ? normalizeRollbackEntry(value.rollback.preparation, true)
+    : null;
+  const previous = value.rollback.previous ? normalizeRollbackEntry(value.rollback.previous) : null;
+  if ((value.rollback.preparation && !preparation) || (value.rollback.previous && !previous))
+    return null;
+  return { ...record, rollback: { preparation, previous } };
 }
 
 function readCheckpoint() {
@@ -109,9 +180,13 @@ export const useKitchen = create(() => ({
   backend: '準備中',
   ready: false,
   menuOpen: false,
+  cameraMode: 'auto',
+  movementMode: 'screen',
   sound: true,
   best: savedBest(),
   checkpoint: initialCheckpoint,
+  rollback: initialCheckpoint?.rollback ?? null,
+  reviewing: false,
   cleared: false,
   applicants: [],
   campaignComplete: false,
@@ -134,12 +209,11 @@ export const useKitchen = create(() => ({
 
 const keys = new Set();
 let target = null,
-  controller = null,
   epoch = 0,
-  lastDecision = -Infinity,
   policyChangedAt = -Infinity,
   retryAt = 0,
   lastPublish = 0;
+const decisions = new Map();
 let audio;
 const MODES = new Set(['jev', 'rule', 'llm']);
 // Keep 1 FPS timing honest; visibility and blur pause longer stalls.
@@ -155,6 +229,7 @@ export const TUTORIAL_STEPS = Object.freeze([
 const state = useKitchen.getState;
 const update = useKitchen.setState;
 let shiftSnapshot = null;
+let frozenApplicants = null;
 
 function playSound(kind) {
   if (!state().sound) return;
@@ -164,10 +239,9 @@ function playSound(kind) {
 
 function invalidate() {
   epoch++;
-  controller?.abort();
-  controller = null;
-  state().game.ai.intent = null;
-  lastDecision = -Infinity;
+  for (const decision of decisions.values()) decision.controller?.abort();
+  decisions.clear();
+  for (const cook of Object.values(state().game.crew)) cook.intent = null;
 }
 
 function publish() {
@@ -204,13 +278,12 @@ function snapshot(g) {
   ];
   if (!hired.includes('helper')) hired.unshift('helper');
   const level = Number.isSafeInteger(g.level) && g.level >= 1 && g.level <= MAX_LEVEL ? g.level : 1;
-  const staffId =
-    Object.hasOwn(STAFF, g.staffId) && hired.includes(g.staffId) ? g.staffId : 'helper';
   return {
     level,
     cash: safeMoney(g.cash) ? g.cash : STARTING_CASH,
     stock: level === 1 ? null : Number.isSafeInteger(g.stock) && g.stock >= 0 ? g.stock : 0,
-    staffId,
+    duty: [...g.duty],
+    staffState: Object.fromEntries(hired.map((id) => [id, { ...g.staffState[id] }])),
     hired,
   };
 }
@@ -236,7 +309,15 @@ function finishOnboarding() {
   saveOnboarded();
   const checkpoint = writeCheckpoint(shiftSnapshot);
   invalidate();
-  update({ tutorial: null, cleared: false, applicants: [], campaignComplete: false, checkpoint });
+  update({
+    tutorial: null,
+    cleared: false,
+    applicants: [],
+    campaignComplete: false,
+    checkpoint,
+    rollback: null,
+    reviewing: false,
+  });
   notify('営業開始！');
   playSound('start');
   publish();
@@ -244,10 +325,10 @@ function finishOnboarding() {
 
 function record(who, result) {
   const g = state().game,
-    actor = g[who];
-  actor.action = result.action;
-  if (actor.lastActions)
-    actor.lastActions = [...actor.lastActions.slice(-5), { t: g.time, label: result.action }];
+    cook = actor(g, who);
+  cook.action = result.action;
+  if (cook.lastActions)
+    cook.lastActions = [...cook.lastActions.slice(-5), { t: g.time, label: result.action }];
   update({ log: [{ who, text: result.action }, ...state().log].slice(0, 6) });
   if (result.points) {
     update({ celebration: state().celebration + 1, lastPoints: result.points });
@@ -264,9 +345,12 @@ function beginShift({
   practice = false,
   level = 1,
   cash = STARTING_CASH,
-  staffId = 'helper',
+  duty = ['helper'],
+  staffState,
   hired = ['helper'],
   stock = null,
+  rollback = null,
+  frozenApplicants: successorApplicants = null,
 } = {}) {
   invalidate();
   keys.clear();
@@ -274,8 +358,11 @@ function beginShift({
   retryAt = 0;
   lastPublish = 0;
   policyChangedAt = -Infinity;
-  const game = createGame({ practice, level, cash, staffId, hired, stock });
-  const checkpoint = !practice ? writeCheckpoint(snapshot(game)) : null;
+  frozenApplicants = Array.isArray(successorApplicants) ? [...successorApplicants] : null;
+  const game = createGame({ practice, level, cash, duty, staffState, hired, stock });
+  const checkpoint = !practice
+    ? writeCheckpoint({ ...snapshot(game), rollback, frozenApplicants })
+    : null;
   if (!practice) shiftSnapshot = checkpoint;
   update({
     game,
@@ -285,6 +372,8 @@ function beginShift({
     applicants: [],
     campaignComplete: false,
     checkpoint: practice ? state().checkpoint : checkpoint,
+    rollback: practice ? null : (checkpoint?.rollback ?? null),
+    reviewing: false,
     log: [],
     toast: '',
     toastUntil: 0,
@@ -308,31 +397,12 @@ export function startShift() {
   if (!state().ready || state().menuOpen) return;
   const saved = state().phase === 'ready' ? readCheckpoint() : null;
   update({ checkpoint: saved });
-  if (saved?.completed) {
-    beginShift({
-      level: 1,
-      cash: STARTING_CASH,
-      staffId: 'helper',
-      hired: ['helper'],
-      stock: null,
-    });
-  } else if (saved) {
+  if (saved && !saved.completed) {
     beginShift(saved);
-  } else if (onboarded()) {
-    beginShift({
-      level: 1,
-      cash: STARTING_CASH,
-      staffId: 'helper',
-      hired: ['helper'],
-      stock: null,
-    });
   } else {
     beginShift({
-      practice: true,
-      level: 1,
-      cash: STARTING_CASH,
-      staffId: 'helper',
-      hired: ['helper'],
+      practice: !onboarded(),
+      cash: STARTING_CASH - payroll(['helper']),
     });
   }
 }
@@ -353,6 +423,14 @@ export function setMenuOpen(open) {
   keys.clear();
   target = null;
   update({ menuOpen: Boolean(open) });
+}
+
+export function setCameraMode(cameraMode) {
+  if (['auto', 'follow', 'overview'].includes(cameraMode)) update({ cameraMode });
+}
+
+export function setMovementMode(movementMode) {
+  if (movementMode === 'screen' || movementMode === 'grid') update({ movementMode });
 }
 
 export function graphicsLost() {
@@ -377,14 +455,26 @@ export function setPolicy(policy) {
   update({ policy: typeof policy === 'string' ? policy.slice(0, 300) : '' });
 }
 
-export function nextShift(applicantId = null, buyStock, assignedId) {
+export function nextShift(applicantId = null, buyStock, assignedDuty) {
   const current = state();
-  if (current.phase !== 'finished' || !current.cleared || current.campaignComplete) return false;
+  if (
+    !current.ready ||
+    current.menuOpen ||
+    current.phase !== 'finished' ||
+    !current.cleared ||
+    current.campaignComplete
+  )
+    return false;
   const g = current.game;
   const currentLevel = Math.floor(Number(g.level) || 1);
   if (currentLevel >= MAX_LEVEL) return false;
   const nextLevel = currentLevel + 1;
   const applicants = Array.isArray(current.applicants) ? current.applicants : [];
+  const previous = shiftSnapshot ? normalizeRollbackEntry(shiftSnapshot) : null;
+  const rollback = {
+    preparation: { snapshot: snapshot(g), applicants },
+    previous: previous ? { snapshot: previous.snapshot, applicants } : null,
+  };
   const selected =
     applicantId === null
       ? null
@@ -401,26 +491,107 @@ export function nextShift(applicantId = null, buyStock, assignedId) {
   if (stock + purchased < requiredStock) return false;
   const hiringCost = selected ? Math.max(0, Number(selected.cost) || 0) : 0;
   const cash = Number.isFinite(g.cash) ? g.cash : 0;
-  if (hiringCost + purchased * STOCK_PRICE > cash) return false;
   const hired = Array.isArray(g.hired) && g.hired.length ? [...g.hired] : ['helper'];
+  if (selected && hired.includes(applicantId)) return false;
   if (selected && !hired.includes(applicantId)) hired.push(applicantId);
-  const activeId = assignedId === undefined ? (selected ? applicantId : g.staffId) : assignedId;
-  if (typeof activeId !== 'string' || !Object.hasOwn(STAFF, activeId) || !hired.includes(activeId))
+  const staffState = nextStaffState(g);
+  if (selected) staffState[applicantId] = { worked: 0, rest: 0 };
+  const staffSlots = levelConfig(nextLevel).staffSlots;
+  const availableDuty = g.duty.filter((id) => staffAvailable(staffState, id));
+  const duty =
+    assignedDuty ??
+    (selected && (!Number.isSafeInteger(staffSlots) || availableDuty.length < staffSlots)
+      ? [...availableDuty, applicantId]
+      : availableDuty);
+  if (
+    !Array.isArray(duty) ||
+    new Set(duty).size !== duty.length ||
+    (Number.isSafeInteger(staffSlots) && duty.length > staffSlots) ||
+    !duty.every(
+      (id) => typeof id === 'string' && hired.includes(id) && staffAvailable(staffState, id),
+    )
+  )
     return false;
+  const total = hiringCost + purchased * STOCK_PRICE + payroll(duty);
+  if (total > cash) return false;
   beginShift({
     level: nextLevel,
-    cash: cash - hiringCost - purchased * STOCK_PRICE,
+    cash: cash - total,
     stock: stock + purchased,
-    staffId: activeId,
+    duty,
+    staffState,
     hired,
+    rollback,
   });
   return true;
 }
 
 export function retryShift() {
   const current = state();
-  if (current.phase !== 'finished' || current.cleared || !shiftSnapshot) return false;
+  if (
+    !current.ready ||
+    current.menuOpen ||
+    current.phase !== 'finished' ||
+    current.cleared ||
+    !shiftSnapshot
+  )
+    return false;
   beginShift({ ...shiftSnapshot });
+  return true;
+}
+
+export function rollbackToPreparation() {
+  const current = state();
+  const preparation = current.rollback?.preparation;
+  if (
+    !current.ready ||
+    current.menuOpen ||
+    current.phase !== 'finished' ||
+    current.cleared ||
+    !preparation
+  )
+    return false;
+  const game = createGame(preparation.snapshot);
+  const previous = current.rollback?.previous?.snapshot;
+  const checkpoint = writeCheckpoint({
+    ...(previous ?? preparation.snapshot),
+    frozenApplicants: preparation.applicants,
+  });
+  if (!checkpoint) return false;
+  invalidate();
+  shiftSnapshot = checkpoint;
+  update({
+    game,
+    phase: 'finished',
+    cleared: true,
+    applicants: [...preparation.applicants],
+    campaignComplete: false,
+    checkpoint,
+    rollback: null,
+    reviewing: true,
+    toast: '仕入れと採用をやり直せます',
+  });
+  publish();
+  return true;
+}
+
+export function rollbackToPreviousStage() {
+  const current = state();
+  const previous = current.rollback?.previous;
+  if (
+    !current.ready ||
+    current.menuOpen ||
+    !previous?.snapshot ||
+    current.phase !== 'finished' ||
+    current.cleared
+  )
+    return false;
+  if (previous.snapshot.level >= current.game.level) return false;
+  beginShift({
+    ...previous.snapshot,
+    rollback: null,
+    frozenApplicants: previous.applicants,
+  });
   return true;
 }
 
@@ -571,12 +742,12 @@ export function installControls() {
   };
 }
 
-function applyDecision(cand, latency, via, confidence = null) {
+function applyDecision(who, cand, latency, via, confidence = null) {
   const { game: g, hud } = state();
-  const feasible = isFeasible(g, cand);
+  const feasible = isFeasible(g, cand, who);
   update({
     hud: {
-      action: feasible ? cand.label : '状況が変わったので考え直すよ。',
+      action: `${STAFF[who].name}：${feasible ? cand.label : '状況が変わったので考え直すよ。'}`,
       latency,
       via,
       confidence,
@@ -584,24 +755,27 @@ function applyDecision(cand, latency, via, confidence = null) {
       dropped: hud.dropped + (feasible ? 0 : 1),
     },
   });
-  if (feasible) g.ai.intent = { ...cand, startedAt: g.time };
+  if (feasible) g.crew[who].intent = { ...cand, startedAt: g.time };
 }
 
-async function decide() {
+async function decide(who) {
   const { game: g, mode, policy } = state();
-  const decisionMs = Number(STAFF[g.staffId]?.decisionMs) || 1800;
+  const decisionMs = STAFF[who].decisionMs;
+  const decision = decisions.get(who) ?? { controller: null, lastDecision: -Infinity };
   if (
-    controller ||
-    g.ai.intent ||
-    g.time - lastDecision < decisionMs ||
+    decision.controller ||
+    g.crew[who].intent ||
+    g.time - decision.lastDecision < decisionMs ||
     g.time - policyChangedAt < POLICY_DEBOUNCE_MS
   )
     return;
-  lastDecision = g.time;
-  const candidates = buildCandidates(g);
+  decision.lastDecision = g.time;
+  decisions.set(who, decision);
+  const candidates = buildCandidates(g, who);
   if (candidates.length === 1 || mode === 'rule' || g.time < retryAt) {
     applyDecision(
-      rulePick(g, candidates),
+      who,
+      rulePick(g, candidates, who),
       0,
       mode === 'rule' ? '固定ルール' : g.time < retryAt ? '固定ルール（接続待ち）' : '候補1つ',
     );
@@ -609,10 +783,10 @@ async function decide() {
   }
   const requestEpoch = epoch,
     requestController = new AbortController();
-  controller = requestController;
+  decision.controller = requestController;
   const started = performance.now();
   try {
-    const observation = observe(g, policy);
+    const observation = observe(g, policy, who);
     const response = await fetch(mode === 'llm' ? '/api/decide-llm' : '/api/decide', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -632,6 +806,7 @@ async function decide() {
     if (!candidate) throw new Error('Invalid decision');
     update({ fallback: false });
     applyDecision(
+      who,
       candidate,
       Math.round(performance.now() - started),
       data.via ?? 'Workers AI',
@@ -641,9 +816,9 @@ async function decide() {
     if (requestEpoch !== epoch || state().phase !== 'playing') return;
     retryAt = g.time + 10_000;
     update({ fallback: true });
-    applyDecision(rulePick(g, buildCandidates(g)), 0, '固定ルール（接続待ち）');
+    applyDecision(who, rulePick(g, buildCandidates(g, who), who), 0, '固定ルール（接続待ち）');
   } finally {
-    if (controller === requestController) controller = null;
+    if (decision.controller === requestController) decision.controller = null;
   }
 }
 
@@ -665,7 +840,12 @@ export function tick(delta) {
     const best = Math.max(state().best, g.score);
     const cleared = g.served >= (Number.isFinite(g.quota) ? g.quota : quotaForLevel(g.level));
     const campaignComplete = cleared && g.level >= MAX_LEVEL;
-    const applicants = cleared && !campaignComplete ? drawApplicants(g.hired ?? []) : [];
+    const applicants =
+      cleared && !campaignComplete
+        ? frozenApplicants
+          ? [...frozenApplicants]
+          : drawApplicants(g.hired ?? [])
+        : [];
     const checkpoint = campaignComplete
       ? writeCheckpoint(shiftSnapshot ?? snapshot(g), true)
       : state().checkpoint;
@@ -674,6 +854,7 @@ export function tick(delta) {
     } catch {
       /* Private browsing can disable storage. */
     }
+    if (cleared) frozenApplicants = null;
     update({ phase: 'finished', best, cleared, applicants, campaignComplete, checkpoint });
     playSound('finish');
     publish();
@@ -696,16 +877,13 @@ export function tick(delta) {
   const step = SPEED * dt * (g.time < g.human.dashUntil ? 2.7 : 1);
   const bounds = kitchenBounds(g);
   if (ax || ay) {
-    const length = Math.hypot(ax, ay);
+    const movementMode = state().movementMode === 'grid' ? 'grid' : 'screen';
+    const dx = movementMode === 'grid' ? ax : ax * 0.874 + ay * 0.486;
+    const dy = movementMode === 'grid' ? ay : -ax * 0.486 + ay * 0.874;
+    const length = Math.hypot(dx, dy);
     // Camera-relative movement: right stays right in the isometric view.
-    g.human.x = Math.max(
-      bounds.minX,
-      Math.min(bounds.maxX, g.human.x + ((ax * 0.874 + ay * 0.486) / length) * step),
-    );
-    g.human.y = Math.max(
-      bounds.minY,
-      Math.min(bounds.maxY, g.human.y + ((-ax * 0.486 + ay * 0.874) / length) * step),
-    );
+    g.human.x = Math.max(bounds.minX, Math.min(bounds.maxX, g.human.x + (dx / length) * step));
+    g.human.y = Math.max(bounds.minY, Math.min(bounds.maxY, g.human.y + (dy / length) * step));
   } else if (target) {
     const station = STATIONS[target];
     if (moveToward(g.human, station.x, station.y, step)) humanInteract(true);
@@ -719,41 +897,40 @@ export function tick(delta) {
     }
     return;
   }
-  for (const who of ['human', 'ai']) {
+  for (const who of ['human', ...g.duty]) {
     const near = stationAt(g, who);
-    g[who].station = near.inReach ? near.id : null;
+    actor(g, who).station = near.inReach ? near.id : null;
   }
-  const intent = g.ai.intent;
-  if (intent) {
+  for (const who of g.duty) {
+    const cook = g.crew[who];
+    const intent = cook.intent;
+    if (!intent) continue;
     if (intent.id === 'wait') {
-      const decisionMs = Number(STAFF[g.staffId]?.decisionMs) || 1800;
-      if (g.time - intent.startedAt > decisionMs) g.ai.intent = null;
-    } else if (!isFeasible(g, intent)) {
-      g.ai.intent = null;
+      if (g.time - intent.startedAt > STAFF[who].decisionMs) cook.intent = null;
+    } else if (!isFeasible(g, intent, who)) {
+      cook.intent = null;
     } else if (intent.id === 'discard') {
-      discard(g, 'ai');
-      g.ai.intent = null;
+      discard(g, who);
+      cook.intent = null;
     } else {
       const station = STATIONS[intent.station];
-      const staff = STAFF[g.staffId] ?? STAFF.helper;
-      g.ai.dashUntil ??= 0;
-      g.ai.dashReadyAt ??= 0;
-      if (staff.canDash && g.time >= g.ai.dashReadyAt && g.time >= g.ai.dashUntil) {
-        g.ai.dashUntil = g.time + 220;
-        g.ai.dashReadyAt = g.time + 1800;
+      const staff = STAFF[who];
+      if (staff.canDash && g.time >= cook.dashReadyAt && g.time >= cook.dashUntil) {
+        cook.dashUntil = g.time + 220;
+        cook.dashReadyAt = g.time + 1800;
       }
       const partnerSpeed = staff.speed;
-      const dashSpeed = g.time < g.ai.dashUntil ? 2.7 : 1;
-      if (moveToward(g.ai, station.x, station.y, SPEED * dt * 0.9 * partnerSpeed * dashSpeed)) {
-        if (isFeasible(g, intent)) {
-          const result = interact(g, 'ai', intent.station);
-          if (result.ok) record('ai', result);
+      const dashSpeed = g.time < cook.dashUntil ? 2.7 : 1;
+      if (moveToward(cook, station.x, station.y, SPEED * dt * 0.9 * partnerSpeed * dashSpeed)) {
+        if (isFeasible(g, intent, who)) {
+          const result = interact(g, who, intent.station);
+          if (result.ok) record(who, result);
         }
-        g.ai.intent = null;
+        cook.intent = null;
       }
     }
   }
-  if (!practice) void decide();
+  if (!practice) for (const who of g.duty) void decide(who);
   if (g.time - lastPublish >= 100) {
     lastPublish = g.time;
     publish();
