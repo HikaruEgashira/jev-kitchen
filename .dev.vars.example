@@ -1,6 +1,6 @@
 # ローカル開発用。このファイルを .dev.vars にコピーする。
 # wrangler は .dev.vars があると .env を読まない（併用不可）。
-# 本番は `wrangler secret put` と GitHub Secrets を使う。
+# 本番のモデルキーは `wrangler secret put` で設定する。
 
 # --- Jev のバックエンドはどちらか一方 ---
 # 1) TypeSafe 直API（推奨）。Workers AI の AI Gateway クレジットが不要。

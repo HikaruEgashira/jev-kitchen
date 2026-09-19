@@ -59,8 +59,19 @@ pnpm exec wrangler deploy --dry-run
 
 ## 配信と復旧
 
+Cloudflare Workers Buildsが `HikaruEgashira/jev-kitchen` のmainへのpushを検知し、自動配信する。
+非本番ブランチのビルドは無効。既存のGitHub接続とWorkers Builds用トークンを使用し、GitHub SecretsにCloudflare資格情報は置かない。
+
+| Workers Builds設定    | 値                                            |
+| --------------------- | --------------------------------------------- |
+| 本番ブランチ / ルート | `main` / `/`                                  |
+| ビルドコマンド        | `pnpm test && pnpm typecheck && pnpm check`   |
+| デプロイコマンド      | `pnpm deploy`                                 |
+| Node / pnpm           | `.node-version` の24 / `PNPM_VERSION=11.26.0` |
+
 Worker名は `jev-kitchen`。`pnpm deploy` はVite+でビルドしてから、アセットとWorkerを同時に配信する。
-デプロイ前に上記の品質検証を行い、配信後は認証済みブラウザでゲームと実APIを確認する。
+GitHub Actionsもテスト・型検査・lint・ビルドを実行する。配信後は認証済みブラウザでゲームと実APIを確認する。
+手元からの配信は復旧時に使う。
 
 ```sh
 pnpm exec wrangler deployments list  # 配信前のversionを記録
