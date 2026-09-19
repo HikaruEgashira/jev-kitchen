@@ -49,11 +49,12 @@ test('early levels introduce mechanics at their lesson milestones', () => {
     assert.equal(levelConfig(level).staffSlots, slots);
 });
 
-test('the post-Lv10 difficulty curve is numeric, monotonic, and preserves Lv100 targets', () => {
+test('the difficulty curve grows between weeks and preserves Lv100 targets', () => {
   let previous = levelConfig(10);
   for (let level = 11; level <= MAX_LEVEL; level++) {
     const current = levelConfig(level);
-    assert.ok(current.quota >= previous.quota);
+    if (level > 30) assert.ok(current.quota >= previous.quota);
+    else if (level >= 16) assert.ok(current.quota > levelConfig(level - 5).quota);
     assert.ok(current.orderWindowMs <= previous.orderWindowMs);
     assert.ok(current.difficulty >= previous.difficulty);
     previous = current;
@@ -88,7 +89,10 @@ test('new recipes give breathing room, then Lv11..30 rotate production demands',
     assert.ok(week[0].recipeMix.dish > 0.5);
     assert.ok(week[1].recipeMix.soup > 0.5);
     assert.ok(week[2].recipeMix.roast > 0.4);
-    assert.ok(week.every((c) => c.quota >= 8 && c.quota <= 12 && c.orderWindowMs >= 32000));
+    assert.ok(week[0].quota > week[1].quota);
+    assert.ok(week[0].quota > week[2].quota);
+    assert.ok(week[4].quota > week[3].quota);
+    assert.ok(week.every((c) => c.quota >= 7 && c.quota <= 12 && c.orderWindowMs >= 32000));
   }
 });
 

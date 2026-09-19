@@ -50,7 +50,10 @@ function quota(level) {
   if (level === 5) return 7;
   if (level === 6) return 6;
   if (level <= 9) return 8;
-  if (level <= 30) return 8 + Math.floor((level - 10) / 5);
+  if (level <= 30) {
+    const daily = level >= 11 ? [1, -1, -1, 0, 0][(level - 11) % 5] : 0;
+    return 8 + Math.floor((level - 10) / 5) + daily;
+  }
   return 13 + Math.round(3 * Math.sqrt(progressBetween(level, 30, MAX_LEVEL)));
 }
 
