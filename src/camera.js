@@ -1,5 +1,5 @@
 import { MathUtils } from 'three/webgpu';
-import { kitchenBounds } from './model.js';
+import { kitchenBounds, kitchenExpansion, levelConfig, roomShell } from './model.js';
 
 // Fraction of the screen height the kitchen render is lowered by.
 export const SCENE_DROP = 0.06;
@@ -10,10 +10,13 @@ export function cameraFraming(game, phase, mode, width, height, entranceComplete
     entranceComplete &&
     ['ready', 'playing', 'paused'].includes(phase) &&
     (mode === 'follow' || (mode === 'auto' && width < height));
-  const x = follow ? game.human.x : (bounds.minX + bounds.maxX) / 2;
-  const y = follow ? game.human.y : (bounds.minY + bounds.maxY) / 2;
+  // Overview frames the room shell, not the narrower station bounds, so the
+  // visible kitchen sits in the middle of the screen.
+  const room = roomShell(levelConfig(game.level).kitchenTier, kitchenExpansion(game));
   return {
-    target: [(x - 450) / 65, follow ? 0.85 : 0.25, (y - 270) / 65],
+    target: follow
+      ? [(game.human.x - 450) / 65, 0.85, (game.human.y - 270) / 65]
+      : [room.center, 0.25, 0],
     zoom: follow
       ? Math.min(width / 8, height / 10)
       : Math.min(
