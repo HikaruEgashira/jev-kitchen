@@ -731,6 +731,8 @@ function Scene() {
       ),
       delta,
       reducedMotion || !cameraInitialized.current,
+      size.width,
+      size.height,
     );
     cameraInitialized.current = true;
   }, -1);
