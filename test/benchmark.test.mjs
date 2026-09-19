@@ -15,6 +15,7 @@ import {
   runBenchmark,
   stopBenchmark,
   pauseBenchmark,
+  pauseBenchmarkWhenAway,
   resumeBenchmark,
   useBenchmark,
   latencyStats,
@@ -261,6 +262,16 @@ test('invalid call limits and frequencies are rejected before a request', async 
   for (const maxRequests of [0, -1, 1.5, 10001, NaN])
     await assert.rejects(runBenchmark({ model, maxRequests }));
   assert.equal(fetch.mock.callCount(), 0);
+});
+
+test('tab-hidden pausing follows the away-pause option', () => {
+  useBenchmark.setState({ running: true });
+  useKitchen.setState({ phase: 'playing', pauseWhenAway: false });
+  pauseBenchmarkWhenAway();
+  assert.equal(useKitchen.getState().phase, 'playing');
+  useKitchen.setState({ pauseWhenAway: true });
+  pauseBenchmarkWhenAway();
+  assert.equal(useKitchen.getState().phase, 'paused');
 });
 
 test('pause and resume retain the campaign and call budget without applying a pending reply', async (t) => {

@@ -3,6 +3,7 @@ import { useKitchen } from './game.js';
 import {
   runBenchmark,
   pauseBenchmark,
+  pauseBenchmarkWhenAway,
   resumeBenchmark,
   stopBenchmark,
   useBenchmark,
@@ -52,7 +53,7 @@ export default function Bench() {
         if (!controller.signal.aborted) setError(e.message);
       });
     const hidden = () => {
-      if (document.hidden) pauseBenchmark();
+      if (document.hidden) pauseBenchmarkWhenAway();
     };
     document.addEventListener('visibilitychange', hidden);
     return () => {

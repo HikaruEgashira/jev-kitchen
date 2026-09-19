@@ -172,6 +172,12 @@ export function pauseBenchmark() {
   else if (useKitchen.getState().phase === 'finished') useBenchmark.setState({ paused: true });
 }
 
+// The bench screen shares the game menu, so tab-hidden pausing must follow the
+// same 「裏画面で停止」 option instead of always stopping.
+export function pauseBenchmarkWhenAway() {
+  if (useKitchen.getState().pauseWhenAway) pauseBenchmark();
+}
+
 export function resumeBenchmark() {
   if (!useBenchmark.getState().running) return;
   if (useKitchen.getState().menuOpen) setMenuOpen(false);
