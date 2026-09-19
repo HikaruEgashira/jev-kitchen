@@ -26,6 +26,15 @@ MVPを短い協力料理ゲームとして本番公開するための判定台�
 - Access、秘密、課金、外部送信、他repoの権限は本台帳の対象外であり、変更しない。
 - 部門間で競合する変更は、directorがMVPの遊びやすさ・安全性・復旧性を優先して採否を決める。
 
+## 2026-09-20 設定メニューのリセットと確認ステップ配信
+
+- 設定メニュー（`≡`）に「リセット」を常設した。押すと保存済みの進行（`sidekick-campaign-v1`／`sidekick-stages-v1`／`sidekick-best-v2`）を削除し、Lv1・未保存・ベスト0の初期状態へ戻す。表示設定（音・カメラ・移動・バックグラウンド）と`ready`は維持する。
+- 破壊的操作のため2段階確認にした。1回目でボタンが赤い「リセット確定」に変わり、2回目で実行する。メニューを閉じるか別ページへ移ると確認状態は解除される。
+- commit `847c0f2`をmainへpush。`pnpm test`は203 pass／0 fail、typecheck、check、build（フォント収録・legal検査含む）がpass。GitHub Actions [35453985845](https://github.com/HikaruEgashira/jev-kitchen/actions/runs/35453985845)がsuccess。
+- Workers Buildsが配信し、本番100% versionは`f086be29-b48d-4a34-90aa-c0c486a87e4c`（2026-09-19T16:09:38Z）。配信後の`GET /api/health`は200で`ok:true`・`configured.sessions`／`configured.rateLimit`がtrue、`GET /`は200。
+- 復旧先は100% version `0408a120-4a3f-4eb3-87f3-c217ab6f4e23`。復旧コマンドは`pnpm exec wrangler rollback 0408a120-4a3f-4eb3-87f3-c217ab6f4e23`。
+- 未実施: 実ブラウザでのリセットボタンのタップ導線（1回目→確定表示、2回目→初期化）と再読込後の初期状態は未確認である。
+
 ## 2026-09-20 一般公開（Access解除・ticket保護・検証順位）配信
 
 - `wrangler secret put TICKET_SECRET`（乱数32バイトhex）を設定した。`wrangler secret list`に`TICKET_SECRET`と`TYPESAFE_API_KEY`を確認。課金ルートはrun ticketで保護される。
