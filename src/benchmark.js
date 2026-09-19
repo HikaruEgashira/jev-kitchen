@@ -400,10 +400,12 @@ export function benchRequest(state, { preparing, plan, candidates }) {
                 stock:
                   'Choose the purchase quantity closest to recommended_purchase, or confirm_stock if it already matches. One tomato makes one dish. Sell beyond quota for profit; leftovers carry over. Stock should cover the whole shift, not only quota.',
                 investment:
-                  bill.training.human?.move === MAX_TRAINING &&
-                  bill.training.human?.cook === MAX_TRAINING
-                    ? 'Human training is complete. Invest spare coins in kitchen equipment for the next shift recipe mix. For a soup-heavy shift prioritize more or faster pots; for grilled food prioritize grills; for salads prioritize boards. Then train working crew. Open only if useful investments are unaffordable or saving for a needed expansion.'
-                    : 'Invest remaining coins before opening. Choose vitamin_move_human when available, then vitamin_cook_human. With multiple cooks, prioritize a second board. Otherwise upgrade useful equipment or regular crew. Choose open_shift when saving for necessary equipment or no useful upgrade is affordable.',
+                  bill.duty.length >= 2 && bill.equipment.board.count < 2
+                    ? 'Multiple crew share only one board. Prioritize equipment_add_board if affordable. Otherwise open_shift and save for that expansion; do not spend its budget on smaller upgrades.'
+                    : bill.training.human?.move === MAX_TRAINING &&
+                        bill.training.human?.cook === MAX_TRAINING
+                      ? 'Human training is complete. Invest spare coins in kitchen equipment for the next shift recipe mix. For a soup-heavy shift prioritize more or faster pots; for grilled food prioritize grills; for salads prioritize boards. Then train working crew. Open only if useful investments are unaffordable or saving for a needed expansion.'
+                      : 'Invest remaining coins before opening. Choose vitamin_move_human when available, then vitamin_cook_human. With multiple cooks, prioritize a second board. Otherwise upgrade useful equipment or regular crew. Choose open_shift when saving for necessary equipment or no useful upgrade is affordable.',
               }[plan.stage] ??
               'Prepare the next shift within cash: hire, assign rested staff, buy surplus stock and invest, then open_shift. Each choice edits a pending plan.',
             criteria: Object.fromEntries(candidates.map((c) => [c.id, c.label])),

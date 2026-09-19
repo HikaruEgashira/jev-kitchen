@@ -525,3 +525,23 @@ test('benchmark E uses the same handoff and rejects a partner who moved away', (
   assert.equal(g.ai.carrying, 'chopped');
   assert.equal(g.human.carrying, null);
 });
+
+test('investment considers the pending second board before recommending further upgrades', () => {
+  const g = createGame({
+    level: 7,
+    cash: 1500,
+    stock: 20,
+    hired: ['helper', 'chef'],
+    duty: ['chef'],
+    training: { human: { move: 5, cook: 5 } },
+  });
+  const s = { ...useKitchen.getState(), game: g, phase: 'finished', cleared: true, applicants: [] };
+  const plan = { ...preparation(g), duty: ['helper', 'chef'], stage: 'investment' };
+  const instruction = () =>
+    benchRequest(s, { preparing: true, plan, candidates: preparationCandidates(s, plan) }).questions
+      .next_action.instructions;
+  assert.match(instruction(), /only one board/);
+  plan.equipmentPurchases = ['add_board'];
+  assert.doesNotMatch(instruction(), /only one board/);
+  assert.match(instruction(), /next shift recipe mix/);
+});
