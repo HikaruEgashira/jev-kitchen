@@ -281,6 +281,31 @@ test('operation settings expose the background mode toggle and reflect its state
   assert.ok(!settings.items.some((item) => item.action === 'background'));
 });
 
+test('the settings sheet confirms the reset before wiping saved progress', () => {
+  const base = { ...useKitchen.getState(), menuOpen: true, menuPage: 'settings', phase: 'paused' };
+  for (const [width, height] of [
+    [320, 568],
+    [568, 320],
+    [390, 844],
+    [1440, 900],
+  ]) {
+    const view = preparation(base.game);
+    const ui = screen(base, view, width, height);
+    const reset = ui.items.find((item) => item.action === 'reset');
+    assert.ok(reset, `${width}x${height}`);
+    assert.equal(reset.text, 'リセット');
+    assert.equal(reset.color, undefined);
+    assert.ok([...reset.text].length * reset.size <= reset.w - 8);
+    const armed = screen(base, { ...view, resetArmed: true }, width, height);
+    const confirm = armed.items.find((item) => item.action === 'reset');
+    assert.equal(confirm.text, 'リセット確定');
+    assert.equal(confirm.color, '#a1372f');
+    assert.ok([...confirm.text].length * confirm.size <= confirm.w - 8);
+  }
+  const bench = screen({ ...base, benchmark: true }, preparation(base.game), 390, 844);
+  assert.ok(!bench.items.some((item) => item.action === 'reset'));
+});
+
 test('preparation screen exposes multi-person duty selection and fatigue status', () => {
   const game = createGame({ level: 24, cash: 900, stock: 12, hired: ['helper', 'runner', 'chef'] });
   Object.assign(game, {
