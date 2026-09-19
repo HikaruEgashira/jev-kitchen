@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { compactDecisionState, latencyStats } from '../src/benchmark.js';
+import { apiFetch } from '../src/api-client.js';
 
 const { values } = parseArgs({
   options: {
@@ -21,7 +22,9 @@ for (const fixture of corpus.cases) {
   )
     throw new Error(`Invalid expected actions: ${fixture.id}`);
 }
-const endpoint = new URL('/api/bench/decide', process.env.BENCH_ORIGIN ?? 'http://127.0.0.1:8787');
+const origin = process.env.BENCH_ORIGIN ?? 'http://127.0.0.1:8787';
+const request = globalThis.fetch;
+globalThis.fetch = (path, options) => request(new URL(path, origin), options);
 const observations = [];
 for (let repeat = 0; repeat < repeats; repeat++) {
   for (const fixture of corpus.cases) {
@@ -33,10 +36,7 @@ for (let repeat = 0; repeat < repeats; repeat++) {
         questions: fixture.questions,
       });
       const started = performance.now();
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body,
+      const response = await apiFetch('/api/bench/decide', body, 'bench', {
         signal: AbortSignal.timeout(10000),
       });
       if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
