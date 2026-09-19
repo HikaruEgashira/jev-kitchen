@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { useThree } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { ScreenSpace } from '@react-three/drei/core/ScreenSpace';
 import { ScreenSizer } from '@react-three/drei/core/ScreenSizer';
 import { Text3D } from '@react-three/drei/core/Text3D';
@@ -205,6 +205,43 @@ const Tile = memo(function Tile({ item, active, activate, hover }) {
     </group>
   );
 });
+
+function ClearConfetti({ width, height, reducedMotion, hidden }) {
+  const group = useRef();
+  const elapsed = useRef(0);
+  useFrame((_, delta) => {
+    elapsed.current += delta;
+    group.current.visible = !reducedMotion && !hidden && elapsed.current < 4.5;
+    if (!group.current.visible) return;
+    group.current.children.forEach((piece, i) => {
+      const t = elapsed.current - (i % 12) * 0.055;
+      piece.visible = t >= 0;
+      const side = i % 2 ? 1 : -1;
+      piece.position.set(
+        width / 2 + side * (width * 0.48 - t * width * (0.16 + (i % 5) * 0.025)),
+        -height * 0.7 + t * height * (0.65 + (i % 7) * 0.035) - t * t * height * 0.3,
+        30,
+      );
+      piece.rotation.set(t * (2 + (i % 3)), t * 3 + i, t * 2 + i);
+    });
+  });
+  return (
+    <group ref={group} visible={false}>
+      {Array.from({ length: 72 }, (_, i) => (
+        <mesh key={i} renderOrder={6000} raycast={() => null}>
+          <boxGeometry args={[6, 12, 1]} />
+          <meshBasicMaterial
+            color={['#ed826e', '#f4cd75', '#76b59b', '#fff9e8'][i % 4]}
+            transparent
+            depthTest={false}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
 
 function Screen() {
   const s = useKitchen();
@@ -476,6 +513,14 @@ function Screen() {
                 hover={setHover}
               />
             ))}
+            {s.phase === 'finished' && s.cleared && !s.reviewing && (
+              <ClearConfetti
+                width={size.width}
+                height={size.height}
+                reducedMotion={s.reducedMotion}
+                hidden={s.menuOpen}
+              />
+            )}
           </group>
         </ScreenSizer>
       </ScreenSpace>

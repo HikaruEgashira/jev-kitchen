@@ -638,30 +638,50 @@ export function screen(s, view, width, height) {
   const welcome = modal === 'welcome';
   const placementSheet =
     s.phase === 'finished' && s.cleared && view.page === 3 && view.layoutMode === 'layout';
+  const stockSheet = !s.menuOpen && s.phase === 'finished' && s.cleared && view.page === 2;
   let prepStatus = view.error || '';
-  const pw = Math.min(width - 24, welcome ? 700 : 580);
+  const sheetWidth = Math.min(
+    width - 24,
+    welcome
+      ? portrait
+        ? 700
+        : width * 0.5
+      : stockSheet
+        ? portrait
+          ? 480
+          : 900
+        : portrait
+          ? 580
+          : 900,
+  );
+  const rail =
+    !portrait && !stockSheet && !welcome ? Math.min(176, Math.floor(sheetWidth * 0.28)) : 0;
+  const pw = sheetWidth - rail;
   const ph = Math.min(
     height - 24,
     s.menuOpen
       ? 400
-      : placementSheet
-        ? 296
-        : s.phase === 'finished' && s.cleared && !s.campaignComplete
-          ? 384
-          : s.phase === 'finished' && !s.cleared && !s.campaignComplete
-            ? 296
-            : welcome
-              ? narrow
-                ? 136
-                : 178
-              : 256,
+      : stockSheet && portrait
+        ? 560
+        : placementSheet
+          ? 296
+          : s.phase === 'finished' && s.cleared && !s.campaignComplete
+            ? 384
+            : s.phase === 'finished' && !s.cleared && !s.campaignComplete
+              ? 296
+              : welcome
+                ? narrow
+                  ? 136
+                  : 178
+                : 256,
   );
-  const x = (width - pw) / 2,
+  const x = welcome && !portrait ? 16 : (width - sheetWidth) / 2,
     y = welcome ? 20 : placementSheet ? height - ph - 12 : (height - ph) / 2;
   order = 4000;
   if (!welcome) add('veil', 'veil', '', 0, 0, width, height);
-  panel('sheet', x, y, pw, ph);
-  panel('clip', width / 2 - 36, y - 5, 72, 16, { color: '#76b59b', edge: '#245e50' });
+  panel('sheet', x, y, sheetWidth, ph);
+  if (rail) panel('actions-board', x + pw, y + 12, rail - 12, ph - 24, { color: '#dbe3d2' });
+  panel('clip', x + pw / 2 - 36, y - 5, 72, 16, { color: '#76b59b', edge: '#245e50' });
   const inside = pw - 32;
   const title = (text) =>
     label('title', text, x + 16, y + 18, inside, 34, { size: narrow ? 21 : 26 });
@@ -925,7 +945,7 @@ export function screen(s, view, width, height) {
     primary('閉じる', 'close-menu');
   } else if (s.phase === 'ready') {
     add('title3d', 'title', 'SIDEKICK', x + 16, y + 12, inside, narrow ? 72 : 100, {
-      size: narrow ? 46 : 82,
+      size: narrow ? Math.min(46, inside / 7) : 82,
     });
     copy('welcome', 'kitchen   /   ふたりで、ひと皿。', narrow ? 84 : 116, 36, {
       size: narrow ? 15 : 22,
@@ -980,7 +1000,7 @@ export function screen(s, view, width, height) {
       });
     }
   } else {
-    button('advice', 'ヒント', x + pw - 80, y + 12, 64, 'advice', { size: 13 });
+    button('advice', 'ヒント', x + pw - 80, y + 8, 64, 'advice', { size: 13 });
     const bill = purchase(g, view);
     const hint = preparationHint(bill);
     prepStatus = view.error || hint || (view.page >= 2 ? bill.error : '');
@@ -1100,10 +1120,14 @@ export function screen(s, view, width, height) {
       const duty = [...new Set(Array.isArray(view.duty) ? view.duty : [])].filter((id) =>
         roster.includes(id),
       );
-      const columns = 4;
+      const columns = portrait ? (height >= 540 ? 2 : 4) : height < 360 ? 4 : 3;
       const gap = 4;
-      const cellW = (inside - gap * (columns - 1)) / columns;
-      const dutyY = short ? y + 56 : y + 72;
+      const rosterW = portrait ? inside : (inside - 24) / 2;
+      const stockW = portrait ? inside : (inside - 24) / 2;
+      const stockX = portrait ? x + 16 : x + 40 + rosterW;
+      const cellW = (rosterW - gap * (columns - 1)) / columns;
+      const dutyY = y + 80;
+      label('duty-heading', '勤務表', x + 16, y + 54, rosterW, 22, { size: 14 });
       const nextState = bill.staffState;
       const fatigueVisible = levelConfig(g.level + 1).fatigueEnabled;
       roster.forEach((id, index) => {
@@ -1148,51 +1172,76 @@ export function screen(s, view, width, height) {
         );
       });
       const dutyRows = Math.max(1, Math.ceil(roster.length / columns));
-      const sy = short ? y + 56 + dutyRows * 48 + 4 : y + 86 + dutyRows * 48;
+      const sy = dutyY + dutyRows * 48 + 4;
       label(
         'duty-summary',
-        bill.error && short
-          ? bill.error
-          : duty.length === 0
-            ? `ひとりで営業  ・  給与 🪙0${short ? `  残り🪙${bill.cash}` : ''}`
-            : `出勤 ${duty.length}/${bill.slots}人  ・  勤務給与 🪙${bill.wages}${short ? `  残り🪙${bill.cash}` : ''}`,
+        duty.length === 0
+          ? 'ひとりで営業  ・  給与 0'
+          : `出勤 ${duty.length}/${bill.slots}人  ・  給与 ${bill.wages}`,
         x + 16,
-        sy - 4,
-        inside,
-        28,
-        { size: 11, color: bill.error && short ? '#a1372f' : undefined },
+        sy,
+        rosterW,
+        24,
+        { size: 12 },
       );
-      const stockY = sy + 22;
-      label('stock-label', `${STOCK_PRICE} / 個`, x + 16, stockY, inside - 168, 44, { size: 13 });
-      button('less', '−', x + pw - 180, stockY, 44, 'quantity', {
+      const stockY = portrait ? sy + 56 : dutyY + 4;
+      add('food', 'stock-tomato', '', stockX, stockY - 30, 28, 28, { recipe: 'tomato' });
+      label(
+        'stock-label',
+        `仕入れ  ${STOCK_PRICE}コイン / 個`,
+        stockX + 32,
+        stockY - 30,
+        stockW - 32,
+        24,
+        { size: 13 },
+      );
+      button('less', '−', stockX, stockY, 44, 'quantity', {
         value: -1,
         label: '仕入れを1個減らす',
         disabled: bill.quantity <= 0,
       });
-      add('number', 'quantity', String(view.quantity), x + pw - 132, stockY, 64, 44, {
+      add('number', 'quantity', String(view.quantity), stockX + 52, stockY, stockW - 104, 44, {
         label: '仕入れ個数',
         action: 'quantity-input',
       });
-      button('more', '＋', x + pw - 64, stockY, 44, 'quantity', {
+      button('more', '＋', stockX + stockW - 44, stockY, 44, 'quantity', {
         value: 1,
         label: '仕入れを1個増やす',
         disabled: bill.quantity >= 99,
       });
-      if (!short)
-        copy(
-          'bill',
-          `在庫 ${g.stock ?? 0} → ${Number.isFinite(bill.stock) ? bill.stock : '—'}個 / ノルマ ${bill.quota}皿\n採用 ${bill.hiring} ＋ 仕入れ ${Number.isFinite(bill.quantity) ? bill.quantity * STOCK_PRICE : '—'} ＋ 給与 ${bill.wages} / 残り ${Number.isFinite(bill.cash) ? bill.cash : '—'}コイン`,
-          stockY + 48 - y,
-          42,
-          { size: 12 },
-        );
+      label(
+        'stock-summary',
+        `在庫 ${g.stock ?? 0} → ${Number.isFinite(bill.stock) ? bill.stock : '—'}個 / 必要 ${bill.quota}個`,
+        stockX,
+        stockY + 48,
+        stockW,
+        24,
+        { size: 12 },
+      );
+      label(
+        'bill',
+        `採用 ${bill.hiring} ＋ 仕入れ ${Number.isFinite(bill.quantity) ? bill.quantity * STOCK_PRICE : '—'}
+給与 ${bill.wages} ＋ 設備・育成 ${bill.equipmentCost + bill.vitaminCost}`,
+        stockX,
+        stockY + 74,
+        stockW,
+        34,
+        { size: 12 },
+      );
       const warning = view.error || hint || bill.error;
-      if (!short && warning && stockY + 128 <= footerY)
-        label('hint', warning, x + 16, stockY + 102 - y, inside, 26, {
-          color: '#a1372f',
-          size: 12,
-          live: true,
-        });
+      const balanceY = footerY - (portrait ? 42 : 34);
+      panel('balance-board', stockX, balanceY, stockW, portrait ? 34 : 28, {
+        color: warning ? '#f7c4af' : '#dbe3d2',
+      });
+      label(
+        'balance',
+        warning || `開店後の残金  ${Number.isFinite(bill.cash) ? bill.cash : '—'}コイン`,
+        stockX + 4,
+        balanceY + 2,
+        stockW - 8,
+        portrait ? 30 : 24,
+        { size: 13, color: warning ? '#a1372f' : '#245e50', live: true },
+      );
       const backW = narrow ? 72 : 120;
       const equipmentW = narrow ? 68 : 100;
       button('back', g.level < 3 ? '戻る' : '採用', x + 16, footerY, backW, 'page', {
@@ -1645,6 +1694,37 @@ export function screen(s, view, width, height) {
     button('sheet-menu', '≡', main.x + main.w + 16, footerY, 44, 'menu', {
       label: 'メニューを開く',
     });
+  }
+  if (rail) {
+    const actions = items.filter(
+      (item) =>
+        !item.inert &&
+        item.kind === 'button' &&
+        (item.y === footerY ||
+          ['primary', 'back', 'hire', 'skip', 'retry', 'review', 'previous'].includes(item.id)),
+    );
+    const top = y + (ph - (actions.length * 52 - 8)) / 2;
+    actions.forEach((item, index) =>
+      Object.assign(item, {
+        x: x + pw + 6,
+        y: top + index * 52,
+        w: rail - 24,
+        h: 44,
+      }),
+    );
+  } else if (welcome && !portrait) {
+    const actionWidth = Math.min(300, width * 0.4);
+    const left = width - actionWidth - 20;
+    Object.assign(
+      items.find((item) => item.id === 'primary'),
+      { x: left, w: actionWidth - 60 },
+    );
+    Object.assign(
+      items.find((item) => item.id === 'sheet-menu'),
+      { x: width - 64 },
+    );
+    const stages = items.find((item) => item.id === 'stages');
+    if (stages) Object.assign(stages, { x: left, w: actionWidth });
   }
   return {
     items,

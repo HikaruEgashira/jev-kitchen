@@ -4,6 +4,7 @@ const PATTERNS = Object.freeze({
   success: { notes: [523, 659, 784, 1047], step: 0.09, duration: 0.18, gain: 0.05 },
   failure: { notes: [260, 196], step: 0.1, duration: 0.18, gain: 0.045 },
   finish: { notes: [784, 659, 523], step: 0.16, duration: 0.28, gain: 0.05 },
+  applause: { notes: [0], step: 0, duration: 3, gain: 0.18 },
   dash: { notes: [220, 330], step: 0.04, duration: 0.08, gain: 0.03 },
 });
 
@@ -11,6 +12,20 @@ const MAX_VOICES = 12;
 
 function contextConstructor() {
   return globalThis.AudioContext ?? globalThis.webkitAudioContext;
+}
+
+function applauseBuffer(context) {
+  const buffer = context.createBuffer(1, context.sampleRate * 3, context.sampleRate);
+  const samples = buffer.getChannelData(0);
+  for (let clap = 0; clap < 36; clap++) {
+    const start = Math.floor((clap * 0.073 + Math.random() * 0.04) * context.sampleRate);
+    for (let i = 0; i < context.sampleRate * 0.12 && start + i < samples.length; i++) {
+      const time = i / context.sampleRate;
+      samples[start + i] +=
+        (Math.random() * 2 - 1) * Math.min(1, time / 0.002) * Math.exp(-time * 55) * 0.45;
+    }
+  }
+  return buffer;
 }
 
 export function createAudio({ enabled = true } = {}) {
@@ -40,7 +55,7 @@ export function createAudio({ enabled = true } = {}) {
     if (voice.disconnected) return;
     voice.disconnected = true;
     try {
-      voice.oscillator.disconnect();
+      voice.source.disconnect();
       voice.gain.disconnect();
     } catch {
       /* Disconnect is best effort when audio is unavailable. */
@@ -50,7 +65,7 @@ export function createAudio({ enabled = true } = {}) {
   function stopVoice(voice) {
     if (!active.delete(voice)) return;
     try {
-      voice.oscillator.stop();
+      voice.source.stop();
     } catch {
       /* An oscillator may already have ended. */
     }
@@ -80,24 +95,28 @@ export function createAudio({ enabled = true } = {}) {
         stopVoice(active.values().next().value);
       }
       pattern.notes.forEach((note, index) => {
-        const oscillator = context.createOscillator();
+        const source =
+          kind === 'applause' ? context.createBufferSource() : context.createOscillator();
         const gain = context.createGain();
-        const voice = { oscillator, gain, disconnected: false };
+        const voice = { source, gain, disconnected: false };
         const at = context.currentTime + index * pattern.step;
-        oscillator.type = kind === 'failure' ? 'triangle' : 'sine';
-        oscillator.frequency.value = note;
+        if (kind === 'applause') source.buffer = applauseBuffer(context);
+        else {
+          source.type = kind === 'failure' ? 'triangle' : 'sine';
+          source.frequency.value = note;
+        }
         gain.gain.setValueAtTime(0, at);
         gain.gain.linearRampToValueAtTime(pattern.gain, at + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.001, at + pattern.duration);
-        oscillator.connect(gain);
+        source.connect(gain);
         gain.connect(context.destination);
-        oscillator.onended = () => {
+        source.onended = () => {
           active.delete(voice);
           disconnect(voice);
         };
         active.add(voice);
-        oscillator.start(at);
-        oscillator.stop(at + pattern.duration);
+        source.start(at);
+        source.stop(at + pattern.duration);
       });
       return true;
     } catch {
