@@ -434,12 +434,29 @@ export function screen(s, view, width, height) {
         pressed: s.sound,
         size: 13,
       });
-      button('controls', '操作設定', x + 24 + bw, y + 64, bw, 'menu-page', {
+      button(
+        'away-pause',
+        s.pauseWhenAway ? '裏画面で停止：オン' : '裏画面で停止：オフ',
+        x + 24 + bw,
+        y + 64,
+        bw,
+        'away-pause',
+        {
+          pressed: s.pauseWhenAway,
+          size: 13,
+          label: '他の画面に切り替えたときに一時停止する',
+        },
+      );
+      const nav = (inside - 16) / 3;
+      button('controls', '操作設定', x + 16, y + 116, nav, 'menu-page', {
         value: 'controls',
         size: 13,
       });
-      button('help', '遊び方', x + 16, y + 116, bw, 'menu-page', { value: 'help', size: 13 });
-      button('diagnostics', '診断', x + 24 + bw, y + 116, bw, 'menu-page', {
+      button('help', '遊び方', x + 24 + nav, y + 116, nav, 'menu-page', {
+        value: 'help',
+        size: 13,
+      });
+      button('diagnostics', '診断', x + 32 + nav * 2, y + 116, nav, 'menu-page', {
         value: 'diagnostics',
         size: 13,
       });

@@ -20,6 +20,7 @@ import {
   rollbackToPreparation,
   rollbackToPreviousStage,
   toggleSound,
+  togglePauseWhenAway,
   humanInteract,
   humanDash,
   clearHands,
@@ -216,6 +217,9 @@ function Screen() {
         break;
       case 'sound':
         toggleSound();
+        break;
+      case 'away-pause':
+        togglePauseWhenAway();
         break;
       case 'camera':
         setCameraMode(value);

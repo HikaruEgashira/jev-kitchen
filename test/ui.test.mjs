@@ -138,6 +138,18 @@ test('camera settings expose the three modes as Three UI controls with matching 
   }
 });
 
+test('the menu exposes the away-pause toggle and reflects its state', () => {
+  for (const pauseWhenAway of [false, true]) {
+    const s = { ...useKitchen.getState(), menuOpen: true, phase: 'paused', pauseWhenAway };
+    const ui = screen(s, { ...preparation(s.game), menuPage: 'settings' }, 320, 568);
+    const toggle = ui.items.find((item) => item.action === 'away-pause');
+    assert.ok(toggle);
+    assert.equal(toggle.pressed, pauseWhenAway);
+    assert.match(toggle.text, pauseWhenAway ? /オン/ : /オフ/);
+    assert.ok([...toggle.text].length * toggle.size <= toggle.w - 8);
+  }
+});
+
 test('preparation screen exposes multi-person duty selection and fatigue status', () => {
   const game = createGame({ level: 24, cash: 900, stock: 12, hired: ['helper', 'runner', 'chef'] });
   Object.assign(game, {

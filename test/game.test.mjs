@@ -9,6 +9,7 @@ import {
   setMenuOpen,
   setCameraMode,
   setMovementMode,
+  togglePauseWhenAway,
   tick,
   installControls,
   graphicsLost,
@@ -43,6 +44,7 @@ test.beforeEach(() => {
     menuOpen: false,
     cameraMode: 'auto',
     movementMode: 'grid',
+    pauseWhenAway: false,
   });
 });
 
@@ -652,7 +654,7 @@ test('automatic arrival does not boost cooking, while a direct tap does', () => 
   togglePause();
 });
 
-test('blur pauses and Escape leaves an open help dialog paused', () => {
+test('leaving the screen pauses only once enabled and Escape leaves an open help dialog paused', () => {
   const originalWindow = globalThis.window;
   const originalDocument = globalThis.document;
   const windowListeners = new Map();
@@ -709,6 +711,12 @@ test('blur pauses and Escape leaves an open help dialog paused', () => {
     });
     assert.equal(useKitchen.getState().phase, 'playing');
     assert.equal(useKitchen.getState().game.time, 0);
+    // Leaving the screen pauses only when the option is enabled.
+    windowListeners.get('blur')();
+    fakeDocument.hidden = true;
+    documentListeners.get('visibilitychange')();
+    assert.equal(useKitchen.getState().phase, 'playing');
+    togglePauseWhenAway();
     windowListeners.get('blur')();
     assert.equal(useKitchen.getState().phase, 'paused');
     setMenuOpen(true);

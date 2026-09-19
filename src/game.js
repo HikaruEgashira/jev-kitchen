@@ -186,6 +186,7 @@ export const useKitchen = create(() => ({
   cameraMode: 'auto',
   movementMode: 'grid',
   sound: true,
+  pauseWhenAway: false,
   best: savedBest(),
   checkpoint: initialCheckpoint,
   rollback: initialCheckpoint?.rollback ?? null,
@@ -634,6 +635,10 @@ export function toggleSound() {
   audio?.setEnabled(sound);
 }
 
+export function togglePauseWhenAway() {
+  update({ pauseWhenAway: !state().pauseWhenAway });
+}
+
 function tutorialStep() {
   const step = state().tutorial;
   return Number.isInteger(step) && step >= 0 && step < TUTORIAL_STEPS.length ? step : null;
@@ -757,10 +762,10 @@ export function installControls() {
   const up = (e) => keys.delete(e.key.toLowerCase());
   const blur = () => {
     keys.clear();
-    if (state().phase === 'playing') togglePause();
+    if (state().pauseWhenAway && state().phase === 'playing') togglePause();
   };
   const visibility = () => {
-    if (document.hidden && state().phase === 'playing') togglePause();
+    if (state().pauseWhenAway && document.hidden && state().phase === 'playing') togglePause();
   };
   window.addEventListener('keydown', down);
   window.addEventListener('keyup', up);
