@@ -701,3 +701,25 @@ export function screen(s, view, width, height) {
     status: view.error || (view.page === 2 && s.cleared ? purchase(g, view).error : ''),
   };
 }
+
+// The model must see what the player sees. This projects the rendered screen
+// into model context, so any text added to `screen` reaches the model and the
+// two representations cannot drift apart.
+export function screenContext(s, view, width, height) {
+  const { items, modal, title, status } = screen(s, view, width, height);
+  return {
+    modal,
+    title: title ?? null,
+    status: status || null,
+    items: items
+      .filter((item) => item.text || item.label || item.recipe)
+      .map((item) => ({
+        id: item.id,
+        text: item.text || null,
+        ...(item.label && item.label !== item.text ? { label: item.label } : {}),
+        ...(item.recipe ? { recipe: item.recipe } : {}),
+        ...(item.disabled ? { disabled: true } : {}),
+        ...(item.pressed ? { pressed: true } : {}),
+      })),
+  };
+}

@@ -18,6 +18,7 @@ import {
   resumeBenchmark,
   useBenchmark,
   latencyStats,
+  benchRequest,
 } from '../src/benchmark.js';
 
 const writes = [];
@@ -56,6 +57,22 @@ test('player candidates retain legal actions without partner or recipe heuristic
   assert.ok(choices.some((c) => c.id === 'move_left'));
   assert.ok(choices.some((c) => c.id === 'move_pot'));
   assert.match(buildQuestions(choices, 'human').next_action.instructions, /HUMAN player/);
+});
+
+test('the model context carries the on-screen text, including station hints', () => {
+  startBenchmark();
+  const g = useKitchen.getState().game;
+  g.level = 5;
+  g.orders = [{ id: 0, recipe: 'soup', deadline: g.time + 30_000, duration: 30_000 }];
+  g.human.x = STATIONS.pot.x;
+  g.human.y = STATIONS.pot.y;
+  const { state } = benchRequest(useKitchen.getState(), {
+    preparing: false,
+    plan: undefined,
+    candidates: buildCandidates(g, 'human'),
+  });
+  assert.ok(state.screen.items.some((item) => item.id === 'shift'));
+  assert.ok(state.screen.items.some((item) => item.text?.includes('切ったトマトを持ってこよう')));
 });
 
 test('benchmark actions use movement, reject stale work on arrival, and never save a campaign', () => {
@@ -145,6 +162,7 @@ test('complete shifts are recorded and repeated attempts reset the starting cond
   assert.ok(
     starts.every((state) => state.level === 1 && state.cash === 108 && state.orders_served === 0),
   );
+  assert.ok(starts.every((state) => state.screen.items.length > 0));
   const results = useBenchmark.getState().results;
   assert.equal(results.length, 2);
   assert.ok(
@@ -210,6 +228,7 @@ test('frequency spaces calls and the model hires, buys stock and assigns the nex
       assert.equal(body.state.phase, 'preparation');
       assert.equal(body.state.preparation.applicants[0].id, 'chef');
       if (calls.length === 2) assert.deepEqual(body.state.preparation.duty, ['helper']);
+      assert.ok(body.state.screen.items.some((item) => item.id === 'title'));
     }
     return answer(choice);
   });

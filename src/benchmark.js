@@ -9,7 +9,7 @@ import {
 } from './game.js';
 import { buildCandidates, buildQuestions, observe, MAX_LEVEL, STOCK_PRICE } from './model.js';
 import { STAFF } from './staff.js';
-import { preparation, purchase } from './ui.js';
+import { preparation, purchase, screenContext } from './ui.js';
 
 export const BENCH_PROTOCOL = 'jev-bench-v1';
 export const useBenchmark = create(() => ({
@@ -84,6 +84,73 @@ function prepare(candidate, plan, g) {
 function partner(g) {
   const id = g.duty?.[0] ?? null;
   return { id, actor: id ? (g.crew?.[id] ?? null) : null };
+}
+
+// Node tests have no window; the wide reference matches a desktop HUD.
+function viewport() {
+  return {
+    width: Number(globalThis.innerWidth) || 1280,
+    height: Number(globalThis.innerHeight) || 720,
+  };
+}
+
+// One builder for the model context: structured state, the rendered screen,
+// and bench-only timing. Kept out of the loop so it stays testable and the
+// prompt cannot drift from what the player sees.
+export function benchRequest(state, { preparing, plan, candidates }) {
+  const g = state.game;
+  const sous = partner(g);
+  return {
+    state: {
+      ...observe(g, ''),
+      controlled_actor: 'human',
+      phase: preparing ? 'preparation' : 'playing',
+      player_intent: g.human.intent?.id ?? null,
+      dash_ready_in_ms: Math.max(0, g.human.dashReadyAt - g.time),
+      cooking: Object.fromEntries(
+        ['board', 'pot', 'grill'].map((id) => {
+          const station = g.stations[id];
+          return [
+            id,
+            {
+              remaining_ms: Math.max(0, station.busyUntil - g.time),
+              progress: station.duration ? (g.time - station.startedAt) / station.duration : null,
+              boosted: station.boosted,
+            },
+          ];
+        }),
+      ),
+      ...(preparing
+        ? {
+            preparation: {
+              selected: plan.selected,
+              duty: plan.duty,
+              quantity: plan.quantity,
+              bill: purchase(g, plan),
+              stock_price: STOCK_PRICE,
+              applicants: state.applicants.map((id) => ({ id, ...STAFF[id] })),
+              roster: g.hired.map((id) => ({ id, ...STAFF[id] })),
+            },
+          }
+        : {}),
+      partner_intent: sous.actor?.intent?.id ?? null,
+      position: {
+        human: { x: g.human.x, y: g.human.y },
+        ai: sous.actor ? { x: sous.actor.x, y: sous.actor.y } : null,
+      },
+      screen: screenContext(state, plan ?? preparation(g), viewport().width, viewport().height),
+    },
+    questions: preparing
+      ? {
+          next_action: {
+            type: 'choice',
+            instructions:
+              'Prepare the next shift. You may hire one applicant, assign any hired partner, and choose 0..99 tomatoes to buy. Choices edit a pending plan; open_shift commits it and starts the next level. Fix bill.error before opening. Choose a partner and sufficient stock within your cash budget.',
+            criteria: Object.fromEntries(candidates.map((c) => [c.id, c.label])),
+          },
+        }
+      : buildQuestions(candidates, 'human'),
+  };
 }
 
 export function latencyStats(values) {
@@ -258,56 +325,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 1000 })
             signal: AbortSignal.any([session.signal, AbortSignal.timeout(10000)]),
             body: JSON.stringify({
               modelId: model.id,
-              state: {
-                ...observe(g, ''),
-                controlled_actor: 'human',
-                phase: preparing ? 'preparation' : 'playing',
-                player_intent: g.human.intent?.id ?? null,
-                dash_ready_in_ms: Math.max(0, g.human.dashReadyAt - g.time),
-                cooking: Object.fromEntries(
-                  ['board', 'pot', 'grill'].map((id) => {
-                    const station = g.stations[id];
-                    return [
-                      id,
-                      {
-                        remaining_ms: Math.max(0, station.busyUntil - g.time),
-                        progress: station.duration
-                          ? (g.time - station.startedAt) / station.duration
-                          : null,
-                        boosted: station.boosted,
-                      },
-                    ];
-                  }),
-                ),
-                ...(preparing
-                  ? {
-                      preparation: {
-                        selected: plan.selected,
-                        duty: plan.duty,
-                        quantity: plan.quantity,
-                        bill: purchase(g, plan),
-                        stock_price: STOCK_PRICE,
-                        applicants: state.applicants.map((id) => ({ id, ...STAFF[id] })),
-                        roster: g.hired.map((id) => ({ id, ...STAFF[id] })),
-                      },
-                    }
-                  : {}),
-                partner_intent: partner(g).actor?.intent?.id ?? null,
-                position: {
-                  human: { x: g.human.x, y: g.human.y },
-                  ai: partner(g).actor ? { x: partner(g).actor.x, y: partner(g).actor.y } : null,
-                },
-              },
-              questions: preparing
-                ? {
-                    next_action: {
-                      type: 'choice',
-                      instructions:
-                        'Prepare the next shift. You may hire one applicant, assign any hired partner, and choose 0..99 tomatoes to buy. Choices edit a pending plan; open_shift commits it and starts the next level. Fix bill.error before opening. Choose a partner and sufficient stock within your cash budget.',
-                      criteria: Object.fromEntries(candidates.map((c) => [c.id, c.label])),
-                    },
-                  }
-                : buildQuestions(candidates, 'human'),
+              ...benchRequest(state, { preparing, plan, candidates }),
             }),
           });
           if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
