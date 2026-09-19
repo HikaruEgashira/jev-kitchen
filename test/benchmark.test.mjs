@@ -23,6 +23,7 @@ import {
   benchRequest,
   preparationCandidates,
   kitchenHasWork,
+  playingCandidates,
 } from '../src/benchmark.js';
 import { preparation, purchase } from '../src/ui.js';
 
@@ -62,6 +63,20 @@ test('player candidates retain legal actions without partner or recipe heuristic
   assert.ok(choices.some((c) => c.id === 'move_left'));
   assert.ok(choices.some((c) => c.id === 'visit_pot'));
   assert.match(buildQuestions(choices, 'human').next_action.instructions, /HUMAN player/);
+});
+
+test('work and navigation pages expose every legal human control', () => {
+  const g = createGame({ level: 10, stock: 12 });
+  for (const item of [null, 'tomato', 'chopped', 'plate', 'dish']) {
+    g.human.carrying = item;
+    const work = playingCandidates(g);
+    const movement = playingCandidates(g, true);
+    const reachable = new Set([...work, ...movement].map((c) => c.id));
+    for (const action of buildCandidates(g, 'human')) assert.ok(reachable.has(action.id));
+    assert.ok(work.some((c) => c.id === 'navigate'));
+    assert.ok(movement.some((c) => c.id === 'back_to_work'));
+    assert.ok(!work.some((c) => /^(dash_)?(visit_|move_)/.test(c.id)));
+  }
 });
 
 test('the model context carries the on-screen text, including station hints', () => {

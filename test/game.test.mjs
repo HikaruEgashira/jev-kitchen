@@ -1120,8 +1120,11 @@ test('E hands items to nearby partners while tapping a station still works there
   humanInteract();
   assert.equal(g.human.carrying, null);
   assert.equal(g.ai.carrying, 'tomato');
+  g.human.carrying = 'plate';
   humanInteract();
-  assert.equal(g.human.carrying, 'tomato');
+  assert.equal(g.human.carrying, 'plate');
+  g.human.carrying = 'tomato';
+  g.ai.carrying = null;
   goTo('board');
   assert.equal(g.stations.board.state, 'chopping');
   assert.equal(g.ai.carrying, null);

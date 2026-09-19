@@ -77,6 +77,19 @@ export function kitchenHasWork(g) {
   );
 }
 
+// Movement aliases compete with the cooking action they duplicate. Keep every
+// control reachable, but ask for free navigation separately from useful work.
+export function playingCandidates(g, navigating = false) {
+  return [
+    ...buildCandidates(g, 'human').filter(
+      (c) => /^(dash_)?(visit_|move_)/.test(c.id) === navigating,
+    ),
+    navigating
+      ? { id: 'back_to_work', label: '調理の行動選択に戻る' }
+      : { id: 'navigate', label: '作業せずに移動する場所を選ぶ（調理の行動は自動移動つき）' },
+  ];
+}
+
 export function preparationCandidates(state, plan) {
   const g = state.game;
   const candidates = [{ id: 'wait', label: '準備内容を維持する' }];
@@ -386,13 +399,22 @@ export function benchRequest(state, { preparing, plan, candidates }) {
                 stock:
                   'Choose the purchase quantity closest to recommended_purchase, or confirm_stock if it already matches. One tomato makes one dish. Sell beyond quota for profit; leftovers carry over. Stock should cover the whole shift, not only quota.',
                 investment:
-                  'Spend surplus on a permanent improvement each shift when affordable. bill.cash is AFTER supplies, wages and pending investments. First train human move and cook toward 5 each (45 coins each). For multiple prep workers add a second board. Then improve pot/grill speed, train regular crew, or buy a warmer after burning. Prefer improvement over open_shift when useful upgrades are affordable. Open when they are unaffordable or saving toward necessary equipment. Never undo useful purchases.',
+                  'Invest remaining coins before opening. Choose vitamin_move_human when available, then vitamin_cook_human. With multiple cooks, prioritize a second board. Otherwise upgrade useful equipment or regular crew. Choose open_shift when saving for necessary equipment or no useful upgrade is affordable.',
               }[plan.stage] ??
               'Prepare the next shift within cash: hire, assign rested staff, buy surplus stock and invest, then open_shift. Each choice edits a pending plan.',
             criteria: Object.fromEntries(candidates.map((c) => [c.id, c.label])),
           },
         }
-      : buildQuestions(candidates, 'human'),
+      : actions.has('back_to_work')
+        ? {
+            next_action: {
+              type: 'choice',
+              instructions:
+                'Choose where to move, or back_to_work to choose a cooking action. Station taps walk and interact on arrival.',
+              criteria: Object.fromEntries(candidates.map((c) => [c.id, c.label])),
+            },
+          }
+        : buildQuestions(candidates, 'human', g),
   };
 }
 
@@ -501,6 +523,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
     let nextCallAt = 0;
     let plan;
     let planningGame;
+    let navigating = false;
     try {
       while (true) {
         session.signal.throwIfAborted();
@@ -542,6 +565,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
             break;
           }
           if (planningGame !== g) {
+            navigating = false;
             plan = { ...preparation(g), stage: 'hiring' };
             planningGame = g;
             useKitchen.setState({ benchPreparation: plan });
@@ -571,7 +595,7 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
         }
         const candidates = preparing
           ? preparationCandidates(state, plan)
-          : buildCandidates(g, 'human');
+          : playingCandidates(g, navigating);
         if (candidates.length === 1) {
           if (preparing) prepare(candidates[0], plan, g);
           else benchmarkAction(candidates[0]);
@@ -617,7 +641,12 @@ export async function runBenchmark({ model, frequency = 5, maxRequests = 5000 })
           !useBenchmark.getState().paused &&
           current.game === g &&
           current.phase === state.phase &&
-          (preparing ? prepare(selected, plan, g) : benchmarkAction(selected));
+          (preparing
+            ? prepare(selected, plan, g)
+            : selected.id === 'navigate' ||
+              selected.id === 'back_to_work' ||
+              benchmarkAction(selected));
+        if (applied && !preparing) navigating = selected.id === 'navigate';
         if (!applied) result.staleResponses++;
         result.decisions.push({
           level: g.level,

@@ -535,7 +535,7 @@ function crewIds(g) {
 }
 
 export function handoffOption(g) {
-  if (g.practice || g.time >= g.duration) return null;
+  if (g.practice || g.time >= g.duration || !g.human.carrying) return null;
   const human = g.human;
   const partner = crewIds(g)
     .filter((id) => {
@@ -543,7 +543,7 @@ export function handoffOption(g) {
       return (
         other &&
         staffAvailable(g.staffState, id) &&
-        Boolean(human.carrying) !== Boolean(other.carrying) &&
+        !other.carrying &&
         Math.hypot(human.x - other.x, human.y - other.y) <= REACH
       );
     })
@@ -553,13 +553,11 @@ export function handoffOption(g) {
         Math.hypot(human.x - actor(g, b).x, human.y - actor(g, b).y),
     )[0];
   if (!partner) return null;
-  const giving = Boolean(human.carrying);
-  const item = giving ? human.carrying : actor(g, partner).carrying;
+  const item = human.carrying;
   return {
     partner,
     item,
-    giving,
-    label: `${STAFF[partner].name}${giving ? 'に' : 'から'}${ITEM_NAMES[item]}を${giving ? '渡す' : '受け取る'}`,
+    label: `${STAFF[partner].name.split('の').at(-1)}に${ITEM_NAMES[item]}を渡す`,
   };
 }
 
@@ -567,12 +565,11 @@ export function handoff(g, partner) {
   const option = handoffOption(g);
   if (!option || option.partner !== partner) return { ok: false };
   const other = actor(g, partner);
-  const [from, to] = g.human.carrying ? [g.human, other] : [other, g.human];
-  to.carrying = from.carrying;
-  to.quality = from.quality;
-  from.carrying = null;
-  from.quality = false;
-  from.intent = to.intent = null;
+  other.carrying = g.human.carrying;
+  other.quality = g.human.quality;
+  g.human.carrying = null;
+  g.human.quality = false;
+  g.human.intent = other.intent = null;
   return { ok: true, action: option.label };
 }
 
@@ -992,24 +989,36 @@ export function buildCandidates(g, who) {
         null,
       );
     if (player) {
+      for (const candidate of out) {
+        const base = (candidate.baseId ?? candidate.id).replace(/^dash_/, '');
+        const recipe =
+          base === 'assemble' || base === 'plate' || base.startsWith('plate_board')
+            ? 'dish'
+            : base.startsWith('plate_soup') || base === 'cook'
+              ? 'soup'
+              : base.startsWith('plate_roast') || base === 'grill'
+                ? 'roast'
+                : null;
+        if (recipe && !g.orders.some((o) => o.recipe === recipe))
+          candidate.label += '【この料理は現在注文なし】';
+      }
       const near = stationAt(g, 'human');
       const transfer = handoffOption(g);
       const interaction = near.inReach && out.find((c) => c.station === near.id);
       if (transfer)
         out.push({
-          id: `handoff_${transfer.giving ? 'give' : 'take'}_${transfer.item}_${transfer.partner}`,
+          id: `handoff_${transfer.item}_${transfer.partner}`,
           label: `${transfer.label}（E・相手は${STAFF[transfer.partner].description}）`,
           station: null,
           partner: transfer.partner,
           item: transfer.item,
-          giving: transfer.giving,
         });
       else if (interaction) add('interact', `${interaction.label}（E）`, near.id);
       for (const id of active) {
         const work = out.find((c) => c.station === id && c.id !== 'interact');
         add(
           `visit_${id}`,
-          `${stationName(g, id)}をタップ：${work ? work.label : `移動のみ・${actionHint(g, id)}`}`,
+          `${stationName(g, id)}をタップ：${work ? work.label : '移動のみ（現在の手元では作業できない）'}`,
           id,
         );
       }
@@ -1044,21 +1053,6 @@ export function buildCandidates(g, who) {
       if (e.intent) add('continue', '現在の移動・作業を続ける', null);
     }
   }
-  if (player) {
-    for (const candidate of out) {
-      const base = (candidate.baseId ?? candidate.id).replace(/^dash_/, '');
-      const recipe =
-        base === 'assemble' || base === 'plate' || base.startsWith('plate_board')
-          ? 'dish'
-          : base.startsWith('plate_soup') || base === 'cook'
-            ? 'soup'
-            : base.startsWith('plate_roast') || base === 'grill'
-              ? 'roast'
-              : null;
-      if (recipe && !g.orders.some((o) => o.recipe === recipe))
-        candidate.label += '【この料理は現在注文なし】';
-    }
-  }
   out.push({ id: 'wait', label: '今は動かず、様子を見る', station: null });
   return out;
 }
@@ -1073,21 +1067,32 @@ export function isFeasible(g, cand, who) {
         candidate.id === cand.id &&
         candidate.station === cand.station &&
         candidate.partner === cand.partner &&
-        candidate.item === cand.item &&
-        candidate.giving === cand.giving,
+        candidate.item === cand.item,
     )
   );
 }
 
-export function buildQuestions(cands, who = 'ai') {
+export function buildQuestions(cands, who = 'ai', g) {
+  const held = g?.human.carrying;
+  const objective = RECIPES[held]
+    ? g.orders.some((o) => o.recipe === held)
+      ? 'Serve your finished dish now.'
+      : 'Your finished dish has NO order. Discard it now (Q) to free your hands.'
+    : ({
+        tomato: 'Chop your tomato at an idle board. Return it only if all boards are occupied.',
+        chopped:
+          'Cook or grill your chopped tomato for a visible order. Assemble salad only if a salad is ordered.',
+        plate:
+          'Plate food for a visible order. If the matching food is cooking, wait nearby; if no matching food is being prepared, return the plate and start cooking.',
+      }[held] ??
+      'Start or continue a visible order: collect chopped ingredients for soup/grill, fetch a plate for ready food, otherwise fetch and chop a tomato. Work while heat cooks.');
   return {
     next_action: {
       type: 'choice',
       instructions:
-        (who === 'human'
-          ? 'You control the HUMAN player. The crew actors are your rule-based partners. Cooking actions automatically walk to the station and work; dash_<action> does the same faster. Continue useful travel, but never continue a wait. A chopped board is ready for salad only when a salad order exists: fetch_plate, plate, serve. For soup/roast, collect the chopped tomato, cook/grill, fetch_plate, plate_soup/plate_roast, serve. If holding a finished dish with NO matching order, immediately discard (Q) and resume useful work; waiting for an unordered salad wastes the shift. Nearby interact (E) passes an item between you and an empty-handed partner; use only when this advances an order, never pass back and forth. While heat is cooking, prepare another order. Keep selling after quota to earn investment money. '
-          : 'You control the AI sous-chef. The human actor is your partner. ') +
-        'Choose one feasible action that complements your partner and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Clean burnt cookware before reusing it. Respect the collaboration policy, including Japanese. Keep useful raw ingredients; discard finished dishes without orders. Work ahead while food cooks.',
+        who === 'human'
+          ? `You control the HUMAN player. ${objective} Prefer a named cooking action, which walks AND works automatically; dash_ is faster. Avoid visit_/move_ with no useful work. Handoff only to a partner who can use the item. Keep selling beyond quota.`
+          : 'You control the AI sous-chef. Choose one feasible action that complements the human and serves the earliest orders. Salad: tomato → chop → plate → serve. Soup: tomato → chop → collect → pot → plate → serve. Grilled tomato: tomato → chop → collect → grill → plate → serve. Clean burnt cookware before reusing it. Respect the collaboration policy, including Japanese. Keep useful raw ingredients; discard finished dishes without orders. Work ahead while food cooks.',
       criteria: Object.fromEntries(cands.map((c) => [c.id, c.label])),
     },
   };
@@ -1209,7 +1214,6 @@ export function observe(g, policy, who) {
 
 export function rulePick(g, cands, who) {
   const id = resolveWho(g, who);
-  const h = g.human;
   const leadRecipe = [...g.orders].sort((a, b) => a.deadline - b.deadline)[0]?.recipe;
   const role = staffProfile(g, id)?.role ?? 'allrounder';
   const rolePriority =
@@ -1279,8 +1283,6 @@ export function rulePick(g, cands, who) {
   const priority = [...new Set(['serve', ...urgentPriority, ...rolePriority])];
   priority.push('fetch_tomato', 'return_plate', 'return_tomato', 'discard', 'wait');
   const usable = cands.filter((c) => {
-    if (c.station === h.station && EXCLUSIVE_STATION_KINDS.has(stationKind(c.station)))
-      return false;
     if (c.station && stationReserved(g, c.station, id)) return false;
     return true;
   });

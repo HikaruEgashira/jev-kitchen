@@ -96,7 +96,7 @@ test('a decision that went stale while Jev was thinking is not feasible', () => 
   assert.equal(isFeasible(g, cand), false);
 });
 
-test('shared counters stay usable while another cook stands there', () => {
+test('standing at a station never blocks a partner from freeing it', () => {
   const g = createGame({ level: 3, stock: 99 });
   g.human.station = 'crate';
   const picked = rulePick(g, buildCandidates(g));
@@ -111,7 +111,11 @@ test('shared counters stay usable while another cook stands there', () => {
   assert.equal(rulePick(g, buildCandidates(g)).id, 'serve');
   g.human.station = 'board';
   g.ai.carrying = 'tomato';
-  assert.notEqual(rulePick(g, buildCandidates(g)).id, 'chop');
+  assert.equal(rulePick(g, buildCandidates(g)).id, 'chop');
+  g.ai.carrying = null;
+  g.human.carrying = 'tomato';
+  g.stations.board.state = 'chopped';
+  assert.equal(rulePick(g, buildCandidates(g)).id, 'collect');
 });
 
 test('a second board allows two cooks to fetch ingredients in parallel', () => {
@@ -157,9 +161,8 @@ test('nearby handoffs preserve items and quality and reject stale, busy or absen
   assert.equal(g.crew.helper.intent, null);
   assert.equal(isFeasible(g, candidate, 'human'), false);
   assert.deepEqual([g.stock, g.cash, g.served], before);
-  assert.equal(handoff(g, 'helper').ok, true);
-  assert.equal(g.human.carrying, 'soup');
-  assert.equal(g.human.quality, true);
+  assert.equal(handoff(g, 'helper').ok, false);
+  g.human.carrying = 'tomato';
   g.crew.helper.carrying = 'plate';
   g.crew.sous.x = g.human.x + REACH + 1;
   assert.equal(handoffOption(g), null);
