@@ -10,10 +10,26 @@ import {
   SPEED,
   movePlayer,
 } from '../src/model.ts';
-import { useKitchen, startBenchmark, benchmarkAction, tick, nextShift } from '../src/game.ts';
+import {
+  useKitchen,
+  startBenchmark,
+  benchmarkAction,
+  tick,
+  nextShift,
+  setAutoMode,
+  setMenuOpen,
+  togglePause,
+  resetGame,
+  goTo,
+  humanInteract,
+  clearHands,
+  humanDash,
+  CHECKPOINT_KEY,
+} from '../src/game.ts';
 import { STAFF } from '../src/staff.ts';
 import {
   runBenchmark,
+  installAutoMode,
   stopBenchmark,
   pauseBenchmark,
   pauseBenchmarkWhenAway,
@@ -55,6 +71,7 @@ globalThis.fetch = (url, options) =>
       )
     : sessionFetch(url, options);
 await runTicket('bench');
+await runTicket('play');
 globalThis.fetch = sessionFetch;
 
 const writes: string[][] = [];
@@ -71,7 +88,13 @@ test.beforeEach(() => {
       setItem: (...args: string[]) => writes.push(args),
     },
   });
-  useKitchen.setState({ ready: true, phase: 'ready', menuOpen: false, benchmark: false });
+  useKitchen.setState({
+    ready: true,
+    phase: 'ready',
+    menuOpen: false,
+    benchmark: false,
+    autoMode: false,
+  });
   useBenchmark.setState({ running: false, results: [] });
 });
 
@@ -762,4 +785,153 @@ test('investment exposes capacity and the expansion that unlocks another pot', (
       .preparation!.equipment_capacity,
     { used: 1, limit: 2 },
   );
+});
+
+async function until(predicate: () => boolean) {
+  const deadline = performance.now() + 5000;
+  while (!predicate()) {
+    assert.ok(
+      performance.now() < deadline,
+      JSON.stringify({
+        phase: useKitchen.getState().phase,
+        level: useKitchen.getState().game.level,
+        hand: useKitchen.getState().game.human.carrying,
+        action: useKitchen.getState().autoStatus,
+        log: useBenchmark.getState().log.slice(-5),
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+test('auto preserves the current game, pauses with the menu, and returns control without stale replies', async (t) => {
+  const g = createGame({ level: 7, cash: 777, stock: 12, duty: [] });
+  g.time = 1234;
+  useKitchen.setState({ game: g, phase: 'playing', sound: true, mode: 'rule', tutorial: null });
+  const replies: ((response: Response) => void)[] = [];
+  t.mock.method(globalThis, 'fetch', (url: FetchInput, options?: FetchInit) => {
+    assert.equal(url, '/api/decide');
+    const input = JSON.parse(String(options?.body));
+    assert.equal(input.state.controlled_actor, 'human');
+    assert.deepEqual(
+      input.questions,
+      benchRequest(useKitchen.getState(), {
+        preparing: false,
+        plan: {},
+        candidates: playingCandidates(g),
+      }).questions,
+    );
+    return new Promise<Response>((resolve) => replies.push(resolve));
+  });
+  setAutoMode(true);
+  const run = runBenchmark({ model, autoplay: true });
+  await until(() => replies.length === 1);
+  assert.equal(useKitchen.getState().game, g);
+  assert.equal(g.time, 1234);
+  assert.equal(g.cash, 777);
+  assert.equal(useKitchen.getState().benchmark, false);
+  assert.equal(useKitchen.getState().sound, true);
+  assert.equal(useKitchen.getState().mode, 'rule');
+  setMenuOpen(true);
+  replies[0](answer('fetch_tomato'));
+  await new Promise((resolve) => setTimeout(resolve, 220));
+  assert.equal(replies.length, 1);
+  assert.equal(g.human.intent, null);
+  tick(0.05);
+  assert.equal(g.time, 1234);
+  setMenuOpen(false);
+  togglePause();
+  await until(() => replies.length === 2);
+  replies[1](answer('fetch_tomato'));
+  await until(() => g.human.intent !== null);
+  const intent = g.human.intent;
+  goTo('plates');
+  humanInteract();
+  humanDash();
+  clearHands();
+  assert.equal(g.human.intent, intent, 'manual controls do not compete with Jev');
+  assert.equal(g.human.dashUntil, 0);
+  for (let i = 0; i < 200 && !g.human.carrying; i++) tick(0.05);
+  assert.equal(g.human.carrying, 'tomato', 'normal ticks execute the shared player action');
+  await until(() => replies.length === 3);
+  setAutoMode(false);
+  replies[2](answer('chop'));
+  await run;
+  assert.equal(g.human.intent, null);
+  assert.equal(useKitchen.getState().phase, 'playing');
+  assert.equal(useKitchen.getState().game, g);
+  assert.equal(useBenchmark.getState().results.length, 0);
+  clearHands();
+  assert.equal(g.human.carrying, null, 'human control resumes immediately');
+});
+
+test('auto starts after closing diagnostics, clears practice, prepares the next shift and saves it', async (t) => {
+  useKitchen.setState({ game: createGame(), menuOpen: true, mode: 'rule', sound: false });
+  const actions = ['fetch_tomato', 'chop', 'fetch_plate', 'plate', 'serve'];
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', async (url: FetchInput, options?: FetchInit) => {
+    assert.equal(url, '/api/decide', 'normal auto play never submits a ranked bench run');
+    requests++;
+    const criteria = JSON.parse(String(options?.body)).questions.next_action.criteria;
+    const choice = actions.length
+      ? Object.hasOwn(criteria, actions[0])
+        ? actions.shift()
+        : 'wait'
+      : ['skip_hiring', 'crew_veteran', 'confirm_stock', 'open_shift'].find((id) =>
+          Object.hasOwn(criteria, id),
+        );
+    assert.ok(choice && Object.hasOwn(criteria, choice), Object.keys(criteria).join());
+    return answer(choice);
+  });
+  const cleanup = installAutoMode();
+  const unsubscribe = useKitchen.subscribe((s) => {
+    if (s.autoMode && s.game.level === 2) setAutoMode(false);
+  });
+  const timer = setInterval(() => tick(0.05), 1);
+  t.after(() => {
+    cleanup();
+    unsubscribe();
+    clearInterval(timer);
+  });
+  setAutoMode(true);
+  await new Promise((resolve) => setTimeout(resolve, 70));
+  assert.equal(requests, 0);
+  setMenuOpen(false);
+  await until(() => useKitchen.getState().game.level === 2 && !useBenchmark.getState().running);
+  assert.equal(actions.length, 0);
+  assert.equal(useKitchen.getState().benchmark, false);
+  assert.equal(useKitchen.getState().autoMode, false);
+  assert.equal(useKitchen.getState().tutorial, null);
+  const saved = writes
+    .filter(([key]) => key === CHECKPOINT_KEY)
+    .map(([, value]) => JSON.parse(value));
+  assert.ok(
+    saved.some((record) => record.level === 2),
+    'auto progress uses normal checkpoint saves',
+  );
+});
+
+test('reset during an auto request cancels the controller and ignores its answer', async (t) => {
+  useKitchen.setState({ game: createGame(), phase: 'playing', sound: false });
+  let reply: ((response: Response) => void) | undefined;
+  t.mock.method(
+    globalThis,
+    'fetch',
+    () =>
+      new Promise<Response>((resolve) => {
+        reply = resolve;
+      }),
+  );
+  setAutoMode(true);
+  const run = runBenchmark({ model, autoplay: true });
+  await until(() => reply !== undefined);
+  resetGame();
+  const reset = useKitchen.getState().game;
+  reply!(answer('fetch_tomato'));
+  await run;
+  assert.equal(useKitchen.getState().game, reset);
+  assert.equal(useKitchen.getState().phase, 'ready');
+  assert.equal(useKitchen.getState().autoMode, false);
+  assert.equal(reset.human.intent, null);
+  assert.equal(useBenchmark.getState().running, false);
 });

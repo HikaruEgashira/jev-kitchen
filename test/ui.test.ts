@@ -339,11 +339,11 @@ test('operation settings expose the background mode toggle and reflect its state
   assert.ok(!settings.items.some((item) => item.action === 'background'));
 });
 
-test('the settings sheet confirms the reset before wiping saved progress', () => {
+test('diagnostics contains auto mode and confirms reset; settings contains neither', () => {
   const base: StoreState = {
     ...useKitchen.getState(),
     menuOpen: true,
-    menuPage: 'settings',
+    menuPage: 'diagnostics',
     phase: 'paused',
   };
   for (const [width, height] of [
@@ -354,6 +354,12 @@ test('the settings sheet confirms the reset before wiping saved progress', () =>
   ]) {
     const view = preparation(base.game);
     const ui = screen(base, view, width, height);
+    const auto = ui.items.find((item) => item.action === 'auto-mode');
+    assert.equal(auto.text, 'オートモード：オフ');
+    const enabled = screen({ ...base, autoMode: true }, view, width, height);
+    assert.equal(enabled.items.find((item) => item.action === 'auto-mode').pressed, true);
+    const settings = screen({ ...base, menuPage: 'settings' }, view, width, height);
+    assert.ok(!settings.items.some((item) => ['auto-mode', 'reset'].includes(item.action ?? '')));
     const reset = ui.items.find((item) => item.action === 'reset');
     assert.ok(reset, `${width}x${height}`);
     assert.equal(reset.text, 'リセット');
@@ -366,7 +372,7 @@ test('the settings sheet confirms the reset before wiping saved progress', () =>
     assert.ok([...confirm.text!].length * confirm.size! <= confirm.w - 8);
   }
   const bench = screen({ ...base, benchmark: true }, preparation(base.game), 390, 844);
-  assert.ok(!bench.items.some((item) => item.action === 'reset'));
+  assert.ok(!bench.items.some((item) => ['reset', 'auto-mode'].includes(item.action ?? '')));
 });
 
 test('preparation screen exposes multi-person duty selection and fatigue status', () => {

@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import {
   useKitchen,
   startBenchmark,
+  startShift,
+  setAutoMode,
   benchmarkAction,
   nextShift,
   setApplicantsRandom,
@@ -570,16 +572,36 @@ export function resumeBenchmark() {
   useBenchmark.setState({ paused: false });
 }
 
+// Normal play shares the controller without resetting or ranking the campaign.
+export function installAutoMode() {
+  const sync = () => {
+    const state = useKitchen.getState();
+    if (state.autoMode && state.ready && !useBenchmark.getState().running)
+      void runBenchmark({ model: { id: 'jev', name: 'Jev' }, autoplay: true });
+  };
+  const unsubscribeGame = useKitchen.subscribe(sync);
+  const unsubscribeBench = useBenchmark.subscribe(sync);
+  sync();
+  return () => {
+    unsubscribeGame();
+    unsubscribeBench();
+    setAutoMode(false);
+  };
+}
+
 export async function runBenchmark({
   model,
   frequency = 5,
   maxRequests = 5000,
+  autoplay = false,
 }: {
   model: { id: unknown; name: unknown } | null;
   frequency?: number;
   maxRequests?: number;
+  autoplay?: boolean;
 }) {
   if (useBenchmark.getState().running || !useKitchen.getState().ready) return;
+  if (autoplay && !useKitchen.getState().autoMode) return;
   if (
     !model ||
     typeof model.id !== 'string' ||
@@ -606,15 +628,17 @@ export async function runBenchmark({
   });
   let generation = 0;
   const unsubscribe = useKitchen.subscribe((next, previous) => {
+    if (autoplay && !next.autoMode) session.abort(new Error('オートモードを終了しました'));
     if (
       next.phase !== previous.phase ||
       next.game !== previous.game ||
-      next.menuOpen !== previous.menuOpen
+      next.menuOpen !== previous.menuOpen ||
+      next.benchPreparation !== previous.benchPreparation
     )
       generation++;
   });
   try {
-    startBenchmark();
+    if (!autoplay) startBenchmark();
     const started = performance.now();
     let lastClock = started;
     clock = setInterval(() => {
@@ -665,6 +689,11 @@ export async function runBenchmark({
         session.signal.throwIfAborted();
         const state = useKitchen.getState();
         const g = state.game;
+        if (autoplay && state.phase === 'ready' && !state.menuOpen) {
+          if (state.ready) startShift();
+          else await sleep();
+          continue;
+        }
         if (state.phase === 'paused' || state.menuOpen || useBenchmark.getState().paused) {
           await sleep();
           continue;
@@ -704,7 +733,12 @@ export async function runBenchmark({
             preparationVisits.clear();
             repeatedPlanVisits = 0;
             navigating = false;
-            plan = { ...preparation(g), stage: 'hiring' };
+            const initialPlan =
+              autoplay && state.benchPreparation ? state.benchPreparation : preparation(g);
+            plan = {
+              ...initialPlan,
+              stage: initialPlan.stage ?? (initialPlan.selected ? 'staffing' : 'hiring'),
+            };
             planningGame = g;
             useKitchen.setState({ benchPreparation: plan });
           }
@@ -772,9 +806,14 @@ export async function runBenchmark({
           via?: string;
         };
         try {
-          const response = await apiFetch('/api/bench/decide', body, 'bench', {
-            signal: AbortSignal.any([session.signal, AbortSignal.timeout(10000)]),
-          });
+          const response = await apiFetch(
+            autoplay ? '/api/decide' : '/api/bench/decide',
+            body,
+            autoplay ? 'play' : 'bench',
+            {
+              signal: AbortSignal.any([session.signal, AbortSignal.timeout(10000)]),
+            },
+          );
           if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
           data = await response.json();
           if (!data.ok) throw new Error('モデルが判断を返しませんでした');
@@ -788,7 +827,7 @@ export async function runBenchmark({
           latencies.push(performance.now() - requestStart);
         }
         session.signal.throwIfAborted();
-        if (!applicantSeedSet) {
+        if (!autoplay && !applicantSeedSet) {
           // Rank verification replays from the server seed, so seed the client
           // applicant draw once the session exists (never before the first
           // decision, which would change the synchronous request timing).
@@ -837,6 +876,7 @@ export async function runBenchmark({
           if (visits >= 3) throw new Error('Preparation cycle: same plan chosen three times');
         }
         const action = applied ? selected.label : '状況が変わったため再判断';
+        if (autoplay) useKitchen.setState({ autoStatus: action });
         useBenchmark.setState((state) => ({
           action,
           log: [...state.log.slice(-200), { call: result.requests, action }],
@@ -866,13 +906,23 @@ export async function runBenchmark({
         score: g.score,
       },
     });
-    if (useKitchen.getState().phase === 'playing') togglePause();
-    useBenchmark.setState((state) => ({ results: [...state.results, result] }));
+    if ((!autoplay || !session.signal.aborted) && useKitchen.getState().phase === 'playing')
+      togglePause();
+    if (autoplay) {
+      if (!session.signal.aborted) {
+        setAutoMode(false);
+        useKitchen.setState({
+          autoStatus:
+            result.error ??
+            (result.status === 'budget' ? '判断回数の上限で停止しました' : '営業を終了しました'),
+        });
+      }
+    } else useBenchmark.setState((state) => ({ results: [...state.results, result] }));
   } finally {
     clearInterval(clock);
     unsubscribe();
     if (controller === session) controller = null;
-    setApplicantsRandom(null);
+    if (!autoplay) setApplicantsRandom(null);
     useBenchmark.setState({ running: false });
   }
 }

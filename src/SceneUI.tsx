@@ -20,6 +20,7 @@ import {
   setMenuOpen,
   setMenuPage,
   resetGame,
+  setAutoMode,
   setCameraMode,
   setMovementMode,
   setPreparationPreview,
@@ -287,7 +288,9 @@ function Screen() {
   const s = useKitchen();
   const { size, gl } = useThree();
   const [localView, setView] = useState<ViewState>(() => preparation(s.game, s.reviewing));
-  const view = s.benchmark && s.benchPreparation ? s.benchPreparation : localView;
+  const view = s.benchPreparation
+    ? { ...s.benchPreparation, resetArmed: localView.resetArmed }
+    : localView;
   const [focus, setFocus] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const controls = useRef(new Map<string, HTMLElement>());
@@ -304,7 +307,7 @@ function Screen() {
     dispatch: (item: ScreenItem, value?: number | string | null) => void;
   } | null>(null);
   const updateView = (values: Partial<ViewState>, label: string) => {
-    if (s.benchmark && s.benchPreparation)
+    if (s.benchPreparation)
       useKitchen.setState({ benchPreparation: editPreparation(view, values, label) });
     else setView((v) => editPreparation(v, values, label));
   };
@@ -352,9 +355,14 @@ function Screen() {
       case 'close-menu':
         setMenuOpen(false);
         break;
+      case 'auto-mode':
+        if (!s.autoMode && s.phase === 'finished' && s.cleared)
+          useKitchen.setState({ benchPreparation: view });
+        setAutoMode(!s.autoMode);
+        break;
       case 'reset':
         if (view.resetArmed) resetGame();
-        else patch({ resetArmed: true });
+        else setView((v) => ({ ...v, resetArmed: true }));
         break;
       case 'sound':
         toggleSound();

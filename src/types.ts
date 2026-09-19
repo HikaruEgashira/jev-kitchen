@@ -588,6 +588,8 @@ export interface StoreState {
   backgroundMode: boolean;
   reducedMotion: boolean;
   focusedStation: string | null;
+  autoMode: boolean;
+  autoStatus: string;
   best: number;
   checkpoint: Checkpoint | null;
   stages: Record<string, Checkpoint>;

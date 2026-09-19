@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { useKitchen, installControls } from './game.ts';
+import { installAutoMode } from './benchmark.ts';
 import './style.css';
 
 const Kitchen = lazy(() => import('./Kitchen.tsx'));
@@ -12,7 +13,9 @@ export default function App() {
     motion();
     media.addEventListener('change', motion);
     const cleanup = installControls();
+    const cleanupAuto = location.pathname !== '/bench' ? installAutoMode() : () => {};
     return () => {
+      cleanupAuto();
       cleanup();
       media.removeEventListener('change', motion);
     };

@@ -393,7 +393,14 @@ export function screen(
     w: number,
     action: string,
     extra?: ScreenExtra,
-  ) => add('button', id, text, x, y, w, 44, { action, ...extra });
+  ) =>
+    add('button', id, text, x, y, w, 44, {
+      action,
+      ...extra,
+      ...(s.autoMode && ['station', 'interact', 'dash', 'clear'].includes(action)
+        ? { disabled: true }
+        : {}),
+    });
   const seconds = Math.max(0, Math.ceil((g.duration - g.time) / 1000));
   const time = practice
     ? '時間無制限'
@@ -866,16 +873,18 @@ export function screen(
         view.page === 2
           ? ['staffing', 'stock']
           : [view.page === 3 ? 'investment' : g.level < 3 ? 'stock' : 'hiring'];
-      const warning = s.benchmark
-        ? s.benchFeedback?.loop
-        : preparing
-          ? view.looping
-          : repeatsActions(g.human.lastActions ?? [], g);
-      const history = s.benchmark
-        ? (s.benchFeedback?.recent ?? [])
-        : preparing
-          ? (view.history ?? []).map((h) => h.label).filter(Boolean)
-          : (g.human.lastActions ?? []).map((h) => h.label);
+      const warning =
+        s.benchmark || s.autoMode
+          ? s.benchFeedback?.loop
+          : preparing
+            ? view.looping
+            : repeatsActions(g.human.lastActions ?? [], g);
+      const history =
+        s.benchmark || s.autoMode
+          ? (s.benchFeedback?.recent ?? [])
+          : preparing
+            ? (view.history ?? []).map((h) => h.label).filter(Boolean)
+            : (g.human.lastActions ?? []).map((h) => h.label);
       let text = warning ? `${loopHint(preparing)}\n` : '';
       if (preparing) {
         const bill = purchase(g, view);
@@ -940,16 +949,20 @@ export function screen(
     } else if (page === 'diagnostics') {
       copy(
         'diagnostics',
-        `${s.backend} / ${s.hud.via}\n応答 ${s.hud.latency ?? '—'} ms  ・  判断 ${s.hud.decisions}回\n古い回答の破棄 ${s.hud.dropped}回${s.fallback ? '\n接続待ち：固定ルールで営業を続けます' : ''}`,
+        ph < 340
+          ? `応答 ${s.hud.latency ?? '—'} ms ・ 判断 ${s.hud.decisions}回\nオート：${s.autoMode ? '動作中' : '停止中'}`
+          : `${s.backend} / ${s.hud.via}\n応答 ${s.hud.latency ?? '—'} ms ・ 判断 ${s.hud.decisions}回\n古い回答の破棄 ${s.hud.dropped}回${s.fallback ? '\n接続待ち：固定ルールで営業を続けます' : ''}${s.autoStatus ? `\nJev：${s.autoStatus}` : ''}`,
         60,
-        ph < 340 ? 68 : 106,
+        ph < 340 ? 40 : 106,
         { size: narrow ? 12 : 15 },
       );
       copy(
         'privacy',
-        '相棒の判断にゲーム状態を\nTypeSafe または Cloudflare へ送信します。',
-        ph < 340 ? 136 : 172,
-        ph < 340 ? 42 : 54,
+        ph < 340
+          ? '判断にゲーム状態をAIへ送信します。'
+          : 'オートではJevが操作と開店準備を担当します。\n判断にゲーム状態をTypeSafe または Cloudflare へ送信します。',
+        ph < 340 ? 100 : 172,
+        ph < 340 ? 24 : 54,
         { size: 12 },
       );
       const bw = (inside - 8) / 2;
@@ -957,6 +970,31 @@ export function screen(
         value: 'settings',
       });
       button('benchmark', 'jev-bench', x + 24 + bw, footerY - 54, bw, 'link', { href: '/bench' });
+      if (!s.benchmark) {
+        button(
+          'auto-mode',
+          s.autoMode ? 'オートモード：オン' : 'オートモード：オフ',
+          x + 16,
+          footerY - 108,
+          bw,
+          'auto-mode',
+          { pressed: s.autoMode, size: 13, disabled: !s.ready },
+        );
+        const resetArmed = view.resetArmed === true;
+        button(
+          'reset',
+          resetArmed ? 'リセット確定' : 'リセット',
+          x + 24 + bw,
+          footerY - 108,
+          bw,
+          'reset',
+          {
+            size: 13,
+            ...(resetArmed ? { color: '#a1372f', ink: '#fff9e8' } : {}),
+            label: resetArmed ? 'もう一度で保存した進行を初期化' : '保存した進行を初期化',
+          },
+        );
+      }
     } else {
       button(
         'sound',
@@ -992,7 +1030,7 @@ export function screen(
           value: 'stages',
           disabled: !Object.keys(s.stages ?? {}).length,
         });
-      const lw = (inside - 16) / 3;
+      const lw = (inside - 8) / 2;
       button('license', 'ライセンス', x + 16, footerY - 54, lw, 'link', {
         href: '/licenses.html',
         size: 13,
@@ -1001,22 +1039,6 @@ export function screen(
         href: '/third-party-notices.html',
         size: 13,
       });
-      if (!s.benchmark) {
-        const resetArmed = view.resetArmed === true;
-        button(
-          'reset',
-          resetArmed ? 'リセット確定' : 'リセット',
-          x + 32 + lw * 2,
-          footerY - 54,
-          lw,
-          'reset',
-          {
-            size: 13,
-            ...(resetArmed ? { color: '#a1372f', ink: '#fff9e8' } : {}),
-            label: resetArmed ? 'もう一度で保存した進行を初期化' : '保存した進行を初期化',
-          },
-        );
-      }
     }
     primary('閉じる', 'close-menu');
   } else if (s.phase === 'ready') {
