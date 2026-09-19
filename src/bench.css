@@ -99,9 +99,9 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(200px, 22vw, 280px);
-  grid-template-rows: minmax(0, 1fr) 120px;
-  grid-template-areas: 'game side' 'log side';
+  grid-template-columns: minmax(0, 1fr) clamp(220px, 26vw, 340px);
+  grid-template-rows: minmax(0, 1fr) minmax(150px, 38%);
+  grid-template-areas: 'game log' 'game side';
   gap: 8px;
 }
 .bench-screen,
@@ -222,8 +222,8 @@
     width: 110px;
   }
   .bench-broadcast {
-    grid-template-columns: minmax(0, 1fr) 180px;
-    grid-template-rows: minmax(0, 1fr) 100px;
+    grid-template-columns: minmax(0, 1fr) 190px;
+    grid-template-rows: minmax(0, 1fr) minmax(130px, 42%);
   }
   .bench-sidebar {
     padding: 8px;
@@ -243,9 +243,9 @@
     flex: 1;
   }
   .bench-broadcast {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) 126px;
-    grid-template-areas: 'game game' 'log side';
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr) 112px;
+    grid-template-areas: 'game' 'log' 'side';
   }
   .bench-sidebar {
     gap: 2px;
