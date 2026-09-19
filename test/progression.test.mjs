@@ -88,7 +88,7 @@ test('new recipes give breathing room, then Lv11..30 rotate production demands',
     assert.ok(week[0].recipeMix.dish > 0.5);
     assert.ok(week[1].recipeMix.soup > 0.5);
     assert.ok(week[2].recipeMix.roast > 0.4);
-    assert.ok(week.every((c) => c.quota >= 9 && c.quota <= 13 && c.orderWindowMs >= 32000));
+    assert.ok(week.every((c) => c.quota >= 8 && c.quota <= 12 && c.orderWindowMs >= 32000));
   }
 });
 

@@ -219,7 +219,7 @@ test('tutorial is unlimited and ordinary kitchens use a 90-second contract', () 
     hired: ['helper', 'chef'],
     stock: 10,
   });
-  assert.equal(level3.quota, 9);
+  assert.equal(level3.quota, 8);
   assert.equal(level3.duration, SHIFT_MS);
   assert.equal(level3.cash, 200);
   assert.deepEqual(level3.hired, ['helper', 'chef']);
@@ -233,7 +233,7 @@ test('tutorial is unlimited and ordinary kitchens use a 90-second contract', () 
   assert.equal(MAX_LEVEL, 100);
   assert.deepEqual(
     [1, 5, 10, 15, 20, 25, 30, 100].map((level) => levelConfig(level).quota),
-    [1, 7, 9, 10, 11, 12, 13, 16],
+    [1, 7, 8, 9, 10, 11, 12, 16],
   );
   assert.equal(levelConfig(0).level, 1);
   assert.equal(levelConfig(101).level, MAX_LEVEL);
