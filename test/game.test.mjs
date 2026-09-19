@@ -133,7 +133,7 @@ test('menu reset wipes saved progress and returns to a fresh Lv1 kitchen', () =>
   const s = useKitchen.getState();
   assert.equal(s.phase, 'ready');
   assert.equal(s.game.level, 1);
-  assert.equal(s.game.cash, 180);
+  assert.equal(s.game.cash, createGame().cash);
   assert.equal(s.checkpoint, null);
   assert.equal(s.rollback, null);
   assert.deepEqual(s.stages, {});
