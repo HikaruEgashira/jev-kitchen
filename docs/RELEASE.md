@@ -1,5 +1,14 @@
 # SIDEKICK kitchen 本番リリース台帳
 
+## 2026-09-19 バックグラウンドモード
+
+- `/bench`はタブ非表示で無条件に一時停止しており、共有メニューの「裏画面で停止」を表示しているのに設定が反映されなかった。タブ非表示の扱いを`backgroundMode`設定へ接続し、ベンチもゲームと同じ挙動へ揃えた。
+- 「裏画面で停止」を「バックグラウンドモード」へ改名した。オン＝裏画面でも動き続ける、オフ＝裏画面で停止。既定はオンで、従来の既定挙動（切り替えても自動で停止しない）を維持する。操作設定のフッター行に戻るボタンと並置し、44px以上と非重複を維持する。
+- 新規グリフ（ド・モ）を再bakeし、`public/fonts/kitchen.font.glb`と`coverage.json`を更新した。`bake-font.mjs`は整形せずに出力するため、`vp check --fix`で2ファイルを整形している。
+- commit `2a1da65`（bench）と`add5d42`（改名）をmainへpush。`pnpm test`は114 pass／0 fail、typecheck、check（49 files／lint31、警告なし）、build、bake-font --checkがpass。GitHub CI [35425385695](https://github.com/HikaruEgashira/jev-kitchen/actions/runs/35425385695)とWorkers Buildsがsuccess。
+- 2026-09-19 05:59:57 UTC、本番100% version `d65b9374-5058-4065-b22a-df7a0fbee996`を確認した。復旧先は100% version `a10e3c28-98a5-4073-819f-966c190805e9`、復旧コマンドは`pnpm exec wrangler rollback a10e3c28-98a5-4073-819f-966c190805e9`。
+- 操作用ブラウザは未接続のため、/benchのタブ非表示挙動と改名後のトグル表示は未検証である。
+
 ## 2026-09-19 メニューの初期化と操作設定への移動
 
 - メニューを閉じて開き直すと最後のページ（操作設定・遊び方・診断）が残っていた。メニューのページをZustand状態へ移し、`setMenuOpen`の再オープン時に初期化して、常に最初の設定画面から表示する。
