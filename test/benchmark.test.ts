@@ -40,6 +40,7 @@ import {
   preparationCandidates,
   kitchenHasWork,
   playingCandidates,
+  directEndpoint,
 } from '../src/benchmark.ts';
 import { preparation, purchase } from '../src/ui.ts';
 import { runTicket } from '../src/api-client.ts';
@@ -117,6 +118,19 @@ test('player candidates retain legal actions without partner or recipe heuristic
   assert.ok(choices.some((c) => c.id === 'move_left'));
   assert.ok(choices.some((c) => c.id === 'visit_pot'));
   assert.match(buildQuestions(choices, 'human').next_action.instructions, /HUMAN player/);
+});
+
+test('browser-supplied endpoints accept only credential-free HTTPS URLs', () => {
+  assert.equal(directEndpoint({ url: 'http://model.example/x' }), null);
+  assert.equal(directEndpoint({ url: 'https://user:pass@model.example/x' }), null);
+  assert.equal(directEndpoint({ url: 'https://model.example/x#fragment' }), null);
+  assert.equal(directEndpoint({ url: 'not a url' }), null);
+  assert.equal(directEndpoint(null), null);
+  assert.deepEqual(directEndpoint({ url: 'https://model.example/x', token: 'k', model: 'm' }), {
+    url: 'https://model.example/x',
+    token: 'k',
+    model: 'm',
+  });
 });
 
 test('work and navigation pages expose every legal human control', () => {
@@ -248,6 +262,42 @@ test('API errors stop without fallback; cancellation discards late answers', asy
   assert.equal(useBenchmark.getState().results.at(-1)!.status, 'stopped');
   assert.equal(useKitchen.getState().game.human.intent, null);
   assert.equal(writes.length, 0);
+});
+
+test('a user-added model is called from the browser without the Worker and is unranked', async (t) => {
+  const calls: { url: string; authorization: string | null; body: Record<string, unknown> }[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: FetchInput, options?: FetchInit) => {
+    calls.push({
+      url: String(url),
+      authorization: new Headers(options?.headers).get('authorization'),
+      body: JSON.parse(String(options?.body)) as Record<string, unknown>,
+    });
+    // Make the offered move stale so the loop stops at the call budget instead
+    // of waiting for a tick that this test never runs.
+    useKitchen.getState().game.human.carrying = 'tomato';
+    return Response.json({
+      answers: { next_action: { choice: 'fetch_tomato', confidence: 0.5 } },
+    });
+  });
+  await runBenchmark({
+    model: {
+      id: 'custom:1',
+      name: 'Custom',
+      endpoint: { url: 'https://model.example/decide', token: 'sk-browser', model: 'candidate-v1' },
+    },
+    maxRequests: 1,
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://model.example/decide');
+  assert.equal(calls[0].authorization, 'Bearer sk-browser');
+  assert.equal(calls[0].body.model, 'candidate-v1');
+  assert.ok(calls[0].body.questions);
+  assert.ok(!calls.some((call) => call.url.startsWith('/api/')), 'the Worker is bypassed');
+  const result = useBenchmark.getState().results.at(-1)!;
+  assert.equal(result.status, 'budget');
+  assert.equal(result.model.id, 'custom:1');
+  assert.equal(result.decisions[0].via, 'browser-direct');
+  assert.equal(result.decisions[0].confidence, 0.5);
 });
 
 test('complete shifts are recorded and repeated attempts reset the starting conditions', async (t) => {

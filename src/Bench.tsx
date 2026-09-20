@@ -9,15 +9,24 @@ import {
   resumeBenchmark,
   stopBenchmark,
   useBenchmark,
+  directEndpoint,
 } from './benchmark.ts';
+import type { DirectEndpoint } from './benchmark.ts';
 import './bench.css';
 import type { BenchResult } from './types.ts';
 import type { BoardEntry } from './run-store.ts';
 
 const Kitchen = lazy(() => import('./Kitchen.tsx'));
+// A model the user added in this page. It carries its own endpoint and is called
+// directly from the browser, so it never reaches the Worker.
+interface BenchModel {
+  id: string;
+  name: string;
+  endpoint?: DirectEndpoint;
+}
 // The decision endpoint always serves Jev, so keep it selectable even when the
 // API is unreachable (local dev without `pnpm dev:api`).
-const DEFAULT_MODELS: { id: string; name: string }[] = [{ id: 'jev', name: 'Jev' }];
+const DEFAULT_MODELS: BenchModel[] = [{ id: 'jev', name: 'Jev' }];
 const statusNames: Record<string, string> = {
   completed: '全レベルクリア',
   failed: 'ノルマ未達',
@@ -45,9 +54,10 @@ function download(result: BenchResult) {
 export default function Bench() {
   const bench = useBenchmark();
   const kitchen = useKitchen();
-  const [models, setModels] = useState(DEFAULT_MODELS);
+  const [models, setModels] = useState<BenchModel[]>(DEFAULT_MODELS);
   const [modelId, setModelId] = useState('jev');
   const [error, setError] = useState('');
+  const [modelError, setModelError] = useState('');
   const [board, setBoard] = useState<BoardEntry[]>([]);
   useEffect(() => {
     document.title = 'jev-bench | SIDEKICK kitchen';
@@ -90,13 +100,39 @@ export default function Bench() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setError('');
+    const selected = models.find((entry) => entry.id === modelId) ?? null;
     void runBenchmark({
-      model: models.find((model) => model.id === modelId) ?? null,
+      model: selected,
       frequency: Number(form.get('frequency')),
       maxRequests: Number(form.get('maxRequests')),
     })
-      .then(() => submitRun())
+      // A browser-direct model is not recorded server-side, so there is nothing
+      // to verify or rank.
+      .then(() => (selected?.endpoint ? undefined : submitRun()))
       .catch((e) => setError(e.message));
+  };
+  // Session-only: the endpoint (and its API key) lives in this component's state
+  // and disappears on reload.
+  const addModel = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const token = String(form.get('token') ?? '').trim();
+    const remote = String(form.get('model') ?? '').trim();
+    const endpoint = directEndpoint({
+      url: String(form.get('url') ?? '').trim(),
+      ...(token ? { token } : {}),
+      ...(remote ? { model: remote } : {}),
+    });
+    if (!endpoint) {
+      setModelError('Base URL は https:// で始まるURLを入力してください');
+      return;
+    }
+    const id = `custom:${crypto.randomUUID()}`;
+    const name = String(form.get('name') ?? '').trim() || new URL(endpoint.url).hostname;
+    setModels((list) => [...list, { id, name, endpoint }]);
+    setModelId(id);
+    setModelError('');
+    event.currentTarget.reset();
   };
   const latest = bench.results.at(-1);
   const paused = bench.paused || kitchen.phase === 'paused' || kitchen.menuOpen;
@@ -253,6 +289,43 @@ export default function Bench() {
                 defaultValue="5000"
               />
             </label>
+          </form>
+          <form className="bench-add-model" onSubmit={addModel} aria-label="モデルを追加">
+            <h2>モデルを追加</h2>
+            <label>
+              名前
+              <input
+                name="name"
+                maxLength={80}
+                placeholder="既定はホスト名"
+                disabled={bench.running}
+              />
+            </label>
+            <label>
+              Base URL
+              <input
+                name="url"
+                type="url"
+                required
+                placeholder="https://…/v1/decision"
+                disabled={bench.running}
+              />
+            </label>
+            <label>
+              モデルID（任意）
+              <input name="model" maxLength={100} disabled={bench.running} />
+            </label>
+            <label>
+              APIキー（任意）
+              <input name="token" type="password" autoComplete="off" disabled={bench.running} />
+            </label>
+            <button type="submit" disabled={bench.running}>
+              追加
+            </button>
+            <p className="bench-model-note" role={modelError ? 'alert' : undefined}>
+              {modelError ||
+                'ページ内だけに保持し、ブラウザから直接呼び出します（Worker・順位検証の対象外）。'}
+            </p>
           </form>
         </aside>
       </div>

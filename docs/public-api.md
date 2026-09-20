@@ -46,6 +46,10 @@ Cloudflare Access を外して一般公開する前提の、Worker API の境界
 
 課金ルートは `content-type: application/json` と `x-run-ticket` ヘッダを必須とする。
 
+> `ponytail:` `/bench`の「モデルを追加」でユーザーが入力したBase URL・APIキーは、ブラウザから直接呼び出し、
+> このAPIを通らない。WorkerはURLもキーも見ず、決定列も記録できないため、そのrunは順位検証の対象外になる。
+> 公開Workerに任意URLへの転送（SSRF面）を増やさない代わりに、その試行は検証できない。
+
 ### `POST /api/session`
 
 ```json

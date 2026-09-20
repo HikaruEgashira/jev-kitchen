@@ -87,6 +87,16 @@ Jevは`TYPESAFE_API_KEY`／`TYPESAFE_MODEL`（または既存Workers AI binding�
 値の設定は`pnpm exec wrangler secret put BENCH_ENDPOINTS`を使用する。
 ローカルではgit管理外の`.dev.vars`へ同名のJSON文字列を設定する。
 
+### ブラウザから直接追加するモデル
+
+`/bench`の「モデルを追加」で、名前・Base URL・モデルID・APIキーをその場で入力できる。
+追加したモデルはページ内だけに保持し、再読み込みで消える。APIキーはサーバへ送らない。
+判断はブラウザからBase URLへ直接POSTし、Worker・run ticket・IPレート制限を経由しない。
+Base URLはHTTPSのみで、URLに資格情報やフラグメントを含められない。
+この経路はWorkerが決定列を記録できないため順位検証の対象外で、`BENCH_ENDPOINTS`に登録した
+モデル（Worker経由・検証対象）とは別物として扱う。上流がCORSを許可しない場合、ブラウザからは
+呼び出せない。ダウンロードJSONにはモデル名とIDだけを残し、URLとAPIキーは含めない。
+
 `POST /api/bench/decide`が受け取る`modelId`を接続先に解決し、以下の形式で転送する。
 モデル入力の`model`は、登録時に指定した場合だけ付与する。
 

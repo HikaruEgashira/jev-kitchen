@@ -54,6 +54,38 @@ import type {
 
 export const BENCH_PROTOCOL = 'jev-bench-v4';
 
+/** A user-supplied, Jev-compatible endpoint called directly from the browser. */
+export interface DirectEndpoint {
+  url: string;
+  token?: string;
+  model?: string;
+}
+
+/**
+ * Validate an endpoint the user typed into the bench screen. Same shape the
+ * Worker accepts for `BENCH_ENDPOINTS`, but here the browser calls it directly,
+ * so the Worker never sees the URL or token. HTTPS only; no credentials in the
+ * URL and no fragment.
+ */
+export function directEndpoint(value: unknown): DirectEndpoint | null {
+  const entry = value as { url?: unknown; token?: unknown; model?: unknown } | null;
+  if (!entry || typeof entry !== 'object' || typeof entry.url !== 'string') return null;
+  let url: URL;
+  try {
+    url = new URL(entry.url);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || url.hash) return null;
+  if (entry.token !== undefined && typeof entry.token !== 'string') return null;
+  if (entry.model !== undefined && typeof entry.model !== 'string') return null;
+  return {
+    url: url.href,
+    ...(entry.token ? { token: entry.token } : {}),
+    ...(entry.model ? { model: entry.model } : {}),
+  };
+}
+
 // Single source of truth for preparation parity. Every action the human
 // preparation sheet can render (see `screen()`) must be classified here: either
 // `bench` names the compact candidate that reproduces the decision, or
@@ -590,13 +622,47 @@ export function installAutoMode() {
   };
 }
 
+/**
+ * Ask a user-added endpoint directly. The Worker is bypassed on purpose so the
+ * key stays in the browser. Such runs are neither recorded nor ranked, because
+ * the Worker never sees the decision. The endpoint must allow CORS.
+ */
+async function directDecision(
+  endpoint: DirectEndpoint,
+  body: string,
+  signal: AbortSignal,
+): Promise<{
+  ok: true;
+  result: { answers?: { next_action?: { choice?: string; confidence?: number } } };
+  via: string;
+}> {
+  let response: Response;
+  try {
+    response = await fetch(endpoint.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(endpoint.token ? { authorization: `Bearer ${endpoint.token}` } : {}),
+      },
+      body,
+      signal,
+      redirect: 'manual',
+    });
+  } catch (error) {
+    if (signal.aborted) throw error;
+    throw new Error('モデルに接続できませんでした（Base URL・APIキー・CORSを確認してください）');
+  }
+  if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
+  return { ok: true, result: await response.json(), via: 'browser-direct' };
+}
+
 export async function runBenchmark({
   model,
   frequency = 5,
   maxRequests = 5000,
   autoplay = false,
 }: {
-  model: { id: unknown; name: unknown } | null;
+  model: { id: unknown; name: unknown; endpoint?: unknown } | null;
   frequency?: number;
   maxRequests?: number;
   autoplay?: boolean;
@@ -615,6 +681,9 @@ export async function runBenchmark({
     maxRequests > 10000
   )
     throw new Error('実行条件が不正です');
+  // A user-added model carries its own endpoint and is called from the browser.
+  const endpoint = directEndpoint(model.endpoint);
+  if (model.endpoint !== undefined && !endpoint) throw new Error('実行条件が不正です');
   const session = new AbortController();
   let clock: ReturnType<typeof setInterval> | undefined;
   controller = session;
@@ -804,7 +873,11 @@ export async function runBenchmark({
               .map((d) => `${d.label ?? d.action}${d.applied ? '' : '（状況が変わり未適用）'}`),
           },
         });
-        const body = JSON.stringify({ modelId: model.id, ...request });
+        const body = JSON.stringify(
+          endpoint
+            ? { ...(endpoint.model ? { model: endpoint.model } : {}), ...request }
+            : { modelId: model.id, ...request },
+        );
         const requestStart = performance.now();
         nextCallAt = requestStart + 1000 / frequency;
         result.requests++;
@@ -815,17 +888,25 @@ export async function runBenchmark({
           via?: string;
         };
         try {
-          const response = await apiFetch(
-            autoplay ? '/api/decide' : '/api/bench/decide',
-            body,
-            autoplay ? 'play' : 'bench',
-            {
-              signal: AbortSignal.any([session.signal, AbortSignal.timeout(10000)]),
-            },
-          );
-          if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
-          data = await response.json();
-          if (!data.ok) throw new Error('モデルが判断を返しませんでした');
+          if (endpoint) {
+            data = await directDecision(
+              endpoint,
+              body,
+              AbortSignal.any([session.signal, AbortSignal.timeout(10000)]),
+            );
+          } else {
+            const response = await apiFetch(
+              autoplay ? '/api/decide' : '/api/bench/decide',
+              body,
+              autoplay ? 'play' : 'bench',
+              {
+                signal: AbortSignal.any([session.signal, AbortSignal.timeout(10000)]),
+              },
+            );
+            if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
+            data = await response.json();
+            if (!data.ok) throw new Error('モデルが判断を返しませんでした');
+          }
         } catch (error) {
           if (!session.signal.aborted && generation !== requestGeneration) {
             result.staleResponses++;
@@ -836,7 +917,7 @@ export async function runBenchmark({
           latencies.push(performance.now() - requestStart);
         }
         session.signal.throwIfAborted();
-        if (!autoplay && !applicantSeedSet) {
+        if (!autoplay && !endpoint && !applicantSeedSet) {
           // Rank verification replays from the server seed, so seed the client
           // applicant draw once the session exists (never before the first
           // decision, which would change the synchronous request timing).

@@ -53,8 +53,11 @@ Only the graphics recovery screen uses the device's system font.
   production route uses the TypeSafe API when `TYPESAFE_API_KEY` is present;
   Workers AI is the documented fallback.
 - `/api/bench/decide` sends the same game state plus the on-screen text to the
-  model selected in jev-bench. The browser only selects an id registered in the
-  server-side `BENCH_ENDPOINTS`; it never receives the endpoint URL or token.
+  model selected in jev-bench. For a model registered in the server-side
+  `BENCH_ENDPOINTS`, the browser only selects its id; it never receives the
+  endpoint URL or token. A model the user adds in the page is instead called
+  directly from the browser over HTTPS with the URL and API key the user typed;
+  those values never reach the Worker, and that run is not recorded or ranked.
 - `/api/decide-llm` is an optional comparison route backed by the configured
   Workers AI model. It is not needed for the core game.
 - Client aborts and timeouts bound waiting and discard stale responses; they do
