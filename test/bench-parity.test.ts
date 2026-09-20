@@ -37,10 +37,10 @@ test('every human preparation control is classified for bench', () => {
   ])
     for (const page of [0, 1, 2, 3])
       for (const equipmentIndex of [0, 1, 2, 3, 4])
-        for (const layoutMode of ['equipment', 'layout'])
-          for (const layoutSelection of [null, 'board'])
-            for (const vitaminItem of [null, 'move']) {
-              const view = {
+        for (const layoutMode of ['equipment', 'layout'] as const)
+          for (const layoutSelection of [null, 'board'] as const)
+            for (const vitaminItem of [null, 'move'] as const) {
+              const view: ViewState = {
                 ...preparation(g),
                 page,
                 equipmentIndex,

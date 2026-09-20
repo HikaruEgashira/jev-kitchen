@@ -5,6 +5,7 @@
  * interfaces name the shapes that `model.ts` and its callers pass around so the
  * whole codebase type-checks under `strict`, instead of relying on implicit any.
  */
+import type { observe } from './model.ts';
 
 export type RecipeId = 'dish' | 'soup' | 'roast';
 export type ItemId = 'tomato' | 'chopped' | 'plate' | RecipeId;
@@ -16,6 +17,24 @@ export type Mode = 'jev' | 'rule' | 'llm';
 export type Phase = 'ready' | 'playing' | 'paused' | 'finished';
 export type StationKind = 'crate' | 'board' | 'pot' | 'grill' | 'plates' | 'serve' | 'warmer';
 export type StationStateName = 'idle' | 'chopping' | 'chopped' | 'cooking' | 'ready' | 'burnt';
+export type EquipmentKind = 'board' | 'pot' | 'grill' | 'warmer' | 'kitchen';
+export type BenchPhase = 'preparation' | 'playing';
+export type BenchStatus = 'running' | 'completed' | 'failed' | 'budget' | 'error' | 'stopped';
+export type PrepareStage = 'hiring' | 'staffing' | 'stock' | 'investment';
+export type ScreenKind =
+  | 'text'
+  | 'panel'
+  | 'button'
+  | 'food'
+  | 'avatar'
+  | 'bar'
+  | 'veil'
+  | 'title3d'
+  | 'number';
+export type LayoutMode = 'equipment' | 'layout';
+
+/** Shape of `observe()`; the model-facing subset of the game state. */
+export type Observation = ReturnType<typeof observe>;
 
 /** A station table entry (position and the offset its label sits at). */
 export interface StationSlot {
@@ -89,8 +108,8 @@ export interface BenchLogEntry {
 
 export interface BenchDecision {
   level: number;
-  phase: string;
-  stage?: string | null;
+  phase: BenchPhase;
+  stage?: PrepareStage | null;
   stock?: number | null;
   served?: number;
   atMs?: number;
@@ -125,13 +144,36 @@ export interface BenchShiftRecord {
   applicants: string[];
 }
 
+export interface BenchConditions {
+  frequency: number;
+  maxRequests: number;
+  partner: string;
+  initialStaff: string | null;
+  scriptedPartners: Record<string, string>;
+  tutorialQuota: number;
+  tutorialSeconds: number | null;
+  shiftSeconds: number;
+  playerDash: boolean;
+  hiring: boolean;
+}
+
+export interface BenchFinalShift {
+  level: number;
+  elapsedMs: number;
+  served: number;
+  playerServed: number;
+  partnerServed: number;
+  quota: number;
+  score: number;
+}
+
 export interface BenchResult {
   protocol: string;
   revision: string;
   model: { id: string; name: string };
   startedAt: string;
-  conditions: Record<string, unknown>;
-  status: string;
+  conditions: BenchConditions;
+  status: BenchStatus;
   error?: string;
   levels: BenchShiftRecord[];
   requests: number;
@@ -144,7 +186,7 @@ export interface BenchResult {
   activeMs: number;
   meanMs?: number | null;
   p95Ms?: number | null;
-  finalShift: Record<string, unknown>;
+  finalShift: BenchFinalShift;
 }
 
 export interface BenchVerified {
@@ -171,7 +213,6 @@ export interface RosterEntry {
   wage: number;
   worked: number;
   rest: number;
-  [key: string]: unknown;
 }
 
 export interface ApplicantEntry {
@@ -179,11 +220,10 @@ export interface ApplicantEntry {
   capabilities: string[];
   cost: number;
   wage: number;
-  [key: string]: unknown;
 }
 
 export interface PreparationContext {
-  stage?: string | null;
+  stage?: PrepareStage | null;
   cash_before_purchase?: number;
   cash_remaining?: number;
   quantity?: number | string;
@@ -206,12 +246,23 @@ export interface PreparationContext {
   training?: TrainingState;
   pending_equipment?: string[];
   recent_actions?: string[];
-  [key: string]: unknown;
+}
+
+/** One station in the compacted playing context. */
+export interface CompactStation {
+  x?: number;
+  y?: number;
+  state?: string;
+  by?: string | null;
+  burn_seconds?: number | null;
+  remaining_ms?: number;
+  progress?: number | null;
+  boosted?: boolean;
 }
 
 /** One model-facing decision context; the bench request's `state`. */
 export interface DecisionContext {
-  phase: string;
+  phase: BenchPhase;
   preparation?: PreparationContext;
   controlled_actor?: string;
   level?: number;
@@ -219,35 +270,39 @@ export interface DecisionContext {
   orders_served?: number;
   stock?: number | null;
   seconds_left?: number | null;
-  human?: { recent_actions?: unknown; [key: string]: unknown };
-  crew?: unknown;
-  orders?: { recipe: RecipeId }[];
+  human?: Observation['human'];
+  crew?: Observation['crew'];
+  orders?: Observation['orders'];
   recipes?: Record<string, string>;
   dash_ready_in_ms?: number;
-  stations?: Record<string, unknown>;
+  stations?: Record<string, CompactStation>;
   situation?: string;
   recent_actions?: { action: string; applied: boolean }[];
   loop_warning?: string;
-  [key: string]: unknown;
 }
 
+/** Preparation fields a caller passes into `benchRequest`. */
+export interface PreparationInput {
+  stage?: PrepareStage | null;
+  bill: { cash: number; stock: number; equipment: EquipmentState; training: TrainingState };
+  selected?: string | null;
+  cash?: number;
+  next_level: LevelConfig;
+  duty?: string[];
+  quantity?: number | string;
+  recommended_purchase?: number;
+  previous_sales?: number;
+  unfilled_slots?: number;
+  roster?: RosterEntry[];
+  applicants?: ApplicantEntry[];
+  equipmentPurchases?: string[];
+  recent_actions?: string[];
+}
+
+/** The raw state fed to `compactDecisionState`. */
 export interface DecisionInput {
-  phase: string;
-  preparation?: {
-    stage?: string | null;
-    bill: { cash: number; stock: number; equipment: EquipmentState; training: TrainingState };
-    cash?: number;
-    next_level: LevelConfig;
-    duty?: string[];
-    quantity?: number | string;
-    recommended_purchase?: number;
-    previous_sales?: number;
-    roster?: RosterEntry[];
-    applicants?: ApplicantEntry[];
-    equipmentPurchases?: string[];
-    recent_actions?: string[];
-    [key: string]: unknown;
-  };
+  phase: BenchPhase;
+  preparation?: PreparationInput;
   cash?: number;
   controlled_actor?: string;
   level?: number;
@@ -255,24 +310,16 @@ export interface DecisionInput {
   orders_served?: number;
   stock?: number | null;
   seconds_left?: number | null;
-  human?: unknown;
-  crew?: unknown;
-  orders?: { recipe: RecipeId }[];
+  human?: Observation['human'];
+  crew?: Observation['crew'];
+  orders?: Observation['orders'];
+  player_intent?: string | null;
   dash_ready_in_ms?: number;
-  stations?: Record<
-    string,
-    {
-      active: boolean;
-      x?: number;
-      y?: number;
-      state?: string;
-      by?: string | null;
-      burn_seconds?: number | null;
-      [key: string]: unknown;
-    }
-  >;
+  stations?: Observation['stations'];
   cooking?: Record<string, { remaining_ms: number; progress: number | null; boosted: boolean }>;
-  [key: string]: unknown;
+  situation?: string;
+  recent_actions?: { action: string; applied: boolean }[];
+  loop_warning?: string;
 }
 
 export interface Intent extends Candidate {
@@ -340,7 +387,7 @@ export interface EquipmentCount {
   level: number;
 }
 
-export type EquipmentState = Record<string, EquipmentCount>;
+export type EquipmentState = Record<EquipmentKind, EquipmentCount>;
 
 export interface EquipmentItem {
   name: string;
@@ -440,10 +487,17 @@ export interface GameConfig {
   duty?: string[];
   staffState?: Record<string, Partial<StaffState>>;
   stock?: number | null;
-  equipment?: EquipmentState;
+  /** Raw input; normalized by `equipmentState`. */
+  equipment?: unknown;
   layout?: Layout;
   training?: TrainingState;
 }
+
+/**
+ * A partial game view accepted by the pure helpers. `equipment` stays raw
+ * because callers may pass an unvalidated save or a partial override.
+ */
+export type GameLike = Partial<Omit<GameState, 'equipment'>> & { equipment?: unknown };
 
 export interface Framing {
   target: [number, number, number];
@@ -498,7 +552,7 @@ export interface ViewState {
   vitamins?: VitaminPurchase[];
   vitaminItem?: string | null;
   layout?: Layout;
-  layoutMode?: string;
+  layoutMode?: LayoutMode;
   layoutSelection?: string | null;
   layoutIndex?: number;
   stagePage?: number;
@@ -507,11 +561,11 @@ export interface ViewState {
   error?: string;
   history?: { key: string; label: string }[];
   looping?: boolean;
-  stage?: string | null;
+  stage?: PrepareStage | null;
   recentActions?: string[];
 }
 
-/** Render hints a screen item may carry. Unknown keys stay renderer-owned. */
+/** Render hints a screen item may carry. */
 export interface ScreenExtra {
   size?: number;
   color?: string;
@@ -533,11 +587,12 @@ export interface ScreenExtra {
   h?: number;
   layout?: Layout;
   automatic?: boolean;
-  [key: string]: unknown;
+  slots?: number;
+  max?: number;
 }
 
 export interface ScreenItem extends ScreenExtra {
-  kind?: string;
+  kind: ScreenKind;
   id: string;
   text?: string;
   x: number;

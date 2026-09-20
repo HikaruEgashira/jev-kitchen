@@ -49,6 +49,7 @@ import type {
   ItemId,
   StationState,
   StoreState,
+  ViewState,
 } from '../src/types.ts';
 
 type FetchInput = Parameters<typeof globalThis.fetch>[0];
@@ -173,9 +174,9 @@ test('playing context keeps active station facts without duplicated UI and campa
   assert.equal(context.human!.x, STATIONS.pot.x);
   assert.equal(context.orders![0].recipe, 'soup');
   assert.equal(context.stations!.pot2, undefined);
-  assert.equal(context.screen, undefined);
-  assert.equal(context.equipment, undefined);
-  assert.equal(context.actor, undefined);
+  assert.ok(!('screen' in context));
+  assert.ok(!('equipment' in context));
+  assert.ok(!('actor' in context));
 });
 
 test('benchmark actions use movement, reject stale work on arrival, and never save a campaign', () => {
@@ -456,18 +457,14 @@ test('bench observes the player and can deploy, rotate and hire a full crew', ()
     plan: { ...plan, stage: 'staffing' },
     candidates: preparationCandidates(state, plan),
   }).state as DecisionContext;
-  assert.equal(
-    observation.actor,
-    undefined,
-    'preparation does not mix in the previous shift actor',
-  );
+  assert.ok(!('actor' in observation), 'preparation does not mix in the previous shift actor');
   const playing = benchRequest(state, {
     preparing: false,
     plan,
     candidates: buildCandidates(g, 'human'),
   }).state as DecisionContext;
   assert.equal(playing.human!.carrying, 'chopped');
-  assert.equal(playing.staff, undefined);
+  assert.ok(!('staff' in playing));
   assert.equal(observation.preparation!.roster!.find((s) => s.id === 'runner')!.rest, 1);
   assert.equal(observation.preparation!.next_level!.staffSlots, 4);
   assert.ok(observation.preparation!.next_level!.recipeMix.soup > 0);
@@ -608,7 +605,7 @@ test('investment facts reflect the pending board without choosing an upgrade', (
     cleared: true,
     applicants: [],
   };
-  const plan = { ...preparation(g), duty: ['helper', 'chef'], stage: 'investment' };
+  const plan: ViewState = { ...preparation(g), duty: ['helper', 'chef'], stage: 'investment' };
   const instruction = () =>
     benchRequest(s, { preparing: true, plan, candidates: preparationCandidates(s, plan) }).state
       .situation;
@@ -628,8 +625,8 @@ test('investment facts reflect the pending board without choosing an upgrade', (
   const request = benchRequest(s, { preparing: true, plan, candidates: pending });
   const requestState = request.state as DecisionContext;
   assert.equal(requestState.preparation!.equipment!.board.count, 2);
-  assert.equal(requestState.equipment, undefined);
-  assert.equal(requestState.preparation!.bill, undefined);
+  assert.ok(!('equipment' in requestState));
+  assert.ok(!('bill' in requestState.preparation!));
 });
 
 test('staffing describes available cooks while keeping every legal roster available', () => {
@@ -642,7 +639,7 @@ test('staffing describes available cooks while keeping every legal roster availa
     staffState: { chef: { worked: 1, rest: 0 }, sous: { worked: 0, rest: 0 } },
   });
   const s = { ...useKitchen.getState(), game: g, applicants: [] };
-  const plan = { ...preparation(g), stage: 'staffing' };
+  const plan: ViewState = { ...preparation(g), stage: 'staffing' };
   const candidates = preparationCandidates(s, plan);
   assert.ok(candidates.some((c) => c.id === 'crew_chef_sous'));
   assert.match(candidates.find((c) => c.id === 'crew_chef')!.label, /連勤2\/3/);
@@ -772,7 +769,7 @@ test('investment exposes capacity and the expansion that unlocks another pot', (
   const g = createGame({ level: 26, cash: 2500, stock: 24 });
   g.equipment = { ...g.equipment, board: { count: 2, level: 2 } };
   const state = { ...useKitchen.getState(), game: g };
-  const plan = { ...preparation(g), stage: 'investment', quantity: 0 };
+  const plan: ViewState = { ...preparation(g), stage: 'investment', quantity: 0 };
   let candidates = preparationCandidates(state, plan);
   assert.ok(!candidates.some((c) => c.id === 'equipment_add_pot'));
   const expansion = candidates.find((c) => c.id === 'equipment_upgrade_kitchen')!;

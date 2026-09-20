@@ -1,5 +1,5 @@
 import { MAX_LEVEL, FEATURE_LEVELS } from './progression.ts';
-import type { EquipmentCount, EquipmentItem, EquipmentState } from './types.ts';
+import type { EquipmentCount, EquipmentItem, EquipmentKind, EquipmentState } from './types.ts';
 
 export const MAX_EQUIPMENT_LEVEL = 3;
 
@@ -64,7 +64,9 @@ export const EQUIPMENT: Record<string, EquipmentItem> = Object.freeze({
   }),
 });
 
-const EQUIPMENT_KINDS = Object.freeze(Object.keys(EQUIPMENT));
+const EQUIPMENT_KINDS: readonly EquipmentKind[] = Object.freeze(
+  Object.keys(EQUIPMENT) as EquipmentKind[],
+);
 const DEFAULT_EQUIPMENT: EquipmentState = Object.freeze(
   Object.fromEntries(
     EQUIPMENT_KINDS.map((kind) => [
@@ -108,7 +110,9 @@ function freezeState(value: EquipmentState): EquipmentState {
 }
 
 function copyState(value: EquipmentState): EquipmentState {
-  return Object.fromEntries(EQUIPMENT_KINDS.map((kind) => [kind, { ...value[kind] }]));
+  return Object.fromEntries(
+    EQUIPMENT_KINDS.map((kind) => [kind, { ...value[kind] }]),
+  ) as EquipmentState;
 }
 
 function validLevel(level: unknown): level is number {
@@ -179,7 +183,7 @@ export function validateEquipment(value: unknown, level?: number): boolean {
 
 export function equipmentDurationMultiplier(equipment: unknown, kind: string): number {
   if (!EQUIPMENT[kind] || kind === 'warmer' || kind === 'kitchen') return 1;
-  const level = equipmentState(equipment)[kind].level;
+  const level = equipmentState(equipment)[kind as EquipmentKind].level;
   return 1 - 0.08 * (level - 1);
 }
 
@@ -191,7 +195,7 @@ export function equipmentBurnMultiplier(equipment: unknown): number {
 
 export function equipmentCapacity(equipment: unknown): { used: number; limit: number } {
   const state = equipmentState(equipment);
-  const used = ['board', 'pot', 'grill'].reduce(
+  const used = (['board', 'pot', 'grill'] as const).reduce(
     (total, kind) => total + Math.max(0, state[kind].count - 1),
     state.warmer.count,
   );
@@ -225,7 +229,7 @@ export function quoteEquipment(equipment: unknown, purchases: unknown, nextLevel
     const match = /^(add|upgrade)_(board|pot|grill|warmer|kitchen)$/.exec(purchase);
     if (!match) return quoteResult(base, 0, `不明な設備購入です: ${purchase}`);
     const action = match[1];
-    const kind = match[2];
+    const kind = match[2] as EquipmentKind;
     const item = EQUIPMENT[kind];
     const state = next[kind];
     if (action === 'add') {

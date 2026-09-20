@@ -8,6 +8,7 @@ import { compactControls } from './ui.ts';
 import { cameraFraming, moveCamera } from './camera.ts';
 import { Block, Ball, Cylinder, Tomato, Food } from './Food.tsx';
 import * as THREE from 'three/webgpu';
+import type { EquipmentKind } from './types.ts';
 import { graphicsLost, TUTORIAL_STEPS, useKitchen, goTo, tick } from './game.ts';
 import {
   BOOST_MIN,
@@ -295,7 +296,7 @@ function Station({ id }: { id: string }) {
     st = g.stations[id];
   const equipmentLevel = Math.min(
     3,
-    Math.max(1, Math.floor(Number(g.equipment?.[kind]?.level) || 1)),
+    Math.max(1, Math.floor(Number(g.equipment?.[kind as EquipmentKind]?.level) || 1)),
   );
   const upgraded = equipmentLevel > 1;
   const equipmentLabel = upgraded ? ` Lv${equipmentLevel}` : '';

@@ -32,10 +32,13 @@ import { MAX_TRAINING, VITAMINS, quoteVitamins, trainingLevel } from './training
 import type { VitaminId } from './training.ts';
 import type {
   EquipmentCount,
+  EquipmentKind,
   GameState,
   Layout,
+  PrepareStage,
   ScreenExtra,
   ScreenItem,
+  ScreenKind,
   StationSlot,
   StoreState,
   ViewState,
@@ -352,7 +355,7 @@ export function screen(
   const practice = g.practice;
   let order = 2000;
   const add = (
-    kind: string,
+    kind: ScreenKind,
     id: string,
     text: string,
     x: number,
@@ -869,7 +872,7 @@ export function screen(
       );
     } else if (page === 'hints') {
       const preparing = s.phase === 'finished' && s.cleared;
-      const stages =
+      const stages: PrepareStage[] =
         view.page === 2
           ? ['staffing', 'stock']
           : [view.page === 3 ? 'investment' : g.level < 3 ? 'stock' : 'hiring'];
@@ -1717,7 +1720,10 @@ export function screen(
             return;
           }
           const meta = EQUIPMENT[kind];
-          const current = bill.equipment?.[kind] ?? { count: meta.initialCount ?? 0, level: 1 };
+          const current = bill.equipment?.[kind as EquipmentKind] ?? {
+            count: meta.initialCount ?? 0,
+            level: 1,
+          };
           const addId = `add_${kind}`;
           const upgradeId = `upgrade_${kind}`;
           const addQuote = optionQuote(addId);

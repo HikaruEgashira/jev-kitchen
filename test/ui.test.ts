@@ -93,7 +93,7 @@ test('hiring previews share the remaining stock and payroll budget with Jev', ()
     applicants: ['runner'],
     menuOpen: false,
   };
-  const view = { ...preparation(game), page: 1, stage: 'hiring' };
+  const view: ViewState = { ...preparation(game), page: 1, stage: 'hiring' };
   const balance = purchase(game, { ...view, selected: 'runner' }).cash;
   assert.ok(balance < 0, 'legal hiring can require changes to stock or duty');
   const preview = screen(state, view, 390, 844).items.find(
@@ -121,7 +121,7 @@ test('staffing forecasts show the following shift without choosing the roster', 
     cleared: true,
     applicants: [],
   };
-  const plan = { ...preparation(game), stage: 'staffing' };
+  const plan: ViewState = { ...preparation(game), stage: 'staffing' };
   const candidates = preparationCandidates(state, plan);
   for (const [id, expected] of [
     ['crew_chef_runner_prep_sprinter', '翌営業に出勤できる相棒2人・加熱担当0人'],
@@ -586,7 +586,7 @@ test('equipment placement uses named slots, swaps occupied stations, and stays t
     ready: true,
     applicants: [],
   };
-  const baseView = { ...preparation(game), page: 3, layoutMode: 'layout' };
+  const baseView: ViewState = { ...preparation(game), page: 3, layoutMode: 'layout' };
   const slots = layoutSlots(game);
   const targetSlot = Object.keys(slots).find((slot) => slot !== game.layout.board)!;
   for (const [width, height] of [
@@ -910,7 +910,7 @@ test('human hints share stock facts, cooking advice and bounded preparation hist
   assert.match(text, /前回11皿/);
   assert.match(text, /次の注文/);
   assert.doesNotMatch(text, /ノルマ後も売|しよう|優先|選ぼう/);
-  for (const stage of ['hiring', 'staffing', 'stock', 'investment']) {
+  for (const stage of ['hiring', 'staffing', 'stock', 'investment'] as const) {
     const advice = preparationAdvice(game, { ...view, stage });
     assert.doesNotMatch(advice.hint, /しよう|優先|選ぼう/);
     assert.doesNotMatch(

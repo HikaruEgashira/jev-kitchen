@@ -14,6 +14,7 @@ import type {
   Capability,
   DecisionRecord,
   GameConfig,
+  GameLike,
   GameState,
   HandoffOption,
   KitchenBounds,
@@ -269,7 +270,7 @@ function trainedWho(g: GameState, who: string | null): string {
   return who === 'ai' ? (g?.staffId ?? g?.duty?.[0] ?? '') : (who ?? '');
 }
 
-export function activeStationIds(g: Partial<GameState> = {}): string[] {
+export function activeStationIds(g: GameLike = {}): string[] {
   const { kitchenTier } = levelConfig(g.practice ? 1 : (g.level ?? 1));
   const equipment = equipmentState(g.equipment);
   const active = ['crate', 'board'];
@@ -292,7 +293,7 @@ const EXPANSION_SLOTS: Record<string, StationSlot> = {
   bottom_extra: { name: '拡張台（下）', x: 1390, y: 390, dx: 0, dy: 82 },
 };
 
-export function kitchenBounds(g: Partial<GameState> = {}): KitchenBounds {
+export function kitchenBounds(g: GameLike = {}): KitchenBounds {
   const active = activeStationIds(g);
   const kitchenLevel = equipmentState(g.equipment).kitchen.level;
   const baseMaxX = active.includes('grill') ? 1175 : active.includes('pot') ? 975 : 775;
@@ -304,8 +305,8 @@ export function kitchenBounds(g: Partial<GameState> = {}): KitchenBounds {
   };
 }
 
-export const kitchenExpansion = (game: Partial<GameState>): number =>
-  Math.min(3, Math.max(1, Math.floor(Number(game.equipment?.kitchen?.level) || 1)));
+export const kitchenExpansion = (game: GameLike): number =>
+  Math.min(3, Math.max(1, equipmentState(game.equipment).kitchen.level));
 
 // The room shell spans wider than the station bounds. Framing and the Room mesh
 // share this so the camera centers on what the player actually sees.
@@ -324,7 +325,7 @@ function slotInBounds(slot: StationSlot, bounds: KitchenBounds): boolean {
   );
 }
 
-export function layoutSlots(g: Partial<GameState> = {}): Record<string, StationSlot> {
+export function layoutSlots(g: GameLike = {}): Record<string, StationSlot> {
   const bounds = kitchenBounds(g);
   const slots: Record<string, StationSlot> = {};
   for (const id of STATION_IDS) {
@@ -337,7 +338,7 @@ export function layoutSlots(g: Partial<GameState> = {}): Record<string, StationS
   return slots;
 }
 
-export function resolveLayout(g: Partial<GameState> = {}, proposed: unknown = {}): Layout | null {
+export function resolveLayout(g: GameLike = {}, proposed: unknown = {}): Layout | null {
   if (
     proposed === null ||
     typeof proposed !== 'object' ||
@@ -367,11 +368,12 @@ export function resolveLayout(g: Partial<GameState> = {}, proposed: unknown = {}
   return result;
 }
 
-export function stationInfo(g: GameState, id: string): StationSlot | null {
+export function stationInfo(g: GameLike, id: string): StationSlot | null {
   const base = STATIONS[id] ?? (id === 'warmer' ? WARMER_SLOT : null);
   if (!base) return null;
   const slots = layoutSlots(g);
-  const slot = slots[g?.layout?.[id]] ?? slots[id] ?? base;
+  const requested = g?.layout?.[id];
+  const slot = (requested !== undefined ? slots[requested] : undefined) ?? slots[id] ?? base;
   return { ...base, x: slot.x, y: slot.y, dx: slot.dx, dy: slot.dy };
 }
 
