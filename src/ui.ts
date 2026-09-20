@@ -381,7 +381,7 @@ export function screen(
       order: (order += 3),
       ...extra,
       size:
-        preparing && height >= 500
+        (preparing && height >= 500) || (order >= 4000 && !preparing && kind !== 'title3d')
           ? Math.max(13, extra.size ?? 16)
           : narrow
             ? Math.max(11, Math.round((extra.size ?? 16) * 0.8))
@@ -699,8 +699,7 @@ export function screen(
     item.inert = true;
   });
   const welcome = modal === 'welcome';
-  const placementSheet =
-    s.phase === 'finished' && s.cleared && view.page === 3 && view.layoutMode === 'layout';
+  const placementSheet = preparing && view.page === 3 && view.layoutMode === 'layout';
   const stockSheet = !s.menuOpen && s.phase === 'finished' && s.cleared && view.page === 2;
   const prepTabsHeight =
     preparing && (height >= 500 || width < height) ? (height < 540 ? 40 : 56) : 0;
@@ -790,9 +789,18 @@ export function screen(
               ? '操作設定'
               : s.menuPage === 'diagnostics'
                 ? '診断情報'
-                : 'ひと休み',
+                : 'メニュー',
     );
     const page = s.menuPage ?? 'settings';
+    if (page !== 'settings') {
+      button('menu-back', '‹ 戻る', x + 16, y + 12, 64, 'menu-page', {
+        value: 'settings',
+        label: 'メニューに戻る',
+        size: 14,
+      });
+      const heading = items.find((item) => item.id === 'title')!;
+      Object.assign(heading, { x: x + 88, w: inside - 72 });
+    }
     if (page === 'stages') {
       const levels = Object.keys(s.stages ?? {})
         .map(Number)
@@ -800,7 +808,7 @@ export function screen(
       const pageCount = Math.max(1, Math.ceil(levels.length / 6));
       const stagePage = Math.min(pageCount - 1, Math.max(0, view.stagePage ?? 0));
       const bw = (inside - 16) / 3;
-      copy('stage-help', 'どの厨房に戻る？', 54, 28, { size: 12 });
+      copy('stage-help', 'どの厨房に戻る？', 60, 20, { size: 13 });
       levels.slice(stagePage * 6, stagePage * 6 + 6).forEach((level, index) => {
         button(
           `stage-${level}`,
@@ -837,9 +845,13 @@ export function screen(
         label: '次のステージ一覧',
       });
     } else if (page === 'controls') {
-      const bw = (inside - 16) / 3;
-      label('camera-heading', 'カメラ', x + 16, y + 54, inside, 20, {
-        size: narrow ? 12 : 14,
+      const sideBySide = !portrait && height < 500;
+      const groupW = sideBySide ? (inside - 16) / 2 : inside;
+      const movementX = sideBySide ? x + 32 + groupW : x + 16;
+      const movementY = sideBySide ? 62 : 142;
+      const bw = (groupW - 16) / 3;
+      label('camera-heading', 'カメラ', x + 16, y + 62, groupW, 20, {
+        size: 15,
         color: '#245e50',
       });
       [
@@ -847,46 +859,48 @@ export function screen(
         ['follow', '追従'],
         ['overview', '全体'],
       ].forEach(([mode, text], index) =>
-        button(`camera-${mode}`, text, x + 16 + index * (bw + 8), y + 74, bw, 'camera', {
+        button(`camera-${mode}`, text, x + 16 + index * (bw + 8), y + 86, bw, 'camera', {
           value: mode,
           pressed: s.cameraMode === mode,
-          size: 13,
+          size: 14,
           label: mode === 'auto' ? 'カメラ：自動（縦は追従、横は全体）' : `カメラ：${text}`,
         }),
       );
-      const mw = (inside - 8) / 2;
-      label('movement-heading', '移動基準', x + 16, y + 118, inside, 20, {
-        size: narrow ? 12 : 14,
+      const mw = (groupW - 8) / 2;
+      label('movement-heading', '移動基準', movementX, y + movementY, groupW, 20, {
+        size: 15,
         color: '#245e50',
       });
       [
         ['screen', '画面基準'],
         ['grid', 'マス目基準'],
       ].forEach(([mode, text], index) =>
-        button(`movement-${mode}`, text, x + 16 + index * (mw + 8), y + 138, mw, 'movement', {
-          value: mode,
-          pressed: (s.movementMode ?? 'grid') === mode,
-          size: 13,
-          label: `移動：${text}`,
-        }),
+        button(
+          `movement-${mode}`,
+          text,
+          movementX + index * (mw + 8),
+          y + movementY + 24,
+          mw,
+          'movement',
+          {
+            value: mode,
+            pressed: (s.movementMode ?? 'grid') === mode,
+            size: 14,
+            label: `移動：${text}`,
+          },
+        ),
       );
-      const backW = narrow ? 76 : 120;
-      const bgW = inside - backW - 8;
-      button('back', '設定に戻る', x + 16, footerY - 54, backW, 'menu-page', {
-        value: 'settings',
-        size: 13,
-      });
       button(
         'background',
-        s.backgroundMode ? 'バックグラウンドモード：オン' : 'バックグラウンドモード：オフ',
-        x + 24 + backW,
-        footerY - 54,
-        bgW,
+        s.backgroundMode ? '裏画面でも動作：オン' : '裏画面でも動作：オフ',
+        x + 16,
+        y + (sideBySide ? 146 : 232),
+        inside,
         'background',
         {
           pressed: s.backgroundMode,
           size: 13,
-          label: '裏画面でも動き続ける',
+          label: `裏画面でも動き続ける：${s.backgroundMode ? 'オン' : 'オフ'}`,
         },
       );
     } else if (page === 'hints') {
@@ -929,7 +943,7 @@ export function screen(
             .join('\n');
       }
       if (history.length) text += `\n最近の操作（古い順）\n${history.slice(-6).join('\n')}`;
-      const size = narrow ? 12 : 14;
+      const size = 14;
       const cols = Math.max(1, Math.floor(inside / size));
       const lines = text
         .split('\n')
@@ -960,47 +974,48 @@ export function screen(
     } else if (page === 'help') {
       copy(
         'help',
-        `作業台をタップ、または WASD で移動\nE で作業・相棒の近くで E で受け渡し\nShift でダッシュ・注文のない料理は Q で片づけ\n切る → お皿をとる → 盛る → 配膳`,
+        `作業台をタップして移動・作業\nWASD：移動　Shift：ダッシュ\nE：作業・近くの相棒へ受け渡し\nQ：注文のない料理を片づけ\n切る → お皿 → 盛る → 配膳`,
         62,
-        110,
-        { size: narrow ? 12 : 16 },
+        126,
+        { size: narrow ? 14 : 16 },
       );
-      button('back', '設定に戻る', x + 16, footerY - 54, inside, 'menu-page', {
-        value: 'settings',
-      });
     } else if (page === 'diagnostics') {
       copy(
         'diagnostics',
-        ph < 340
+        ph < 400
           ? `応答 ${s.hud.latency ?? '—'} ms ・ 判断 ${s.hud.decisions}回\nオート：${s.autoMode ? '動作中' : '停止中'}`
           : `${s.backend} / ${s.hud.via}\n応答 ${s.hud.latency ?? '—'} ms ・ 判断 ${s.hud.decisions}回\n古い回答の破棄 ${s.hud.dropped}回${s.fallback ? '\n接続待ち：固定ルールで営業を続けます' : ''}${s.autoStatus ? `\nJev：${s.autoStatus}` : ''}`,
         60,
-        ph < 340 ? 40 : 106,
+        ph < 400 ? 40 : 106,
         { size: narrow ? 12 : 15 },
       );
       copy(
         'privacy',
-        ph < 340
+        ph < 400
           ? '判断にゲーム状態をAIへ送信します。'
-          : 'オートではJevが操作と開店準備を担当します。\n判断にゲーム状態をTypeSafe または Cloudflare へ送信します。',
-        ph < 340 ? 100 : 172,
-        ph < 340 ? 24 : 54,
+          : 'オートではJevが操作を担当します。\n判断にゲーム状態を送信します。\n送信先：TypeSafe / Cloudflare',
+        ph < 400 ? 100 : 172,
+        ph < 400 ? 24 : 64,
         { size: 12 },
       );
       const bw = (inside - 8) / 2;
-      button('back', '設定に戻る', x + 16, footerY - 54, bw, 'menu-page', {
-        value: 'settings',
+      button('benchmark', 'jev-bench を開く', x + 16, footerY - 54, inside, 'link', {
+        href: '/bench',
       });
-      button('benchmark', 'jev-bench', x + 24 + bw, footerY - 54, bw, 'link', { href: '/bench' });
       if (!s.benchmark) {
         button(
           'auto-mode',
-          s.autoMode ? 'オートモード：オン' : 'オートモード：オフ',
+          s.autoMode ? 'オート：オン' : 'オート：オフ',
           x + 16,
           footerY - 108,
           bw,
           'auto-mode',
-          { pressed: s.autoMode, size: 13, disabled: !s.ready },
+          {
+            pressed: s.autoMode,
+            size: 13,
+            disabled: !s.ready,
+            label: `オートモード：${s.autoMode ? 'オン' : 'オフ'}`,
+          },
         );
         const resetArmed = view.resetArmed === true;
         button(
@@ -1030,23 +1045,24 @@ export function screen(
           size: 13,
         },
       );
-      const nav = (inside - 24) / 4;
-      button('controls', '操作設定', x + 16, y + 116, nav, 'menu-page', {
-        value: 'controls',
-        size: 13,
-      });
-      button('help', '遊び方', x + 24 + nav, y + 116, nav, 'menu-page', {
-        value: 'help',
-        size: 13,
-      });
-      button('diagnostics', '診断', x + 32 + nav * 2, y + 116, nav, 'menu-page', {
-        value: 'diagnostics',
-        size: 13,
-      });
-      button('hints', 'ヒント', x + 40 + nav * 3, y + 116, nav, 'menu-page', {
-        value: 'hints',
-        size: 13,
-      });
+      const columns = portrait ? 2 : 4;
+      const nav = (inside - (columns - 1) * 8) / columns;
+      [
+        ['controls', '操作設定'],
+        ['help', '遊び方'],
+        ['hints', 'ヒント'],
+        ['diagnostics', '診断情報'],
+      ].forEach(([value, text], index) =>
+        button(
+          value,
+          text,
+          x + 16 + (index % columns) * (nav + 8),
+          y + 120 + Math.floor(index / columns) * 60,
+          nav,
+          'menu-page',
+          { value, size: 15, h: 52 },
+        ),
+      );
       if (!s.benchmark)
         button('stages', 'ステージを選ぶ', x + 100, y + 64, inside - 84, 'menu-page', {
           value: 'stages',
@@ -1055,11 +1071,11 @@ export function screen(
       const lw = (inside - 8) / 2;
       button('license', 'ライセンス', x + 16, footerY - 54, lw, 'link', {
         href: '/licenses.html',
-        size: 13,
+        size: 14,
       });
       button('notices', '追加通知', x + 24 + lw, footerY - 54, lw, 'link', {
         href: '/third-party-notices.html',
-        size: 13,
+        size: 14,
       });
     }
     primary('閉じる', 'close-menu');
@@ -1077,7 +1093,7 @@ export function screen(
           : '開店'
         : 'キッチンを準備中…',
       'start',
-      { disabled: !s.ready, size: 24 },
+      { disabled: !s.ready, size: narrow ? 20 : 24 },
     );
     if (Object.keys(s.stages ?? {}).length)
       button('stages', 'ステージを選ぶ', x + 16, footerY - 54, inside, 'open-stages', {
@@ -1101,7 +1117,7 @@ export function screen(
       );
       primary('最初から再挑戦', 'start');
     } else {
-      title('営業失敗');
+      title('もう一度、開店しよう');
       copy(
         'result',
         `${g.served} / ${g.quota}皿   ・   ${g.score}点\nもう一度、開店前から。`,
@@ -1113,6 +1129,8 @@ export function screen(
       button('retry', '同じ条件で再挑戦', x + 16, footerY - actionStep * 2, inside, 'retry', {
         size: 16,
         h: actionH,
+        color: '#245e50',
+        ink: '#fff9e8',
       });
       button('review', '開店準備から見直す', x + 16, footerY - actionStep, inside, 'review', {
         size: 16,
@@ -1141,7 +1159,7 @@ export function screen(
       copy(
         'result',
         `${g.served} / ${g.quota}皿  ・  ${g.score}点\nお財布 ${g.cash}コイン\n次は Lv.${g.level + 1}、${bill.quota}皿を届けよう\n${levelConfig(g.level + 1).unlockLabel}`,
-        short ? 102 : 126,
+        short ? 110 : 126,
         short ? 90 : 116,
         { size: 17 },
       );

@@ -355,7 +355,8 @@ test('diagnostics contains auto mode and confirms reset; settings contains neith
     const view = preparation(base.game);
     const ui = screen(base, view, width, height);
     const auto = ui.items.find((item) => item.action === 'auto-mode');
-    assert.equal(auto.text, 'オートモード：オフ');
+    assert.equal(auto.text, 'オート：オフ');
+    assert.equal(auto.label, 'オートモード：オフ');
     const enabled = screen({ ...base, autoMode: true }, view, width, height);
     assert.equal(enabled.items.find((item) => item.action === 'auto-mode').pressed, true);
     const settings = screen({ ...base, menuPage: 'settings' }, view, width, height);
@@ -488,6 +489,59 @@ test('landscape dialogs keep the action group in a bottom bar while portrait sta
       }
     }
   }
+});
+
+test('menu and result content stays readable and clear of controls on small screens', () => {
+  const game = createGame({ level: 6, cash: 840, stock: 20 });
+  const base = { ...useKitchen.getState(), game, ready: true };
+  const states: StoreState[] = [
+    { ...base, phase: 'paused' },
+    { ...base, phase: 'finished', cleared: false },
+    { ...base, phase: 'finished', cleared: true },
+    { ...base, phase: 'finished', cleared: true, campaignComplete: true },
+    ...['settings', 'controls', 'help', 'hints', 'diagnostics', 'stages'].map((menuPage) => ({
+      ...base,
+      phase: 'paused' as const,
+      menuOpen: true,
+      menuPage,
+      stages: Object.fromEntries(Array.from({ length: 100 }, (_, i) => [i + 1, {} as Checkpoint])),
+    })),
+  ];
+  for (const [width, height] of [
+    [320, 480],
+    [320, 568],
+    [390, 844],
+    [568, 320],
+    [844, 390],
+    [1440, 900],
+  ])
+    for (const state of states) {
+      const ui = screen(state, { ...preparation(game), page: 0 }, width, height);
+      const content = ui.items.filter(
+        (item) => !item.inert && ['text', 'button'].includes(item.kind),
+      );
+      for (const [index, item] of content.entries()) {
+        assert.ok((item.size ?? 16) >= 13, `${item.id} readable at ${width}x${height}`);
+        assert.ok(
+          item.x >= 0 && item.y >= 0 && item.x + item.w <= width && item.y + item.h <= height,
+          item.id,
+        );
+        for (const other of content.slice(index + 1))
+          assert.ok(
+            item.x + item.w <= other.x ||
+              other.x + other.w <= item.x ||
+              item.y + item.h <= other.y ||
+              other.y + other.h <= item.y,
+            `${state.menuPage ?? state.phase}: ${item.id} overlaps ${other.id} at ${width}x${height}`,
+          );
+      }
+      if (state.menuOpen && state.menuPage !== 'settings') {
+        const back = ui.items.find((item) => item.id === 'menu-back');
+        assert.equal(back.action, 'menu-page');
+        assert.equal(back.value, 'settings');
+        assert.ok(back.y < ui.items.find((item) => item.id === 'primary').y);
+      }
+    }
 });
 
 test('preparation navigation and receipts never cover content or purchase controls', () => {
