@@ -348,6 +348,12 @@ export function screen(
   height: number,
 ): { items: ScreenItem[]; modal: string | null; title: string; status: string } {
   const g = s.game;
+  const preparing =
+    !s.menuOpen &&
+    s.phase === 'finished' &&
+    s.cleared &&
+    !s.campaignComplete &&
+    (view.page ?? 0) > 0;
   const items: ScreenItem[] = [];
   const narrow = compactControls(width, height);
   const compactHud = width < 1060;
@@ -374,7 +380,12 @@ export function screen(
       h,
       order: (order += 3),
       ...extra,
-      size: narrow ? Math.max(11, Math.round((extra.size ?? 16) * 0.8)) : extra.size,
+      size:
+        preparing && height >= 500
+          ? Math.max(13, extra.size ?? 16)
+          : narrow
+            ? Math.max(11, Math.round((extra.size ?? 16) * 0.8))
+            : extra.size,
     });
   };
   const label = (
@@ -682,7 +693,7 @@ export function screen(
             : step.label
           : s.toast || '',
     };
-  if (s.phase === 'ready') items.length = 0;
+  if (s.phase === 'ready' || preparing) items.length = 0;
   // Background HUD stays legible, but never accepts input behind a sheet.
   items.forEach((item) => {
     item.inert = true;
@@ -691,6 +702,8 @@ export function screen(
   const placementSheet =
     s.phase === 'finished' && s.cleared && view.page === 3 && view.layoutMode === 'layout';
   const stockSheet = !s.menuOpen && s.phase === 'finished' && s.cleared && view.page === 2;
+  const prepTabsHeight =
+    preparing && (height >= 500 || width < height) ? (height < 540 ? 40 : 56) : 0;
   let prepStatus = view.error || '';
   const sheetWidth = Math.min(
     width - 24,
@@ -711,12 +724,18 @@ export function screen(
     height - 24,
     s.menuOpen
       ? 448
-      : stockSheet && portrait
-        ? 620
+      : preparing && portrait
+        ? stockSheet
+          ? Math.max(568, 460 + Math.ceil(staffIds(g, view).length / 2) * 48)
+          : 580
         : placementSheet
-          ? 344
+          ? prepTabsHeight
+            ? 460
+            : 344
           : s.phase === 'finished' && s.cleared && !s.campaignComplete
-            ? 440
+            ? preparing
+              ? 520
+              : 440
             : s.phase === 'finished' && !s.cleared && !s.campaignComplete
               ? 400
               : welcome
@@ -1107,13 +1126,15 @@ export function screen(
       });
     }
   } else {
-    button('advice', 'ヒント', x + pw - 80, y + 8, 64, 'advice', { size: 13 });
+    button('advice', 'ヒント', x + pw - 80, y + (portrait && height < 540 ? 4 : 8), 64, 'advice', {
+      size: 13,
+    });
     const bill = purchase(g, view);
     const hint = preparationHint(bill);
-    prepStatus = view.error || hint || ((view.page ?? 0) >= 2 ? bill.error : '');
+    prepStatus = view.error || hint || ((view.page ?? 0) > 0 ? bill.error : '');
     const stars = STAR_SCORES.map((n) => (g.score >= n ? '★' : '☆')).join(' ');
-    const bodyTop = y + 68;
-    const short = ph < 340;
+    const bodyTop = y + 68 + prepTabsHeight;
+    const short = ph < 400 || (portrait && height < 540);
     if (view.page === 0) {
       title(`Lv.${g.level} 営業クリア`);
       copy('stars', stars, 62, 44, { size: 30, color: '#987018' });
@@ -1152,15 +1173,15 @@ export function screen(
           value: 1,
           label: '次の応募者',
         });
-        const top = y + (short ? 112 : 116);
+        const top = bodyTop + (short ? 44 : 48);
         const avatarW = short ? 52 : narrow ? 60 : 76;
         const infoX = x + 24 + avatarW;
         const infoW = x + 16 + inside - infoX;
         const bars = staffPerformance(id);
-        const detailsH = short ? 14 : narrow ? 32 : 42;
+        const detailsH = short ? 28 : 64;
         const rowH = short ? 14 : narrow ? 19 : 24;
         const barH = short ? 8 : narrow ? 12 : 14;
-        const dash = staff.canDash ? '  ・  ダッシュ' : '';
+        const dash = staff.canDash ? ' / ダッシュ可' : '';
         const hiring =
           view.selected === id
             ? bill
@@ -1169,7 +1190,7 @@ export function screen(
                 selected: id,
                 duty: (view.duty ?? []).filter((member) => member !== view.selected),
               });
-        const cost = `採用 ${staff.cost}  ・  給与 ${staff.wage ?? 0}/営業  ・  予定残金 ${hiring.cash}${dash}`;
+        const cost = `採用 ${staff.cost}  ・  給与 ${staff.wage ?? 0}/営業\n予定残金 ${hiring.cash}${dash}`;
         add('avatar', 'applicant-avatar', '', x + 16, top, avatarW, avatarW, {
           color: staff.color,
           label: `${staff.name}の立ち姿`,
@@ -1208,19 +1229,27 @@ export function screen(
         const bw = (inside - 8) / 2;
         button(
           'hire',
-          view.selected === id ? '採用予定' : 'この相棒を採用',
+          view.selected === id ? '採用予定 ✓' : 'この相棒を採用',
           x + 16,
-          footerY - 54,
+          top + detailsH + bars.length * rowH + 10,
           bw,
           'hire',
           { value: id, pressed: view.selected === id, size: 13 },
         );
-        button('skip', '今回は見送る', x + 24 + bw, footerY - 54, bw, 'skip', {
-          pressed: view.selected === null,
-          size: 13,
-        });
-      } else copy('all-hired', '今日の応募はありません。', 90, 90);
-      primary('仕入れと配置へ', 'page', { value: 2 });
+        button(
+          'skip',
+          '今回は見送る',
+          x + 24 + bw,
+          top + detailsH + bars.length * rowH + 10,
+          bw,
+          'skip',
+          {
+            pressed: view.selected === null,
+            size: 13,
+          },
+        );
+      } else copy('all-hired', '今日の応募はありません。', bodyTop - y, 90);
+      primary('勤務表へ進む', 'page', { value: 2 });
     } else if (view.page === 2) {
       title(`Lv.${g.level + 1} 仕入れ・勤務表`);
       const roster = [
@@ -1229,14 +1258,14 @@ export function screen(
       const duty = [...new Set(Array.isArray(view.duty) ? view.duty : [])].filter((id) =>
         roster.includes(id),
       );
-      const columns = portrait ? (height >= 540 ? 2 : 4) : height < 360 ? 4 : 3;
+      const columns = portrait ? (height >= 680 ? 2 : 4) : height < 360 ? 4 : 3;
       const gap = 4;
       const rosterW = portrait ? inside : (inside - 24) / 2;
       const stockW = portrait ? inside : (inside - 24) / 2;
       const stockX = portrait ? x + 16 : x + 40 + rosterW;
       const cellW = (rosterW - gap * (columns - 1)) / columns;
-      const dutyY = y + 80;
-      label('duty-heading', '勤務表', x + 16, y + 54, rosterW, 22, { size: 14 });
+      const dutyY = bodyTop + 12;
+      label('duty-heading', '勤務表', x + 16, bodyTop - 14, rosterW, 22, { size: 14 });
       const nextState = bill.staffState;
       const fatigueVisible = levelConfig(g.level + 1).fatigueEnabled;
       roster.forEach((id, index) => {
@@ -1290,10 +1319,10 @@ export function screen(
         x + 16,
         sy,
         rosterW,
-        24,
+        portrait && height < 540 ? 18 : 24,
         { size: 12 },
       );
-      const stockY = portrait ? sy + 56 : dutyY + 4;
+      const stockY = portrait ? sy + (height < 540 ? 48 : 56) : dutyY + 4;
       add('food', 'stock-tomato', '', stockX, stockY - 30, 28, 28, { recipe: 'tomato' });
       label(
         'stock-label',
@@ -1313,7 +1342,7 @@ export function screen(
         label: '仕入れ個数',
         action: 'quantity-input',
       });
-      button('more', '＋', stockX + stockW - 44, stockY, 44, 'quantity', {
+      button('more', '+', stockX + stockW - 44, stockY, 44, 'quantity', {
         value: 1,
         label: '仕入れを1個増やす',
         disabled: bill.quantity >= 99,
@@ -1324,61 +1353,21 @@ export function screen(
         stockX,
         stockY + 48,
         stockW,
-        24,
+        portrait && height < 540 ? 22 : 24,
         { size: 12 },
       );
-      label(
-        'bill',
-        `採用 ${bill.hiring} ＋ 仕入れ ${Number.isFinite(bill.quantity) ? bill.quantity * STOCK_PRICE : '—'}
+      if (!portrait || height >= 540)
+        label(
+          'bill',
+          `採用 ${bill.hiring} ＋ 仕入れ ${Number.isFinite(bill.quantity) ? bill.quantity * STOCK_PRICE : '—'}
 給与 ${bill.wages} ＋ 設備・育成 ${bill.equipmentCost + bill.vitaminCost}`,
-        stockX,
-        stockY + 74,
-        stockW,
-        34,
-        { size: 12 },
-      );
-      const warning = view.error || hint || bill.error;
-      const balanceY = footerY - (portrait ? 42 : 34);
-      panel('balance-board', stockX, balanceY, stockW, portrait ? 34 : 28, {
-        color: warning ? '#f7c4af' : '#dbe3d2',
-      });
-      label(
-        'balance',
-        warning || `開店後の残金  ${Number.isFinite(bill.cash) ? bill.cash : '—'}コイン`,
-        stockX + 4,
-        balanceY + 2,
-        stockW - 8,
-        portrait ? 30 : 24,
-        { size: 13, color: warning ? '#a1372f' : '#245e50', live: true },
-      );
-      const backW = narrow ? 64 : 120;
-      const equipmentW = narrow ? 60 : 100;
-      button('back', g.level < 3 ? '戻る' : '採用', x + 16, footerY, backW, 'page', {
-        value: g.level < 3 ? 0 : 1,
-        size: 13,
-        h: actionH,
-      });
-      button('equipment', '設備', x + 24 + backW, footerY, equipmentW, 'page', {
-        value: 3,
-        size: 13,
-        h: actionH,
-        label: '設備投資を見る',
-      });
-      button(
-        'primary',
-        'この準備で開店',
-        x + 32 + backW + equipmentW,
-        footerY,
-        inside - backW - equipmentW - 16,
-        'next',
-        {
-          disabled: Boolean(bill.error),
-          color: '#245e50',
-          ink: '#fff9e8',
-          size: 16,
-          h: actionH,
-        },
-      );
+          stockX,
+          stockY + 74,
+          stockW,
+          34,
+          { size: 12 },
+        );
+      primary('この準備で開店', 'next', { disabled: Boolean(bill.error) });
     } else {
       title(`Lv.${g.level + 1} 設備投資`);
       const baseEquipment = g.equipment ?? null;
@@ -1466,7 +1455,7 @@ export function screen(
             `vitamin-target-${id}`,
             `${id === 'human' ? 'あなた' : staffShortName(id)}\nLv${current}${capped ? ' MAX' : `→${current + 1}`}`,
             x + 16 + column * (cellW + gap),
-            bodyTop + 48 + row * 48,
+            bodyTop + 44 + row * 48,
             cellW,
             'vitamin-target',
             {
@@ -1480,11 +1469,12 @@ export function screen(
         });
         label(
           'vitamin-summary',
-          `使用予定 ${vitamins.length}個  ・  育成費 🪙${bill.vitaminCost} / 残り 🪙${bill.cash}`,
+          bill.error ||
+            `使用予定 ${vitamins.length}個  ・  育成費 🪙${bill.vitaminCost} / 残り 🪙${bill.cash}`,
           x + 16,
-          bodyTop + 48 + Math.ceil(vitaminTargets.length / columns) * 48,
+          bodyTop + 44 + Math.ceil(vitaminTargets.length / columns) * 48,
           inside,
-          28,
+          24,
           { size: narrow ? 11 : 13 },
         );
         if (vitamins.length)
@@ -1492,7 +1482,9 @@ export function screen(
             'vitamin-undo',
             `直前の育成を取り消す（${vitamins.length}）`,
             x + 16,
-            bodyTop + 48 + Math.ceil(vitaminTargets.length / columns) * 48 + 32,
+            !portrait && height < 500
+              ? footerY
+              : bodyTop + 44 + Math.ceil(vitaminTargets.length / columns) * 48 + 24,
             inside,
             'vitamin-undo',
             { size: narrow ? 11 : 13 },
@@ -1625,9 +1617,17 @@ export function screen(
         const layoutSummary = selected
           ? `${stationName(layoutGame, selected)}を選択中`
           : `設備枠 ${capacity.used}/${capacity.limit}`;
-        label('layout-summary', layoutSummary, x + 16, rowTop + 88 + 4, inside, 28, {
-          size: narrow ? 11 : 13,
-        });
+        label(
+          'layout-summary',
+          bill.error || `${layoutSummary} / 残り 🪙${bill.cash}`,
+          x + 16,
+          rowTop + 88 + 4,
+          inside,
+          28,
+          {
+            size: narrow ? 11 : 13,
+          },
+        );
       } else {
         const kinds = [...Object.keys(EQUIPMENT), ...Object.keys(VITAMINS)];
         const pageCount = Math.max(1, Math.ceil(kinds.length / 2));
@@ -1659,7 +1659,7 @@ export function screen(
           const incremental = Math.max(0, quote.cost - bill.equipmentCost);
           return `${equipmentMeta.name ?? kind}の${action}（${quote.error || `費用${incremental}コイン`}）`;
         };
-        const buttonW = narrow ? 86 : 112;
+        const buttonW = narrow ? Math.min(86, inside * 0.27) : 132;
         const labelW = inside - buttonW * 2 - 8;
         if (pageCount > 1) {
           button('equipment-prev', '‹', x + 16, bodyTop, 44, 'equipment-index', {
@@ -1669,7 +1669,7 @@ export function screen(
           });
           label(
             'equipment-page',
-            `${equipmentIndex + 1} / ${pageCount}`,
+            `${equipmentIndex >= 2 ? '厨房・育成' : '調理設備'}  ${equipmentIndex + 1} / ${pageCount}`,
             x + 66,
             bodyTop,
             inside - 116,
@@ -1682,9 +1682,15 @@ export function screen(
             label: '次の設備ページ',
           });
         }
-        const rowTop = bodyTop + (pageCount > 1 ? 44 : 0);
+        const rowHeight = prepTabsHeight && height >= 500 ? 70 : 44;
+        const rowTop = bodyTop + (pageCount > 1 ? (rowHeight > 44 ? 52 : 44) : 0);
         visibleKinds.forEach((kind, index) => {
-          const row = rowTop + index * 44;
+          const row = rowTop + index * rowHeight;
+          if (rowHeight > 44)
+            panel(`equipment-row-${kind}`, x + 16, row, inside, rowHeight - 6, {
+              color: '#edf0e3',
+              edge: '#dbe3d2',
+            });
           if (Object.hasOwn(VITAMINS, kind)) {
             const vitamin = VITAMINS[kind];
             const count = vitamins.filter((entry) => entry.item === kind).length;
@@ -1751,15 +1757,15 @@ export function screen(
             x + 16,
             row,
             labelW,
-            44,
-            { size: narrow ? 11 : 13 },
+            rowHeight - 6,
+            { size: narrow ? 12 : 15 },
           );
           if (kind !== 'kitchen')
             button(
               `equipment-add-${kind}`,
               optionText(addId, '増設'),
               x + 16 + labelW + 4,
-              row,
+              row + (rowHeight - 44) / 2,
               buttonW,
               'equipment',
               {
@@ -1767,14 +1773,14 @@ export function screen(
                 disabled: addDisabled,
                 pressed: pending.has(addId),
                 label: optionLabel(kind, addId, '増設'),
-                size: narrow ? 10 : 12,
+                size: narrow ? 12 : 14,
               },
             );
           button(
             `equipment-upgrade-${kind}`,
             optionText(upgradeId, '改良'),
             x + 16 + labelW + (kind === 'kitchen' ? 4 : buttonW + 8),
-            row,
+            row + (rowHeight - 44) / 2,
             buttonW,
             'equipment',
             {
@@ -1782,11 +1788,11 @@ export function screen(
               disabled: upgradeDisabled,
               pressed: pending.has(upgradeId),
               label: optionLabel(kind, upgradeId, '改良'),
-              size: narrow ? 10 : 12,
+              size: narrow ? 12 : 14,
             },
           );
         });
-        const summaryY = rowTop + visibleKinds.length * 44 + 4;
+        const summaryY = rowTop + visibleKinds.length * rowHeight + 4;
         label(
           'equipment-summary',
           bill.error && short
@@ -1800,7 +1806,7 @@ export function screen(
         );
         const warning = view.error || hint || bill.error;
         if (!short && warning && summaryY + 52 <= footerY)
-          label('hint', warning, x + 16, summaryY + 26 - y, inside, 26, {
+          label('hint', warning, x + 16, summaryY + 26, inside, 26, {
             color: '#a1372f',
             size: 12,
             live: true,
@@ -1808,7 +1814,107 @@ export function screen(
       }
     }
   }
-  if (!s.menuOpen && s.phase === 'finished' && s.cleared && !s.campaignComplete) {
+  if (preparing) {
+    const bill = purchase(g, view);
+    const compactPrep = prepTabsHeight === 0;
+    if (y >= 80)
+      label(
+        'prep-cleared',
+        `Lv.${g.level} クリア  /  ${g.served}皿・${g.score}点`,
+        x + 16,
+        y - 48,
+        inside,
+        32,
+        { size: 18 },
+      );
+    const titleItem = items.find((item) => item.id === 'title');
+    if (titleItem)
+      Object.assign(titleItem, {
+        text: `Lv.${g.level + 1} ${view.page === 1 ? '相棒の採用' : view.page === 2 ? '仕入れ・勤務' : '設備・育成'}`,
+        x: x + 16,
+        y: y + (height < 540 ? 12 : 18),
+        h: height < 540 ? 30 : 34,
+        w: compactPrep ? 110 : inside - 76,
+        size: compactPrep ? 12 : narrow ? 18 : 24,
+      });
+    const navX = compactPrep ? x + 134 : x + 16;
+    const navW = compactPrep ? inside - 194 : inside;
+    const tabs =
+      g.level < 3
+        ? ([
+            [2, '仕入れ\n勤務'],
+            [3, '設備\n育成'],
+          ] as const)
+        : ([
+            [1, '採用'],
+            [2, '仕入れ\n勤務'],
+            [3, '設備\n育成'],
+          ] as const);
+    const tabW = (navW - (tabs.length - 1) * 8) / tabs.length;
+    tabs.forEach(([page, name], index) =>
+      button(
+        `prep-tab-${page}`,
+        name,
+        navX + index * (tabW + 8),
+        compactPrep ? y + 10 : y + (height < 540 ? 50 : 62),
+        tabW,
+        'page',
+        {
+          value: page,
+          pressed: view.page === page,
+          size: compactPrep ? 11 : 14,
+          label: `${page === 2 ? '仕入れ・勤務' : page === 3 ? '設備・育成' : name}を確認`,
+          color: view.page === page ? '#f4cd75' : '#fff9e8',
+        },
+      ),
+    );
+    const warning = view.error || bill.error;
+    if (!compactPrep || view.page !== 3) {
+      const receiptH = compactPrep ? 28 : height < 540 ? 48 : 70;
+      const receiptY = footerY - receiptH - 10;
+      const receiptX = stockSheet && compactPrep ? x + 40 + (inside - 24) / 2 : x + 16;
+      const receiptW = stockSheet && compactPrep ? (inside - 24) / 2 : inside;
+      panel('balance-board', receiptX, receiptY, receiptW, receiptH, {
+        color: warning ? '#f7c4af' : '#dbe3d2',
+        edge: warning ? '#a1372f' : '#76b59b',
+      });
+      label(
+        'balance',
+        compactPrep
+          ? warning || `支払後 ${bill.cash}コイン`
+          : `所持 ${g.cash} − 支出 ${Number.isFinite(bill.cash) ? g.cash - bill.cash : '—'} = 残金 ${Number.isFinite(bill.cash) ? bill.cash : '—'}`,
+        receiptX + 4,
+        receiptY + 2,
+        receiptW - 8,
+        compactPrep ? 24 : 28,
+        { size: compactPrep ? 12 : narrow ? 13 : 18, color: warning ? '#a1372f' : '#245e50' },
+      );
+      if (!compactPrep) {
+        label(
+          'prep-status',
+          warning ||
+            (view.page === 1
+              ? '採用は任意・出勤は勤務表で選択'
+              : `在庫 ${bill.stock} / 必要 ${bill.quota}個   出勤 ${bill.duty.length}/${bill.slots}人`),
+          receiptX + 4,
+          receiptY + 30,
+          receiptW - 8,
+          18,
+          { size: 13, color: warning ? '#a1372f' : '#245e50', live: true },
+        );
+        if (receiptH >= 70)
+          label(
+            'prep-commit',
+            '開店時に確定・それまでは変更できます',
+            receiptX + 4,
+            receiptY + 48,
+            receiptW - 8,
+            18,
+            { size: 13 },
+          );
+      }
+    }
+  } else if (!s.menuOpen && s.phase === 'finished' && s.cleared && !s.campaignComplete) {
     const titleItem = items.find((item) => item.id === 'title');
     if (titleItem) titleItem.w -= 76;
   }

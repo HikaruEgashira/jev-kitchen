@@ -429,7 +429,8 @@ test('stock and attendance use stacked portrait and side-by-side landscape layou
     if (width < height)
       assert.ok(find('stock-label').y >= find('duty-summary').y + find('duty-summary').h);
     else assert.ok(duty.every((i) => i.x + i.w < find('quantity').x));
-    assert.ok(find('bill').y + find('bill').h <= find('balance-board').y);
+    const lastStockLine = find('bill') ?? find('stock-summary');
+    assert.ok(lastStockLine.y + lastStockLine.h <= find('balance-board').y);
     assert.ok(find('balance-board').y + find('balance-board').h <= find('primary').y);
     const content = ui.items.filter(
       (i) => !i.inert && ['button', 'number', 'text'].includes(i.kind!),
@@ -487,6 +488,68 @@ test('landscape dialogs keep the action group in a bottom bar while portrait sta
       }
     }
   }
+});
+
+test('preparation navigation and receipts never cover content or purchase controls', () => {
+  const game = createGame({ level: 20, cash: 10000, stock: 40, hired: Object.keys(STAFF) });
+  const state: StoreState = {
+    ...useKitchen.getState(),
+    game,
+    phase: 'finished',
+    cleared: true,
+    ready: true,
+    menuOpen: false,
+    applicants: Object.keys(STAFF),
+  };
+  const variants: ViewState[] = [
+    ...Object.keys(STAFF).map((_, applicantIndex) => ({ page: 1, applicantIndex })),
+    { page: 1, applicantIndex: 99 },
+    { page: 2 },
+    ...[0, 1, 2, 3].map((equipmentIndex) => ({ page: 3, equipmentIndex })),
+    { page: 3, vitaminItem: 'move', vitamins: [{ item: 'move', target: 'human' }] },
+    { page: 3, layoutMode: 'layout' },
+    { page: 3, layoutMode: 'layout', layoutSelection: 'board' },
+  ];
+  for (const [width, height] of [
+    [320, 480],
+    [320, 568],
+    [390, 844],
+    [568, 320],
+    [844, 390],
+    [1440, 900],
+  ])
+    for (const variant of variants) {
+      const view = { ...preparation(game), ...variant };
+      const ui = screen(
+        variant.applicantIndex === 99 ? { ...state, applicants: [] } : state,
+        view,
+        width,
+        height,
+      );
+      const content = ui.items.filter(
+        (item) => !item.inert && ['text', 'button', 'number'].includes(item.kind),
+      );
+      for (const [index, item] of content.entries()) {
+        assert.ok(
+          item.x >= 0 && item.y >= 0 && item.x + item.w <= width && item.y + item.h <= height,
+          `${item.id} outside ${width}x${height}`,
+        );
+        if (item.action) assert.ok(item.w >= 44 && item.h >= 44, item.id);
+        for (const other of content.slice(index + 1))
+          assert.ok(
+            item.x + item.w <= other.x ||
+              other.x + other.w <= item.x ||
+              item.y + item.h <= other.y ||
+              other.y + other.h <= item.y,
+            `${item.id} overlaps ${other.id} at ${width}x${height}`,
+          );
+      }
+      for (const page of [1, 2, 3])
+        assert.equal(
+          ui.items.find((item) => item.id === `prep-tab-${page}`).pressed,
+          view.page === page,
+        );
+    }
 });
 
 test('equipment page keeps pending investments, effects and controls within the sheet', () => {
@@ -854,7 +917,7 @@ test('preparation hint warns only when the stock is below the next quota', () =>
   const short = { ...view, page: 2, quantity: 0 };
   const shortUi = screen(state, short, 1440, 900);
   assert.equal(shortUi.status, 'あと7個の仕入れが必要');
-  assert.equal(shortUi.items.find((item) => item.id === 'balance').text, shortUi.status);
+  assert.equal(shortUi.items.find((item) => item.id === 'prep-status').text, shortUi.status);
   assert.equal(screenContext(state, short, 1440, 900).status, shortUi.status);
   assert.equal(screenContext(state, view, 1440, 900).status, null);
 });

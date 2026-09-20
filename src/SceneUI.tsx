@@ -188,9 +188,13 @@ const Tile = memo(function Tile({
           progress={item.progress}
           progressColor={item.progressColor}
           color={
-            item.disabled ? '#d2d8c7' : active || item.pressed ? '#f4cd75' : (item.color ?? PAPER)
+            item.disabled
+              ? '#d2d8c7'
+              : (active || item.pressed) && !item.ink
+                ? '#f4cd75'
+                : (item.color ?? PAPER)
           }
-          edge={active ? INK : WOOD}
+          edge={active ? '#987018' : (item.edge ?? WOOD)}
           onPointerOver={(e) => {
             e.stopPropagation();
             if (control && !item.inert && !item.disabled) hover(item.id);
@@ -225,7 +229,7 @@ const Tile = memo(function Tile({
                 width={Math.max(24, item.w - 8 - (item.avatar ? Math.min(item.h, 36) : 0))}
                 height={item.icon ? 22 : item.h - 4}
                 size={item.size ?? 16}
-                color={item.disabled ? '#63705c' : active || item.pressed ? INK : (item.ink ?? INK)}
+                color={item.disabled ? '#63705c' : (item.ink ?? INK)}
                 order={(item.order ?? 0) + 2}
               />
             </group>
@@ -602,6 +606,7 @@ function Screen() {
         <Semantics ui={ui} semantic={semantic} page={s.menuPage} ready={s.ready}>
           {ui.items
             .filter((item) => !item.inert)
+            .sort((a, b) => a.y - b.y || a.x - b.x)
             .map((item) => {
               const common = {
                 ref: (el: HTMLElement | null) => {
