@@ -47,6 +47,9 @@ test('the served pages render every markdown source in the repository', () => {
     const html = readFileSync(file, 'utf8');
     assert.match(html, /^<!doctype html>/);
     assert.match(html, /href="\/legal\.css"/);
+    assert.match(html, /property="og:title" content="[^"]+ \| SIDEKICK kitchen"/);
+    assert.match(html, /property="og:image" content="https:\/\/[^"]+\/og\.png"/);
+    assert.match(html, /name="twitter:card" content="summary_large_image"/);
     assert.ok(!/^#{1,6} /m.test(html), `${file} still contains markdown headings`);
   }
 });

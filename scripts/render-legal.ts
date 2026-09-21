@@ -93,12 +93,26 @@ export function renderMarkdown(markdown: string): string {
   return html.join('\n');
 }
 
-const page = (title: string, body: string): string => `<!doctype html>
+// The static pages are built ahead of the deploy, so the card image is written
+// as an absolute URL here instead of being injected at build time.
+const SITE = 'SIDEKICK kitchen';
+const OG_IMAGE = 'https://jev-kitchen.egahika.dev/og.png';
+
+const page = (title: string, description: string, body: string): string => `<!doctype html>
 <html lang="ja">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${title} | SIDEKICK kitchen</title>
+    <title>${title} | ${SITE}</title>
+    <meta name="description" content="${description}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="${SITE}" />
+    <meta property="og:title" content="${title} | ${SITE}" />
+    <meta property="og:description" content="${description}" />
+    <meta property="og:image" content="${OG_IMAGE}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="/legal.css" />
   </head>
   <body>
@@ -122,6 +136,7 @@ const PAGES: Record<string, () => string> = {
   'public/licenses.html': () =>
     page(
       'ライセンス',
+      'このアプリが同梱または利用する第三者ソフトウェアのライセンス一覧です。',
       [
         '<h1>ライセンス</h1>',
         '<p>このアプリが同梱または利用する第三者ソフトウェアの一覧と、バンドルされた依存関係のライセンス本文です。</p>',
@@ -132,6 +147,7 @@ const PAGES: Record<string, () => string> = {
   'public/third-party-notices.html': () =>
     page(
       '追加通知',
+      'このアプリが利用する第三者ソフトウェアの追加通知です。',
       ['<h1>追加通知</h1>', renderMarkdown(read('public/third-party-notices.md'))].join('\n'),
     ),
 };
