@@ -811,7 +811,7 @@ export function screen(
       const pageCount = Math.max(1, Math.ceil(levels.length / 6));
       const stagePage = Math.min(pageCount - 1, Math.max(0, view.stagePage ?? 0));
       const bw = (inside - 16) / 3;
-      copy('stage-help', 'どの開店準備から始める？', 60, 20, { size: 13 });
+      copy('stage-help', 'どのレベルから始める？', 60, 20, { size: 13 });
       levels.slice(stagePage * 6, stagePage * 6 + 6).forEach((level, index) => {
         button(
           `stage-${level}`,
@@ -824,7 +824,6 @@ export function screen(
             value: level,
             disabled: !s.ready || s.benchmark,
             pressed: level === s.checkpoint?.level,
-            label: level <= 1 ? `Lv.${level}を開店` : `Lv.${level}の開店準備から`,
           },
         );
       });
