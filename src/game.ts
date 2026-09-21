@@ -5,12 +5,9 @@ import type {
   CameraMode,
   Checkpoint,
   CheckpointRollback,
-  GameState,
   Mode,
   MovementMode,
-  RollbackLink,
   Snapshot,
-  StaffState,
   StoreState,
 } from './types.ts';
 import {
@@ -27,49 +24,33 @@ import {
   STATIONS,
   activeStationIds,
   quotaForLevel,
-  levelConfig,
   MAX_LEVEL,
   actor,
   resolveLayout,
   handoffOption,
   handoff,
 } from './model.ts';
+import {
+  CHECKPOINT_VERSION,
+  HUMAN_PROTOCOL,
+  STARTING_CASH,
+  campaignSnapshots,
+  normalizeRollbackEntry,
+  snapshot,
+  validateCheckpoint,
+} from './checkpoint.ts';
 import { createAudio } from './audio.ts';
-import { apiFetch } from './api-client.ts';
+import { apiFetch, submitCampaign } from './api-client.ts';
 import { drawApplicants } from './applicants.ts';
 import { tickWorld } from './engine.ts';
 import { nextShiftParams } from './nextShift.ts';
-import { STAFF, nextStaffState, staffAvailable } from './staff.ts';
+import { STAFF, nextStaffState } from './staff.ts';
 import { equipmentState, validateEquipment } from './equipment.ts';
-import { trainingState, validateTraining } from './training.ts';
 
 const BEST_KEY = 'sidekick-best-v2';
+const CLIENT_KEY = 'sidekick-client-v1';
 export const CHECKPOINT_KEY = 'sidekick-campaign-v1';
 export const STAGES_KEY = 'sidekick-stages-v1';
-const CHECKPOINT_VERSION = 5;
-const STARTING_CASH = 180;
-
-/**
- * Persisted checkpoint before validation. Fields are assumed from storage and
- * every guard below re-checks the runtime value, so the cast is the trust
- * boundary rather than a promise the data is well formed.
- */
-interface RawCheckpoint {
-  version: number;
-  completed: boolean;
-  level: number;
-  cash: number;
-  stock: number | null;
-  duty: string[];
-  staffState: Record<string, StaffState>;
-  hired: string[];
-  equipment?: unknown;
-  training?: unknown;
-  layout?: unknown;
-  frozenApplicants: string[] | null;
-  staffId: string;
-  rollback?: { preparation?: unknown; previous?: unknown } | null;
-}
 
 function savedBest(): number {
   if (typeof window === 'undefined') return 0;
@@ -81,191 +62,17 @@ function savedBest(): number {
   }
 }
 
-function safeMoney(value: unknown): boolean {
-  return Number.isSafeInteger(value) && (value as number) >= 0;
-}
-
-function safeStock(value: unknown): boolean {
-  return value === null || (Number.isSafeInteger(value) && (value as number) >= 0);
-}
-
-function normalizeRollbackEntry(
-  value: unknown,
-  allowUnreadyStock = false,
-  version = CHECKPOINT_VERSION,
-): RollbackLink | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const container = value as { snapshot?: unknown; applicants?: unknown; version?: number };
-  const source = container.snapshot ?? value;
-  // Keep the nested `rollback` so a previous-stage rewind can offer the same
-  // recovery choices (review / further previous) when that stage fails.
-  const snapshot = validateCheckpoint(
-    {
-      ...(source as object),
-      version: container.version ?? version,
-      completed: false,
-    },
-    true,
-    allowUnreadyStock,
-  );
-  if (!snapshot) return null;
-  const applicants = container.snapshot
-    ? Array.isArray(container.applicants)
-      ? [...new Set(container.applicants)].filter(
-          (id): id is string => typeof id === 'string' && Object.hasOwn(STAFF, id),
-        )
-      : []
-    : [];
-  return { snapshot, applicants };
-}
-
-function validateCheckpoint(
-  value: unknown,
-  includeRollback = true,
-  allowUnreadyStock = false,
-): Checkpoint | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  let raw = value as RawCheckpoint;
-  if (raw.version === 1) {
-    raw = {
-      ...raw,
-      version: 2,
-      duty: [raw.staffId],
-      frozenApplicants: null,
-      staffState: Object.fromEntries(
-        (Array.isArray(raw.hired) ? raw.hired : []).map((id) => [id, { worked: 0, rest: 0 }]),
-      ),
-    };
+/** Stable per-device id so the board keeps one best slot per player. */
+function clientId(): string {
+  try {
+    const saved = globalThis.localStorage?.getItem(CLIENT_KEY);
+    if (saved && saved.length <= 64) return saved;
+    const id = crypto.randomUUID();
+    globalThis.localStorage?.setItem(CLIENT_KEY, id);
+    return id;
+  } catch {
+    return 'anonymous';
   }
-  const sourceVersion = raw.version;
-  const legacy = sourceVersion === 2;
-  if (legacy || sourceVersion === 3 || sourceVersion === 4)
-    raw = { ...raw, version: CHECKPOINT_VERSION };
-  if (raw.version !== CHECKPOINT_VERSION || typeof raw.completed !== 'boolean') return null;
-  if (!Number.isSafeInteger(raw.level) || raw.level < 1 || raw.level > MAX_LEVEL) return null;
-  if (raw.equipment !== undefined && !validateEquipment(raw.equipment, raw.level)) return null;
-  const equipment = equipmentState(raw.equipment);
-  const layout = resolveLayout({ level: raw.level, equipment }, raw.layout);
-  if (!layout) return null;
-  if (!safeMoney(raw.cash) || !safeStock(raw.stock)) return null;
-  // Balance changes must not erase a valid paid opening or its rewind history.
-  if (legacy) {
-    const oldQuota =
-      raw.level <= 30
-        ? 6 + Math.floor(raw.level / 5)
-        : 12 + Math.round(2 * Math.sqrt((raw.level - 30) / 70));
-    if (raw.stock !== null && raw.stock >= oldQuota)
-      raw.stock = Math.max(raw.stock, quotaForLevel(raw.level));
-    if (raw.level === 1) {
-      raw.duty = [];
-      raw.cash = Math.max(STARTING_CASH, raw.cash);
-    }
-    if (raw.staffState?.veteran?.worked === 1)
-      raw.staffState = {
-        ...raw.staffState,
-        veteran: { ...raw.staffState.veteran, worked: 0 },
-      };
-  }
-  if (
-    (sourceVersion === 3 || sourceVersion === 4) &&
-    raw.level >= 5 &&
-    raw.level <= 7 &&
-    raw.stock !== null &&
-    raw.stock >= 9
-  )
-    raw.stock = Math.max(raw.stock, quotaForLevel(raw.level));
-  if ((raw.level === 1) !== (raw.stock === null)) return null;
-  if (!allowUnreadyStock && raw.level > 1 && (raw.stock ?? 0) < quotaForLevel(raw.level))
-    return null;
-  if (!Array.isArray(raw.hired) || raw.hired.length === 0) return null;
-  if (new Set(raw.hired).size !== raw.hired.length) return null;
-  if (
-    !raw.hired.every((id) => typeof id === 'string' && Object.hasOwn(STAFF, id)) ||
-    !raw.hired.includes('helper')
-  )
-    return null;
-  if (!Array.isArray(raw.duty) || new Set(raw.duty).size !== raw.duty.length) return null;
-  const staffSlots = levelConfig(raw.level).staffSlots;
-  if (Number.isSafeInteger(staffSlots) && raw.duty.length > staffSlots) return null;
-  if (!raw.staffState || typeof raw.staffState !== 'object') return null;
-  for (const id of raw.hired) {
-    const status = raw.staffState[id];
-    const profile =
-      id === 'veteran' && sourceVersion === 3 ? { maxConsecutive: 1, restShifts: 5 } : STAFF[id];
-    if (
-      !status ||
-      !Number.isInteger(status.worked) ||
-      status.worked < 0 ||
-      status.worked >= profile.maxConsecutive ||
-      !Number.isInteger(status.rest) ||
-      status.rest < 0 ||
-      status.rest > profile.restShifts ||
-      (status.rest > 0 && status.worked !== 0) ||
-      ((id !== 'veteran' || sourceVersion >= 4) &&
-        !levelConfig(raw.level).fatigueEnabled &&
-        (status.rest !== 0 || status.worked !== 0))
-    )
-      return null;
-  }
-  if (!raw.duty.every((id) => raw.hired.includes(id) && staffAvailable(raw.staffState, id)))
-    return null;
-  if (sourceVersion < 4) {
-    const partner = levelConfig(raw.level).partner;
-    const hired = raw.hired.filter(
-      (id) => sourceVersion !== 3 || raw.level <= 3 || id !== 'veteran',
-    );
-    if (partner && !hired.includes(partner)) hired.push(partner);
-    const duty = partner ? [partner] : raw.duty.filter((id) => hired.includes(id));
-    if (!duty.length && raw.duty.includes('veteran') && staffAvailable(raw.staffState, 'helper'))
-      duty.push('helper');
-    raw = {
-      ...raw,
-      hired,
-      duty,
-      staffState: {
-        ...raw.staffState,
-        ...(partner ? { [partner]: { worked: 0, rest: 0 } } : {}),
-      },
-    };
-  }
-  const frozenApplicants =
-    raw.frozenApplicants == null
-      ? null
-      : Array.isArray(raw.frozenApplicants) &&
-          new Set(raw.frozenApplicants).size === raw.frozenApplicants.length &&
-          raw.frozenApplicants.every((id) => typeof id === 'string' && Object.hasOwn(STAFF, id))
-        ? [...raw.frozenApplicants]
-        : null;
-  if (raw.frozenApplicants != null && frozenApplicants == null) return null;
-  const training = validateTraining(raw.training, raw.hired);
-  if (training === null) return null;
-  const record: Checkpoint = {
-    version: CHECKPOINT_VERSION,
-    level: raw.level,
-    cash: raw.cash,
-    stock: raw.stock,
-    duty: [...raw.duty],
-    staffState: Object.fromEntries(raw.hired.map((id) => [id, { ...raw.staffState[id] }])),
-    hired: [...raw.hired],
-    equipment,
-    training,
-    layout,
-    completed: raw.completed,
-    frozenApplicants,
-    rollback: null,
-  };
-  if (!includeRollback) return record;
-  if (raw.rollback == null) return { ...record, rollback: null };
-  if (typeof raw.rollback !== 'object' || Array.isArray(raw.rollback)) return null;
-  const preparation = raw.rollback.preparation
-    ? normalizeRollbackEntry(raw.rollback.preparation, true, sourceVersion)
-    : null;
-  const previous = raw.rollback.previous
-    ? normalizeRollbackEntry(raw.rollback.previous, false, sourceVersion)
-    : null;
-  if ((raw.rollback.preparation && !preparation) || (raw.rollback.previous && !previous))
-    return null;
-  return { ...record, rollback: { preparation, previous } };
 }
 
 function readCheckpoint(): Checkpoint | null {
@@ -374,6 +181,8 @@ const freshState = (checkpoint: Checkpoint | null): StoreState => ({
   reducedMotion: false,
   focusedStation: null,
   best: savedBest(),
+  leaderboard: [],
+  leaderboardKind: 'human',
   checkpoint,
   stages: readStages(checkpoint),
   rollback: checkpoint?.rollback ?? null,
@@ -452,29 +261,6 @@ function notify(text: string) {
   update({ toast: text, toastUntil: state().game.time + 2400 });
 }
 
-function snapshot(g: GameState): Snapshot {
-  const hired = [
-    ...new Set(
-      (Array.isArray(g.hired) ? g.hired : []).filter(
-        (id) => typeof id === 'string' && Object.hasOwn(STAFF, id),
-      ),
-    ),
-  ];
-  if (!hired.includes('helper')) hired.unshift('helper');
-  const level = Number.isSafeInteger(g.level) && g.level >= 1 && g.level <= MAX_LEVEL ? g.level : 1;
-  return {
-    level,
-    cash: safeMoney(g.cash) ? g.cash : STARTING_CASH,
-    stock: level === 1 ? null : Number.isSafeInteger(g.stock) && (g.stock ?? 0) >= 0 ? g.stock : 0,
-    duty: [...g.duty],
-    staffState: Object.fromEntries(hired.map((id) => [id, { ...g.staffState[id] }])),
-    hired,
-    equipment: equipmentState(g.equipment),
-    training: trainingState(g.training),
-    layout: { ...g.layout },
-  };
-}
-
 function record(who: string, result: ActionResult) {
   const g = state().game,
     cook = actor(g, who);
@@ -533,6 +319,7 @@ function beginShift({
   });
   const checkpoint = writeCheckpoint({ ...snapshot(game), rollback, frozenApplicants });
   shiftSnapshot = checkpoint;
+  submitCampaignScore(false);
   update({
     game,
     benchPreparation: null,
@@ -664,7 +451,15 @@ export function resetGame() {
   });
 }
 
-const MENU_PAGES = new Set(['settings', 'help', 'controls', 'diagnostics', 'hints', 'stages']);
+const MENU_PAGES = new Set([
+  'settings',
+  'help',
+  'controls',
+  'diagnostics',
+  'hints',
+  'stages',
+  'ranking',
+]);
 
 export function setMenuPage(menuPage: string | null) {
   if (menuPage === null || MENU_PAGES.has(menuPage)) update({ menuPage });
@@ -1126,9 +921,31 @@ function finishShift() {
   }
   if (cleared) frozenApplicants = null;
   update({ phase: 'finished', best, cleared, applicants, campaignComplete, checkpoint });
+  if (campaignComplete) submitCampaignScore(true);
   if (cleared) playSound('success');
   playSound(cleared ? 'applause' : 'finish');
   publish();
+}
+
+/**
+ * Best-effort leaderboard submission. The stage openings are the artifact the
+ * Worker re-validates, so this runs only when a stage is archived, never in the
+ * frame loop. Failures are ignored; the local game is unaffected.
+ */
+function submitCampaignScore(completed: boolean) {
+  const current = state();
+  if (current.benchmark || current.autoMode) return;
+  const snapshots = campaignSnapshots(current.stages);
+  if (!snapshots.length) return;
+  void submitCampaign({
+    protocol: HUMAN_PROTOCOL,
+    owner: clientId(),
+    completed,
+    score: Math.max(current.best, current.game.score),
+    snapshots,
+  }).catch(() => {
+    /* Ranking is best-effort; the local result still stands. */
+  });
 }
 
 export function tick(delta: number) {

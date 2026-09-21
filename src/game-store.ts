@@ -5,7 +5,13 @@
  * instance holds the top scores. Everything the ranking trusts is written here
  * by the Worker, never by the client.
  */
-import { MAX_BOARD, type BoardEntry, type RunRecord } from './run-store.ts';
+import {
+  mergeBoard,
+  normalizeBoardEntry,
+  rankBoard,
+  type BoardEntry,
+  type RunRecord,
+} from './run-store.ts';
 
 interface Storage {
   get(key: string): Promise<unknown>;
@@ -78,24 +84,24 @@ export class GameStore {
         return json({ ok: true, run });
       }
       if (request.method === 'POST' && pathname === '/board') {
-        const entry = (await request.json()) as BoardEntry;
-        const board = ((await storage.get('board')) as BoardEntry[] | null) ?? [];
-        board.push(entry);
-        board.sort(
-          (a, b) =>
-            b.clearedLevels - a.clearedLevels ||
-            b.score - a.score ||
-            b.served - a.served ||
-            a.at - b.at,
-        );
-        await storage.put('board', board.slice(0, MAX_BOARD));
+        const entry = normalizeBoardEntry(await request.json());
+        if (!entry) return json({ ok: false, error: 'invalid entry' }, 400);
+        const stored = ((await storage.get('board')) as unknown[] | null) ?? [];
+        const board = stored
+          .map(normalizeBoardEntry)
+          .filter((value): value is BoardEntry => value !== null);
+        await storage.put('board', mergeBoard(board, entry));
         return json({ ok: true });
       }
       if (request.method === 'GET' && pathname === '/board') {
-        return json({
-          ok: true,
-          board: ((await storage.get('board')) as BoardEntry[] | null) ?? [],
-        });
+        const stored = ((await storage.get('board')) as unknown[] | null) ?? [];
+        const kind = searchParams.get('kind');
+        const board = stored
+          .map(normalizeBoardEntry)
+          .filter((value): value is BoardEntry => value !== null)
+          .sort(rankBoard)
+          .filter((entry) => kind === null || entry.kind === kind);
+        return json({ ok: true, board });
       }
       return json({ ok: false, error: 'not found' }, 404);
     } catch {

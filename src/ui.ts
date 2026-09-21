@@ -35,6 +35,7 @@ import type {
   EquipmentKind,
   GameState,
   Layout,
+  LeaderboardKind,
   PrepareStage,
   ScreenExtra,
   ScreenItem,
@@ -769,8 +770,8 @@ export function screen(
     : stockPortrait
       ? y + ph - 60
       : y + ph - actionH - 12;
-  const primary = (text: string, action: string, extra: ScreenExtra = {}) =>
-    button('primary', text, x + 16, footerY, inside, action, {
+  const primary = (text: string, action: string, extra: ScreenExtra = {}, w = inside) =>
+    button('primary', text, x + 16, footerY, w, action, {
       color: '#245e50',
       ink: '#fff9e8',
       h: actionH,
@@ -787,9 +788,11 @@ export function screen(
             ? 'ステージを選ぶ'
             : s.menuPage === 'controls'
               ? '操作設定'
-              : s.menuPage === 'diagnostics'
-                ? '診断情報'
-                : 'メニュー',
+              : s.menuPage === 'ranking'
+                ? 'ランキング'
+                : s.menuPage === 'diagnostics'
+                  ? '診断情報'
+                  : 'メニュー',
     );
     const page = s.menuPage ?? 'settings';
     if (page !== 'settings') {
@@ -844,6 +847,37 @@ export function screen(
         disabled: stagePage + 1 >= pageCount,
         label: '次のステージ一覧',
       });
+    } else if (page === 'ranking') {
+      const bw = (inside - 16) / 3;
+      const kinds: Array<[LeaderboardKind, string]> = [
+        ['human', '自分'],
+        ['ai', 'AI'],
+      ];
+      kinds.forEach(([kind, text], index) =>
+        button(`ranking-${kind}`, text, x + 16 + index * (bw + 8), y + 58, bw, 'leaderboard-kind', {
+          value: kind,
+          pressed: s.leaderboardKind === kind,
+          size: 14,
+          label: kind === 'human' ? '自分のランキング' : 'AIのランキング',
+        }),
+      );
+      button('ranking-share', 'Xで共有', x + 16 + 2 * (bw + 8), y + 58, bw, 'share', {
+        size: 14,
+        label: '結果をXで共有',
+      });
+      const rows = s.leaderboard
+        .slice(0, 10)
+        .map(
+          (entry, index) =>
+            `${index + 1}.  Lv.${entry.reachedLevel}  ${entry.score}点${entry.completed ? ' 完走' : ''}`,
+        );
+      copy(
+        'ranking-list',
+        rows.length ? rows.join('\n') : 'まだ記録がありません。\n営業を終えると記録されます。',
+        112,
+        Math.max(40, footerY - y - 120),
+        { size: 14 },
+      );
     } else if (page === 'controls') {
       const sideBySide = !portrait && height < 500;
       const groupW = sideBySide ? (inside - 16) / 2 : inside;
@@ -1045,12 +1079,13 @@ export function screen(
           size: 13,
         },
       );
-      const columns = portrait ? 2 : 4;
+      const columns = portrait ? 2 : 5;
       const nav = (inside - (columns - 1) * 8) / columns;
       [
         ['controls', '操作設定'],
         ['help', '遊び方'],
         ['hints', 'ヒント'],
+        ['ranking', 'ランキング'],
         ['diagnostics', '診断情報'],
       ].forEach(([value, text], index) =>
         button(
@@ -1115,7 +1150,12 @@ export function screen(
           size: 17,
         },
       );
-      primary('最初から再挑戦', 'start');
+      primary('最初から再挑戦', 'start', {}, inside - 112);
+      button('campaign-share', 'Xで共有', x + 24 + inside - 112, footerY, 104, 'share', {
+        size: 14,
+        h: actionH,
+        label: '完走をXで共有',
+      });
     } else {
       title('もう一度、開店しよう');
       copy(
@@ -1168,7 +1208,12 @@ export function screen(
           color: '#a1372f',
           size: 12,
         });
-      primary('次のステージ', 'page', { value: g.level < 3 ? 2 : 1 });
+      primary('次のステージ', 'page', { value: g.level < 3 ? 2 : 1 }, inside - 112);
+      button('clear-share', 'Xで共有', x + 24 + inside - 112, footerY, 104, 'share', {
+        size: 14,
+        h: actionH,
+        label: 'クリアをXで共有',
+      });
     } else if (view.page === 1) {
       title('候補者の採用');
       const id = s.applicants[(view.applicantIndex ?? 0) % Math.max(1, s.applicants.length)];

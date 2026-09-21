@@ -107,6 +107,7 @@ export const PREPARATION_ACTIONS: Record<string, { bench?: string; omitted?: str
     'vitamin-target': { bench: 'vitamin_*' },
     'vitamin-cancel': { bench: 'vitamin_undo' },
     next: { bench: 'open_shift' },
+    share: { omitted: 'Xへの投稿は試行の進行に影響しない' },
     advice: { omitted: '人間向けヒントを表示する' },
     page: { omitted: 'benchは対象ページへ直接遷移する' },
     'equipment-index': { omitted: 'benchは設備候補を全ページ分まとめて出す' },

@@ -15,6 +15,22 @@ export type MovementMode = 'screen' | 'grid';
 export type CameraMode = 'auto' | 'follow' | 'overview';
 export type Mode = 'jev' | 'rule' | 'llm';
 export type Phase = 'ready' | 'playing' | 'paused' | 'finished';
+/** Human campaigns and bench runs are ranked on separate boards. */
+export type LeaderboardKind = 'human' | 'ai';
+export interface BoardEntry {
+  sid: string;
+  /** Dedupe key. Human runs use a client id so one player keeps one best slot. */
+  owner: string;
+  kind: LeaderboardKind;
+  protocol: string;
+  score: number;
+  served: number;
+  clearedLevels: number;
+  reachedLevel: number;
+  completed: boolean;
+  truncated: boolean;
+  at: number;
+}
 export type StationKind = 'crate' | 'board' | 'pot' | 'grill' | 'plates' | 'serve' | 'warmer';
 export type StationStateName = 'idle' | 'chopping' | 'chopped' | 'cooking' | 'ready' | 'burnt';
 export type EquipmentKind = 'board' | 'pot' | 'grill' | 'warmer' | 'kitchen';
@@ -646,6 +662,8 @@ export interface StoreState {
   autoMode: boolean;
   autoStatus: string;
   best: number;
+  leaderboard: BoardEntry[];
+  leaderboardKind: LeaderboardKind;
   checkpoint: Checkpoint | null;
   stages: Record<string, Checkpoint>;
   rollback: CheckpointRollback | null;

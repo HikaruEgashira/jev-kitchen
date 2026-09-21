@@ -88,7 +88,7 @@ export default function Bench() {
   }, []);
   useEffect(() => {
     const controller = new AbortController();
-    fetch('/api/leaderboard', { signal: controller.signal })
+    fetch('/api/leaderboard?kind=ai', { signal: controller.signal })
       .then(async (response) => {
         const data = await response.json();
         if (data?.ok && Array.isArray(data.board)) setBoard(data.board);

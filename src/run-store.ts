@@ -6,6 +6,9 @@
  * lives with the run so a client cannot fork a decision chain or replay another
  * run's score.
  */
+import type { BoardEntry, LeaderboardKind } from './types.ts';
+
+export type { BoardEntry, LeaderboardKind };
 
 export interface RunRecord {
   sid: string;
@@ -17,19 +20,60 @@ export interface RunRecord {
   finishedAt?: number;
 }
 
-export interface BoardEntry {
-  sid: string;
-  protocol: string;
-  score: number;
-  served: number;
-  clearedLevels: number;
-  reachedLevel: number;
-  completed: boolean;
-  truncated: boolean;
-  at: number;
+export const MAX_BOARD = 20;
+
+const nonNegative = (value: unknown): number =>
+  Number.isFinite(value) && (value as number) >= 0 ? Math.floor(value as number) : 0;
+
+/** Normalize a stored entry; entries predating `kind`/`owner` are the bench board. */
+export function normalizeBoardEntry(value: unknown): BoardEntry | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const entry = value as Partial<BoardEntry>;
+  if (typeof entry.sid !== 'string' || entry.sid.length === 0) return null;
+  return {
+    sid: entry.sid,
+    owner: typeof entry.owner === 'string' && entry.owner ? entry.owner : entry.sid,
+    kind: entry.kind === 'human' ? 'human' : 'ai',
+    protocol: typeof entry.protocol === 'string' ? entry.protocol : '',
+    score: nonNegative(entry.score),
+    served: nonNegative(entry.served),
+    clearedLevels: nonNegative(entry.clearedLevels),
+    reachedLevel: nonNegative(entry.reachedLevel),
+    completed: entry.completed === true,
+    truncated: entry.truncated === true,
+    at: nonNegative(entry.at),
+  };
 }
 
-export const MAX_BOARD = 20;
+/** Lower sorts first: furthest reach, then most cleared, then score, then oldest. */
+export function rankBoard(a: BoardEntry, b: BoardEntry): number {
+  return (
+    b.reachedLevel - a.reachedLevel ||
+    b.clearedLevels - a.clearedLevels ||
+    b.score - a.score ||
+    a.at - b.at
+  );
+}
+
+/** Keep the top `MAX_BOARD` of each kind so one board cannot starve the other. */
+function trimBoard(board: BoardEntry[]): BoardEntry[] {
+  return (['human', 'ai'] as const).flatMap((kind) =>
+    board
+      .filter((entry) => entry.kind === kind)
+      .sort(rankBoard)
+      .slice(0, MAX_BOARD),
+  );
+}
+
+/** Insert one entry, keeping only the best slot per (kind, owner). */
+export function mergeBoard(board: BoardEntry[], entry: BoardEntry): BoardEntry[] {
+  const index = board.findIndex((e) => e.kind === entry.kind && e.owner === entry.owner);
+  const next = [...board];
+  if (index < 0) next.push(entry);
+  else if (rankBoard(entry, next[index]) < 0) next[index] = entry;
+  else return board;
+  return trimBoard(next);
+}
 
 export interface RunStore {
   init(sid: string, seed: number, protocol: string): Promise<void>;
@@ -37,7 +81,7 @@ export interface RunStore {
   append(sid: string, choice: string): Promise<number | null>;
   finish(sid: string): Promise<RunRecord | null>;
   submit(entry: BoardEntry): Promise<void>;
-  board(): Promise<BoardEntry[]>;
+  board(kind?: LeaderboardKind): Promise<BoardEntry[]>;
 }
 
 const post = (body: unknown): RequestInit => ({
@@ -76,8 +120,9 @@ export function durableRunStore(namespace: {
     async submit(entry) {
       await call<unknown>(boardStub(), '/board', post(entry));
     },
-    async board() {
-      const data = await call<{ board?: BoardEntry[] }>(boardStub(), '/board');
+    async board(kind) {
+      const query = kind ? `?kind=${kind}` : '';
+      const data = await call<{ board?: BoardEntry[] }>(boardStub(), `/board${query}`);
       return Array.isArray(data.board) ? data.board : [];
     },
   };
@@ -115,18 +160,11 @@ export function memoryRunStore(): RunStore {
       return run;
     },
     async submit(entry) {
-      board = [...board, entry]
-        .sort(
-          (a, b) =>
-            b.clearedLevels - a.clearedLevels ||
-            b.score - a.score ||
-            b.served - a.served ||
-            a.at - b.at,
-        )
-        .slice(0, MAX_BOARD);
+      board = mergeBoard(board, entry);
     },
-    async board() {
-      return [...board];
+    async board(kind) {
+      const sorted = [...board].sort(rankBoard);
+      return kind ? sorted.filter((entry) => entry.kind === kind) : sorted;
     },
   };
 }

@@ -36,6 +36,7 @@ import {
   TUTORIAL_STEPS,
 } from './game.ts';
 import { STATIONS, activeStationIds } from './model.ts';
+import { refreshLeaderboard, setLeaderboardKind, shareResult } from './leaderboard.ts';
 import { VITAMINS } from './training.ts';
 import type { ScreenItem, ViewState } from './types.ts';
 
@@ -399,6 +400,12 @@ function Screen() {
       case 'menu-page':
         setMenuPage(typeof value === 'string' ? value : null);
         break;
+      case 'leaderboard-kind':
+        if (value === 'human' || value === 'ai') setLeaderboardKind(value);
+        break;
+      case 'share':
+        shareResult();
+        break;
       case 'interact':
         humanInteract();
         break;
@@ -548,6 +555,10 @@ function Screen() {
   // A reset confirmation only applies while the menu stays on the same page.
   useEffect(() => {
     setView((v) => (v.resetArmed ? { ...v, resetArmed: false } : v));
+  }, [s.menuOpen, s.menuPage]);
+  // The board is fetched only while its page is open, never during play.
+  useEffect(() => {
+    if (s.menuOpen && s.menuPage === 'ranking') void refreshLeaderboard();
   }, [s.menuOpen, s.menuPage]);
   useEffect(() => {
     const keydown = (e: KeyboardEvent) => {

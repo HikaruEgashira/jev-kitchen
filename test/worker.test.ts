@@ -4,6 +4,8 @@ import worker, { GameStore, type Env } from '../src/worker.ts';
 import { signTicket } from '../src/session.ts';
 import { memoryRunStore } from '../src/run-store.ts';
 import { runReplayCampaign, RANKED_PROTOCOL } from '../src/replay.ts';
+import { HUMAN_PROTOCOL, snapshot } from '../src/checkpoint.ts';
+import { createGame, quotaForLevel } from '../src/model.ts';
 
 type FetchInput = Parameters<typeof globalThis.fetch>[0];
 type FetchInit = Parameters<typeof globalThis.fetch>[1];
@@ -640,6 +642,66 @@ test('verified runs reject a missing store, an unknown run and a protocol mismat
     (await worker.fetch(new Request('https://kitchen.test/api/leaderboard'), env())).status,
     503,
   );
+});
+
+test('the human board validates a campaign, filters by kind and keeps a per-owner best', async () => {
+  const store = memoryRunStore();
+  const envWithStore = { ...env(), RUN_STORE: store };
+  const snap = (level: number) =>
+    snapshot(createGame({ level, cash: 180, stock: level === 1 ? null : quotaForLevel(level) }));
+  const submit = (owner: string, levels: number[], score: number) =>
+    worker.fetch(
+      post('/api/runs/score', {
+        protocol: HUMAN_PROTOCOL,
+        owner,
+        completed: false,
+        score,
+        snapshots: levels.map(snap),
+      }),
+      envWithStore,
+    );
+
+  const accepted = await submit('player-1', [1, 2], 120);
+  assert.equal(accepted.status, 200);
+  const result = (await accepted.json()).result;
+  assert.equal(result.kind, 'human');
+  assert.equal(result.reachedLevel, 2);
+  assert.equal(result.clearedLevels, 1);
+  assert.equal(result.score, 120);
+
+  // A non-contiguous chain is rejected.
+  assert.equal((await submit('player-2', [2], 999)).status, 400);
+  // A malformed protocol is rejected.
+  assert.equal(
+    (
+      await worker.fetch(
+        post('/api/runs/score', {
+          protocol: 'nope',
+          owner: 'p',
+          completed: false,
+          score: 1,
+          snapshots: [snap(1)],
+        }),
+        envWithStore,
+      )
+    ).status,
+    400,
+  );
+
+  // A worse later submission does not replace the best slot for the same owner.
+  await submit('player-1', [1], 5);
+  const board = await (
+    await worker.fetch(new Request('https://kitchen.test/api/leaderboard?kind=human'), envWithStore)
+  ).json();
+  assert.equal(board.kind, 'human');
+  assert.equal(board.board.length, 1);
+  assert.equal(board.board[0].reachedLevel, 2);
+  assert.equal(board.board[0].score, 120);
+
+  const aiBoard = await (
+    await worker.fetch(new Request('https://kitchen.test/api/leaderboard?kind=ai'), envWithStore)
+  ).json();
+  assert.equal(aiBoard.board.length, 0);
 });
 
 test('the run Durable Object stores per-run chains and one sorted board', async () => {

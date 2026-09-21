@@ -15,7 +15,13 @@ import {
   type Ticket,
 } from './session.ts';
 import { runReplayCampaign, RANKED_PROTOCOL } from './replay.ts';
-import { durableRunStore, type BoardEntry, type RunStore } from './run-store.ts';
+import { HUMAN_PROTOCOL, validateCampaignSubmission } from './checkpoint.ts';
+import {
+  durableRunStore,
+  type BoardEntry,
+  type LeaderboardKind,
+  type RunStore,
+} from './run-store.ts';
 
 export { GameStore } from './game-store.ts';
 
@@ -46,6 +52,8 @@ const LLM_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 const TYPESAFE_URL = 'https://api.typesafe.ai/v1/systemone';
 const DEFAULT_TYPESAFE_MODEL = 'jev-latest';
 const MAX_REQUEST_BYTES = 64 * 1024;
+/** A Lv100 campaign submits 100 stage openings; they need more room than a decision. */
+const MAX_CAMPAIGN_BYTES = 512 * 1024;
 const MAX_UPSTREAM_BYTES = 128 * 1024;
 const UPSTREAM_TIMEOUT_MS = 8_000;
 const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
@@ -119,14 +127,17 @@ async function readBoundedText(
   }
 }
 
-async function readJson(request: Request): Promise<{ body?: unknown; error?: string }> {
+async function readJson(
+  request: Request,
+  maxBytes = MAX_REQUEST_BYTES,
+): Promise<{ body?: unknown; error?: string }> {
   const declaredLength = Number(request.headers.get('content-length'));
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
     return { error: 'request body too large' };
   }
 
   try {
-    const text = await readBoundedText(request.body, MAX_REQUEST_BYTES, UPSTREAM_TIMEOUT_MS);
+    const text = await readBoundedText(request.body, maxBytes, UPSTREAM_TIMEOUT_MS);
     return { body: JSON.parse(text) };
   } catch (error) {
     return {
@@ -412,6 +423,8 @@ async function finishRun(request: Request, env: Env): Promise<Response> {
   const replayed = runReplayCampaign({ seed: run.seed, decisions: run.decisions });
   const entry: BoardEntry = {
     sid: auth.ticket.sid,
+    owner: auth.ticket.sid,
+    kind: 'ai',
     protocol: replayed.protocol,
     score: replayed.score,
     served: replayed.served,
@@ -429,11 +442,47 @@ async function leaderboard(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'GET') return json({ ok: false, error: 'GET only' }, 405);
   const store = runStore(env);
   if (!store) return json({ ok: false, error: 'run store unavailable' }, 503);
+  const kind = new URL(request.url).searchParams.get('kind');
+  const filter: LeaderboardKind | undefined = kind === 'human' || kind === 'ai' ? kind : undefined;
   return json({
     ok: true,
     protocol: RANKED_PROTOCOL,
-    board: await store.board(),
+    kind: filter ?? null,
+    board: await store.board(filter),
   });
+}
+
+/**
+ * Accept a campaign from the normal game page. The client submits its stage
+ * openings; the Worker re-validates each one and derives the rank. This is a
+ * plausibility gate, not proof of play, so the entry is stored as submitted
+ * facts with a per-owner best slot rather than a replayed score.
+ */
+async function submitScore(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);
+  const auth = await authorize(request, env, 'play');
+  if ('response' in auth) return auth.response;
+  const store = runStore(env);
+  if (!store) return json({ ok: false, error: 'run store unavailable' }, 503);
+  const parsed = await readJson(request, MAX_CAMPAIGN_BYTES);
+  if (parsed.error) return json({ ok: false, error: parsed.error }, 400);
+  const verified = validateCampaignSubmission(parsed.body);
+  if (!verified) return json({ ok: false, error: 'invalid campaign' }, 400);
+  const entry: BoardEntry = {
+    sid: auth.ticket.sid,
+    owner: verified.owner,
+    kind: 'human',
+    protocol: HUMAN_PROTOCOL,
+    score: verified.score,
+    served: 0,
+    clearedLevels: verified.clearedLevels,
+    reachedLevel: verified.reachedLevel,
+    completed: verified.completed,
+    truncated: false,
+    at: Date.now(),
+  };
+  await store.submit(entry);
+  return json({ ok: true, result: entry });
 }
 
 export default {
@@ -448,6 +497,8 @@ export default {
         return benchmark(request, env, false);
       case '/api/runs/finish':
         return finishRun(request, env);
+      case '/api/runs/score':
+        return submitScore(request, env);
       case '/api/leaderboard':
         return leaderboard(request, env);
       case '/api/health':

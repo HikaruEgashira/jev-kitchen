@@ -95,3 +95,8 @@ export async function apiFetch(
     body: typeof body === 'string' ? body : JSON.stringify(body),
   });
 }
+
+/** Submit a normal-page campaign for the leaderboard using a play ticket. */
+export function submitCampaign(body: unknown): Promise<Response> {
+  return apiFetch('/api/runs/score', body, 'play');
+}

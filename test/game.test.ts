@@ -51,6 +51,10 @@ globalThis.fetch = (url, options) =>
 await runTicket('play');
 globalThis.fetch = sessionFetch;
 
+// Leaderboard submissions are best-effort and never a Jev decision, so the
+// request counters in this file ignore them.
+const isScore = (url: unknown) => String(url).endsWith('/api/runs/score');
+
 const storage = new Map([['sidekick-onboarded-v1', '1']]);
 const installTestStorage = () => {
   Object.defineProperty(globalThis, 'localStorage', {
@@ -306,7 +310,8 @@ test('reset discards an in-flight AI answer, and pause freezes the shift', async
 test('API failure falls back without a request storm and mode changes invalidate answers', async () => {
   const originalFetch = globalThis.fetch;
   let calls = 0;
-  globalThis.fetch = async () => {
+  globalThis.fetch = async (url) => {
+    if (isScore(url)) return Response.json({ ok: true });
     calls++;
     throw new Error('offline');
   };
@@ -365,7 +370,8 @@ test('AI recovers from burnt cookware through tick in rule, Jev and offline mode
         Object.assign(g.stations[station], { state: 'ready', burnAt: 1 });
         g.ai!.carrying = 'chopped';
         let calls = 0;
-        globalThis.fetch = async (_url, request) => {
+        globalThis.fetch = async (url, request) => {
+          if (isScore(url)) return Response.json({ ok: true });
           calls++;
           const criteria = JSON.parse(String(request!.body)).questions.next_action.criteria;
           assert.ok(Object.hasOwn(criteria, 'discard'));
@@ -398,7 +404,8 @@ test('AI recovers from burnt cookware through tick in rule, Jev and offline mode
 test('rapid policy typing debounces AI requests', async () => {
   const originalFetch = globalThis.fetch;
   let calls = 0;
-  globalThis.fetch = async () => {
+  globalThis.fetch = async (url) => {
+    if (isScore(url)) return Response.json({ ok: true });
     calls++;
     return Response.json({ ok: true, result: { answers: { next_action: { choice: 'wait' } } } });
   };
@@ -446,7 +453,8 @@ test('staff decision intervals apply without a hidden minimum or overlapping req
     }
     let resolve!: (value: Response | PromiseLike<Response>) => void;
     calls = 0;
-    globalThis.fetch = () => {
+    globalThis.fetch = (url) => {
+      if (isScore(url)) return Promise.resolve(Response.json({ ok: true }));
       calls++;
       return new Promise((done) => {
         resolve = done;
@@ -614,7 +622,8 @@ test('level one hundred clear ends the campaign without another applicant screen
 test('Lv1 ends immediately after one tutorial dish and can restart from its checkpoint', async () => {
   const originalFetch = globalThis.fetch;
   let calls = 0;
-  globalThis.fetch = async () => {
+  globalThis.fetch = async (url) => {
+    if (isScore(url)) return Response.json({ ok: true });
     calls++;
     return Response.json({ ok: true, result: { answers: { next_action: { choice: 'wait' } } } });
   };

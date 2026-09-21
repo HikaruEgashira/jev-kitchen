@@ -226,6 +226,7 @@ test('every sheet keeps distinct, reachable 44px controls in portrait and landsc
           'diagnostics',
           'hints',
           'stages',
+          'ranking',
         ]) {
           for (const page of [0, 1, 2, 3]) {
             const ui = screen(
@@ -499,13 +500,17 @@ test('menu and result content stays readable and clear of controls on small scre
     { ...base, phase: 'finished', cleared: false },
     { ...base, phase: 'finished', cleared: true },
     { ...base, phase: 'finished', cleared: true, campaignComplete: true },
-    ...['settings', 'controls', 'help', 'hints', 'diagnostics', 'stages'].map((menuPage) => ({
-      ...base,
-      phase: 'paused' as const,
-      menuOpen: true,
-      menuPage,
-      stages: Object.fromEntries(Array.from({ length: 100 }, (_, i) => [i + 1, {} as Checkpoint])),
-    })),
+    ...['settings', 'controls', 'help', 'hints', 'diagnostics', 'stages', 'ranking'].map(
+      (menuPage) => ({
+        ...base,
+        phase: 'paused' as const,
+        menuOpen: true,
+        menuPage,
+        stages: Object.fromEntries(
+          Array.from({ length: 100 }, (_, i) => [i + 1, {} as Checkpoint]),
+        ),
+      }),
+    ),
   ];
   for (const [width, height] of [
     [320, 480],

@@ -33,16 +33,17 @@ Cloudflare Access を外して一般公開する前提の、Worker API の境界
 
 ## エンドポイント
 
-| Method | Path                | ticket  | 課金 | 役割                                        |
-| ------ | ------------------- | ------- | ---- | ------------------------------------------- |
-| POST   | `/api/session`      | 不要    | なし | `mode` を指定して run ticket を発行する     |
-| POST   | `/api/decide`       | `play`  | あり | メインゲームの Jev 判断                     |
-| POST   | `/api/decide-llm`   | `play`  | あり | 比較用 LLM の判断                           |
-| POST   | `/api/bench/decide` | `bench` | あり | jev-bench のモデル判断（選択を run に記録） |
-| POST   | `/api/runs/finish`  | `bench` | なし | 決定列を再実行し検証済みスコアを確定する    |
-| GET    | `/api/leaderboard`  | 不要    | なし | 検証済み上位20件                            |
-| GET    | `/api/bench/models` | 不要    | なし | 登録モデルのラベル一覧                      |
-| GET    | `/api/health`       | 不要    | なし | 設定プローブ。モデルを呼ばない              |
+| Method | Path                | ticket  | 課金 | 役割                                         |
+| ------ | ------------------- | ------- | ---- | -------------------------------------------- |
+| POST   | `/api/session`      | 不要    | なし | `mode` を指定して run ticket を発行する      |
+| POST   | `/api/decide`       | `play`  | あり | メインゲームの Jev 判断                      |
+| POST   | `/api/decide-llm`   | `play`  | あり | 比較用 LLM の判断                            |
+| POST   | `/api/bench/decide` | `bench` | あり | jev-bench のモデル判断（選択を run に記録）  |
+| POST   | `/api/runs/finish`  | `bench` | なし | 決定列を再実行し検証済みスコアを確定する     |
+| POST   | `/api/runs/score`   | `play`  | なし | 通常プレイのキャンペーンを検証して順位化する |
+| GET    | `/api/leaderboard`  | 不要    | なし | 種別ごとの上位20件                           |
+| GET    | `/api/bench/models` | 不要    | なし | 登録モデルのラベル一覧                       |
+| GET    | `/api/health`       | 不要    | なし | 設定プローブ。モデルを呼ばない               |
 
 課金ルートは `content-type: application/json` と `x-run-ticket` ヘッダを必須とする。
 
@@ -92,13 +93,26 @@ Cloudflare Access を外して一般公開する前提の、Worker API の境界
 | Method | Path               | ticket | 役割                                               |
 | ------ | ------------------ | ------ | -------------------------------------------------- |
 | POST   | `/api/runs/finish` | bench  | 保存済み決定列を再実行し、検証済みスコアを確定する |
-| GET    | `/api/leaderboard` | 不要   | 検証済み上位20件を返す                             |
+| POST   | `/api/runs/score`  | play   | 通常プレイのステージ列を検証し、人間ボードへ載せる |
+| GET    | `/api/leaderboard` | 不要   | 種別ごとの上位20件を返す（`?kind=human             | ai`） |
 
 `POST /api/session`（mode `bench`）が run を作成し、`ranked: { protocol }` を返す。
 `/api/bench/decide` はモデルの選択を返すたびに、その run へ順序つきで記録する。
 `/api/runs/finish` は run を閉じ、決定列を `runReplayCampaign` で再実行して `GET /api/leaderboard` へ載せる。
 `protocol` 不一致の run は409で拒否する（配信をまたいだ run を混ぜない）。
 Bench画面は run 終了時に `submitRun` を自動で呼ぶ。ユーザーに検証操作は求めない。
+
+### 人間ボード（スナップショット検証。実装済み）
+
+通常プレイの順位は、`bench` の決定列再生ではなく**ステージ開店時スナップショットの妥当性**で検証する。
+`/api/runs/score` が `{ protocol, owner, completed, score, snapshots }` を受け取り、各 `snapshot` を
+`validateCheckpoint`（`src/checkpoint.ts`、クライアントと共有）で再検証し、`1..N` の連続したステージ列だけを受理する。
+到達Lv・クリア数はサーバ側で確定し、`score` はクライアント申告値をそのまま載せる。
+
+- これは**構造的妥当性のゲートであり、実プレイの証明ではない**。妥当な形のスナップショットを捏造すれば通る。
+- 提出は `finishShift` と `beginShift` からの best-effort な POST のみ。フレームループには触れず、失敗はローカルの進行に影響しない。
+- 同一 `owner`（端末UUID）は `(kind, owner)` 単位で best の1件だけを保持し、連投でボードを埋めない。
+- ボードは `kind`（`human` / `ai`）ごとに上位20件を保持する。既存の bench entry は読み出し時に `kind:'ai'` として補完する。
 
 ### 保存
 
