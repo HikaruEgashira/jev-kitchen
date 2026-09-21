@@ -12,7 +12,7 @@ interface Voice {
 }
 
 const PATTERNS: Record<string, SoundPattern> = Object.freeze({
-  start: { notes: [392, 523, 659], step: 0.08, duration: 0.16, gain: 0.04 },
+  start: { notes: [1046.5, 1046.5], step: 0.22, duration: 0.45, gain: 0.05 },
   action: { notes: [440, 554], step: 0.05, duration: 0.1, gain: 0.035 },
   success: { notes: [523, 659, 784, 1047], step: 0.09, duration: 0.18, gain: 0.05 },
   failure: { notes: [260, 196], step: 0.1, duration: 0.18, gain: 0.045 },
@@ -42,6 +42,33 @@ function applauseBuffer(context: AudioContext): AudioBuffer {
       samples[start + i] +=
         (Math.random() * 2 - 1) * Math.min(1, time / 0.002) * Math.exp(-time * 55) * 0.45;
     }
+  }
+  return buffer;
+}
+
+/**
+ * One struck-bell tone for the stage-start "カランカラン". Inharmonic partials
+ * (a bell is not a harmonic stack) decay faster as they rise, so each strike
+ * settles into its fundamental like a real chime.
+ */
+function bellBuffer(context: AudioContext, frequency: number): AudioBuffer {
+  const duration = 0.5;
+  const buffer = context.createBuffer(
+    1,
+    Math.floor(context.sampleRate * duration),
+    context.sampleRate,
+  );
+  const samples = buffer.getChannelData(0);
+  const partials = [1, 2.76, 5.4, 8.93];
+  for (let i = 0; i < samples.length; i++) {
+    const time = i / context.sampleRate;
+    let value = 0;
+    for (let p = 0; p < partials.length; p++) {
+      value +=
+        (Math.sin(2 * Math.PI * frequency * partials[p] * time) / (p + 1)) *
+        Math.exp(-time * (2 + p * 5));
+    }
+    samples[i] = value * 0.35;
   }
   return buffer;
 }
@@ -117,12 +144,17 @@ export function createAudio({ enabled = true }: { enabled?: boolean } = {}) {
         stopVoice(oldest);
       }
       pattern.notes.forEach((note, index) => {
-        const source = kind === 'applause' ? ctx.createBufferSource() : ctx.createOscillator();
+        const source =
+          kind === 'applause' || kind === 'start'
+            ? ctx.createBufferSource()
+            : ctx.createOscillator();
         const gain = ctx.createGain();
         const voice: Voice = { source, gain, disconnected: false };
         const at = ctx.currentTime + index * pattern.step;
         if (kind === 'applause') {
           (source as AudioBufferSourceNode).buffer = applauseBuffer(ctx);
+        } else if (kind === 'start') {
+          (source as AudioBufferSourceNode).buffer = bellBuffer(ctx, note);
         } else {
           const oscillator = source as OscillatorNode;
           oscillator.type = kind === 'failure' ? 'triangle' : 'sine';

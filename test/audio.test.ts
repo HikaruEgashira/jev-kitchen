@@ -160,6 +160,28 @@ test('audio patterns distinguish action, success, and failure', () => {
   }
 });
 
+test('stage start rings a two-strike bell instead of an arpeggio', () => {
+  const previous = audioGlobal.AudioContext;
+  audioGlobal.AudioContext = FakeAudioContext;
+  FakeAudioContext.instances = [];
+  try {
+    const audio = createAudio();
+    assert.equal(audio.play('start'), true);
+    const context = FakeAudioContext.instances[0];
+    assert.equal(context.oscillators.length, 0);
+    assert.equal(context.buffers.length, 2);
+    assert.deepEqual(
+      context.buffers.map((source) => source.started[0]),
+      [10, 10.22],
+    );
+    const samples = context.buffers[0].buffer!.getChannelData(0);
+    assert.ok(samples.some((value) => Math.abs(value) > 0.05));
+    assert.ok(samples.every((value) => Number.isFinite(value) && Math.abs(value) <= 1));
+  } finally {
+    audioGlobal.AudioContext = previous;
+  }
+});
+
 test('clear applause is bounded, ends after three seconds, and obeys mute', () => {
   const previous = audioGlobal.AudioContext;
   audioGlobal.AudioContext = FakeAudioContext;
