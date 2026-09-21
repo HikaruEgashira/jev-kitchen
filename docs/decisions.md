@@ -58,3 +58,9 @@ WebGPU必須の構成は維持し、uikitのWebGL用パネルマテリアルは�
 ## X共有はWeb Intentのみで行う
 
 クリア・完走・順位の共有は、バックエンドを持たず`https://twitter.com/intent/tweet`へ遷移するだけにする。共有文はローカル状態から生成し、投稿の成否や順位検証とは切り離す。OGPカードと結果ページは作らない。
+
+## サイトのOGP画像は静的な1枚にする
+
+共有された結果ごとのOGPカードは作らないまま、サイト自体のリンクプレビュー用に`public/og.png`（1200×630）を1枚だけ持つ。クローラは`og:*`と`twitter:card`を`index.html`から読み、画像は絶対URLで`/og.png`を指す。
+
+画像は`scripts/render-og.sh`が`docs/sidekick-intro-30s.mp4`のLv10のコマから焼き、タイトルと`ふたりで、ひと皿。`を重ねる。ffmpegは開発機の道具なので`pnpm build`には載せず、キーアートか文言を変えたときだけ手で実行して差分をコミットする。
