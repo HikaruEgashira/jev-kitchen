@@ -97,12 +97,11 @@ function finish(cleared: boolean) {
 
 test('stage selection imports legacy history and preserves future openings across replay and reload', async () => {
   const stage9 = open(9, 9000);
-  finish(true);
+  const afterStage9 = finish(true);
   assert.equal(nextShift(null, 10, ['helper'], ['upgrade_board']), true);
   const stage10 = economy(useKitchen.getState().game);
-  finish(true);
+  const afterStage10 = finish(true);
   assert.equal(nextShift(null, 10, ['helper']), true);
-  const stage11 = economy(useKitchen.getState().game);
   // Simulate a pre-archive save containing only the existing rewind chain.
   storage.delete(STAGES_KEY);
   useKitchen.setState({ stages: {} });
@@ -122,16 +121,37 @@ test('stage selection imports legacy history and preserves future openings acros
   assert.equal(reloaded.nextShift(null, 10, ['helper']), true);
   assert.notDeepEqual(economy(reloaded.useKitchen.getState().game), stage10);
   reloaded.useKitchen.setState({ phase: 'paused', menuOpen: true });
+  // Selecting a stage resumes on its opening preparation, not its paid opening.
   assert.equal(reloaded.restoreStage(10), true);
-  assert.deepEqual(economy(reloaded.useKitchen.getState().game), stage10);
+  assert.deepEqual(economy(reloaded.useKitchen.getState().game), afterStage9);
+  assert.equal(reloaded.useKitchen.getState().phase, 'finished');
+  assert.equal(reloaded.useKitchen.getState().cleared, true);
   assert.equal(reloaded.useKitchen.getState().menuOpen, false);
   assert.deepEqual(JSON.parse(storage.get(STAGES_KEY))['11'], future);
   const again = await import(`../src/game.ts?stage-reload-${Date.now()}`);
   again.useKitchen.setState({ ready: true, sound: false, mode: 'rule' });
   assert.equal(again.restoreStage(11), true);
-  assert.deepEqual(economy(again.useKitchen.getState().game), stage11);
+  assert.deepEqual(economy(again.useKitchen.getState().game), afterStage10);
   assert.equal(again.useKitchen.getState().game.time, 0);
   assert.deepEqual(JSON.parse(storage.get(STAGES_KEY))['11'], future);
+});
+
+test('clearing a shift registers the next stage, which reopens on its preparation', () => {
+  open(9, 9000);
+  const finished = finish(true);
+  const applicants = [...useKitchen.getState().applicants];
+  // The next stage is on record before 開店, as a valid default opening.
+  const next = useKitchen.getState().stages['10'];
+  assert.equal(next?.level, 10);
+  assert.ok(next.rollback?.preparation);
+  assert.ok((next.stock ?? 0) >= quotaForLevel(10));
+  // Selecting it resumes the preparation screen backed by the finished Lv9 state.
+  useKitchen.setState({ phase: 'paused' });
+  assert.equal(restoreStage(10), true);
+  assert.equal(useKitchen.getState().phase, 'finished');
+  assert.equal(useKitchen.getState().cleared, true);
+  assert.deepEqual(economy(useKitchen.getState().game), finished);
+  assert.deepEqual(useKitchen.getState().applicants, applicants);
 });
 
 test('stage selection rejects unknown saves and benchmark use without any persistent writes', () => {

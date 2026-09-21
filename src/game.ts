@@ -5,8 +5,10 @@ import type {
   CameraMode,
   Checkpoint,
   CheckpointRollback,
+  GameState,
   Mode,
   MovementMode,
+  RollbackLink,
   Snapshot,
   StoreState,
 } from './types.ts';
@@ -138,19 +140,29 @@ function writeCheckpoint(
   if (state().benchmark) return null;
   const record = validateCheckpoint({ ...value, version: CHECKPOINT_VERSION, completed });
   if (!record) return null;
+  archiveStage(record, completed);
+  try {
+    globalThis.localStorage?.setItem(CHECKPOINT_KEY, JSON.stringify(record));
+  } catch {
+    /* Storage is optional; the in-memory checkpoint still protects this session. */
+  }
+  return record;
+}
+
+/** Archive one stage opening without moving the current continuation point. */
+function archiveStage(record: Checkpoint, completed = false) {
+  if (state().benchmark) return;
   const stages = readStages(readCheckpoint(), state().stages);
-  // Import the old rewind chain before changing the current continuation point.
+  // Import the old rewind chain before adding the new stage.
   Object.assign(stages, readStages(record, stages));
   stages[record.level] ??= archiveEntry(record);
   if (completed) stages[record.level] = { ...stages[record.level], completed: true };
   update({ stages });
   try {
     globalThis.localStorage?.setItem(STAGES_KEY, JSON.stringify(stages));
-    globalThis.localStorage?.setItem(CHECKPOINT_KEY, JSON.stringify(record));
   } catch {
-    /* Storage is optional; the in-memory checkpoint still protects this session. */
+    /* Storage is optional; the in-memory stages still stand. */
   }
-  return record;
 }
 
 const initialCheckpoint = readCheckpoint();
@@ -482,7 +494,15 @@ export function restoreStage(level: number): boolean {
   const saved = Number.isInteger(level) ? stages[level] : null;
   if (!saved) return false;
   update({ stages, menuOpen: false, menuPage: null });
-  beginShift(saved);
+  // Lv1 has no preparation; every other stage reopens on its preparation screen
+  // so hires, stock and equipment can be redone before the shift.
+  const preparation = saved.rollback?.preparation;
+  if (saved.level <= 1 || !preparation) {
+    beginShift(saved);
+    return true;
+  }
+  if (!showPreparation(preparation, saved.rollback?.previous?.snapshot ?? null, ''))
+    beginShift(saved);
   return true;
 }
 
@@ -586,6 +606,31 @@ export function retryShift() {
   return true;
 }
 
+/** Reopen a saved preparation screen without replaying the shift that followed it. */
+function showPreparation(preparation: RollbackLink, previous: Checkpoint | null, toast: string) {
+  const checkpoint = writeCheckpoint({
+    ...(previous ?? preparation.snapshot),
+    frozenApplicants: preparation.applicants,
+  });
+  if (!checkpoint) return false;
+  invalidate();
+  shiftSnapshot = checkpoint;
+  update({
+    game: createGame(preparation.snapshot),
+    preparationPreview: null,
+    phase: 'finished',
+    cleared: true,
+    applicants: [...preparation.applicants],
+    campaignComplete: false,
+    checkpoint,
+    rollback: null,
+    reviewing: true,
+    toast,
+  });
+  publish();
+  return true;
+}
+
 export function rollbackToPreparation() {
   const current = state();
   const preparation = current.rollback?.preparation;
@@ -597,29 +642,11 @@ export function rollbackToPreparation() {
     !preparation
   )
     return false;
-  const game = createGame(preparation.snapshot);
-  const previous = current.rollback?.previous?.snapshot;
-  const checkpoint = writeCheckpoint({
-    ...(previous ?? preparation.snapshot),
-    frozenApplicants: preparation.applicants,
-  });
-  if (!checkpoint) return false;
-  invalidate();
-  shiftSnapshot = checkpoint;
-  update({
-    game,
-    preparationPreview: null,
-    phase: 'finished',
-    cleared: true,
-    applicants: [...preparation.applicants],
-    campaignComplete: false,
-    checkpoint,
-    rollback: null,
-    reviewing: true,
-    toast: '開店準備をやり直せます',
-  });
-  publish();
-  return true;
+  return showPreparation(
+    preparation,
+    current.rollback?.previous?.snapshot ?? null,
+    '開店準備をやり直せます',
+  );
 }
 
 export function rollbackToPreviousStage() {
@@ -919,12 +946,39 @@ function finishShift() {
   } catch {
     /* Private browsing can disable storage. */
   }
-  if (cleared) frozenApplicants = null;
+  if (cleared) {
+    frozenApplicants = null;
+    if (!campaignComplete) registerNextStage(g, applicants);
+  }
   update({ phase: 'finished', best, cleared, applicants, campaignComplete, checkpoint });
   if (campaignComplete) submitCampaignScore(true);
   if (cleared) playSound('success');
   playSound(cleared ? 'applause' : 'finish');
   publish();
+}
+
+/**
+ * Register the next stage the moment a shift is cleared, using the default
+ * preparation the player would otherwise see. Selecting it later resumes from
+ * its opening preparation, and the ranking counts the reach without waiting
+ * for 開店. `??=` in `archiveStage` keeps any later stage already on record.
+ */
+function registerNextStage(g: GameState, applicants: string[]) {
+  if (state().benchmark) return;
+  const params = nextShiftParams(g, { applicants });
+  if (!params) return;
+  const previous = shiftSnapshot ? normalizeRollbackEntry(shiftSnapshot) : null;
+  const record = validateCheckpoint({
+    ...params,
+    version: CHECKPOINT_VERSION,
+    completed: false,
+    frozenApplicants: applicants,
+    rollback: {
+      preparation: { snapshot: snapshot(g), applicants },
+      previous: previous ? { snapshot: previous.snapshot, applicants } : null,
+    },
+  });
+  if (record) archiveStage(record);
 }
 
 /**
