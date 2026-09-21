@@ -36,6 +36,7 @@ import type {
   GameState,
   Layout,
   LeaderboardKind,
+  PrepCandidate,
   PrepareStage,
   ScreenExtra,
   ScreenItem,
@@ -75,14 +76,6 @@ function staffStateOf(g: GameState, id: string) {
   return g.staffState?.[id] ?? { worked: 0, rest: 0 };
 }
 
-function staffSlots(level: number): number {
-  return levelConfig(level).staffSlots;
-}
-
-function forecastStaffState(g: GameState) {
-  return nextStaffState(g);
-}
-
 function staffIds(g: GameState, view: ViewState): string[] {
   return [
     ...new Set([
@@ -101,9 +94,9 @@ export function purchase(g: GameState, view: ViewState) {
   const valid = /^\d{1,2}$/.test(String(view.quantity)) && Number.isInteger(quantity);
   const hiring = view.selected ? (STAFF[view.selected]?.cost ?? Infinity) : 0;
   const duty = [...new Set(Array.isArray(view.duty) ? view.duty : [])].filter((id) => STAFF[id]);
-  const slots = staffSlots(g.level + 1);
+  const slots = levelConfig(g.level + 1).staffSlots;
   const wages = payroll(duty);
-  const staffState = forecastStaffState(g);
+  const staffState = nextStaffState(g);
   const available = duty.every(
     (id) => (!staffState[id] && id === view.selected) || staffAvailable(staffState, id),
   );
@@ -166,6 +159,45 @@ export function purchase(g: GameState, view: ViewState) {
     layout,
     error,
   };
+}
+
+/**
+ * Apply one preparation candidate to the plan in place. Shared by the live
+ * bench (`prepare`) and the ranked replay, so both mutate the plan exactly the
+ * same way. Returns 'open' when the candidate confirms the shift.
+ */
+export function applyPreparationView(
+  candidate: PrepCandidate,
+  plan: ViewState,
+  g: GameState,
+  applicants: string[] = [],
+): 'open' | 'prepared' {
+  if (candidate.id === 'open_shift') return 'open';
+  if ('selected' in candidate) {
+    plan.duty = (plan.duty ?? []).filter((id) => id !== plan.selected);
+    plan.selected = candidate.selected ?? null;
+    if (plan.stage) plan.stage = 'staffing';
+  }
+  if (candidate.id.startsWith('crew_')) plan.stage = 'stock';
+  if (candidate.id === 'confirm_stock' || ('quantity' in candidate && plan.stage))
+    plan.stage = 'investment';
+  if ('duty' in candidate) plan.duty = [...(candidate.duty ?? [])];
+  if ('quantity' in candidate) plan.quantity = candidate.quantity;
+  if ('equipmentPurchases' in candidate) plan.equipmentPurchases = candidate.equipmentPurchases;
+  if ('vitamins' in candidate) plan.vitamins = candidate.vitamins;
+  if (plan.stage && ('selected' in candidate || 'duty' in candidate)) {
+    const bill = purchase(g, plan);
+    if (bill.cash < 0)
+      plan.quantity = Math.max(
+        0,
+        bill.quota - (g.stock ?? 0),
+        (Number(plan.quantity) || 0) + Math.floor(bill.cash / STOCK_PRICE),
+      );
+  }
+  if ('selected' in candidate)
+    plan.applicantIndex = Math.max(0, applicants.indexOf(plan.selected ?? ''));
+  plan.recentActions = [...(plan.recentActions ?? []).slice(-5), candidate.id];
+  return 'prepared';
 }
 
 // Stock errors use the same bill as the human purchase and benchmark.

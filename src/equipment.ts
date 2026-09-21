@@ -1,4 +1,5 @@
 import { MAX_LEVEL, FEATURE_LEVELS } from './progression.ts';
+import { isRecord } from './util.ts';
 import type { EquipmentCount, EquipmentItem, EquipmentKind, EquipmentState } from './types.ts';
 
 export const MAX_EQUIPMENT_LEVEL = 3;
@@ -75,16 +76,6 @@ const DEFAULT_EQUIPMENT: EquipmentState = Object.freeze(
     ]),
   ) as EquipmentState,
 );
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-  try {
-    const prototype = Object.getPrototypeOf(value);
-    return prototype === Object.prototype || prototype === null;
-  } catch {
-    return false;
-  }
-}
 
 function hasOnlyKeys(value: unknown, keys: readonly string[]): boolean {
   return (
@@ -172,10 +163,8 @@ export function validateEquipment(value: unknown, level?: number): boolean {
       })
     )
       return false;
-    return (
-      meetsUnlocks(record as EquipmentState, level) &&
-      equipmentCapacity(record).used <= equipmentCapacity(record).limit
-    );
+    const capacity = equipmentCapacity(record);
+    return meetsUnlocks(record as EquipmentState, level) && capacity.used <= capacity.limit;
   } catch {
     return false;
   }

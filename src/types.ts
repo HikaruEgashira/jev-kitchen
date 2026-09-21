@@ -493,7 +493,6 @@ export interface GameState {
   human: Actor;
   crew: Record<string, Actor>;
   layout: Layout;
-  ai: Actor | null;
 }
 
 export interface GameConfig {

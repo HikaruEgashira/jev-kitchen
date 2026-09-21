@@ -22,6 +22,7 @@ import {
   type LeaderboardKind,
   type RunStore,
 } from './run-store.ts';
+import { json } from './util.ts';
 
 export { GameStore } from './game-store.ts';
 
@@ -73,16 +74,6 @@ class BodyReadTimeoutError extends Error {}
 class UpstreamTimeoutError extends Error {}
 
 class UpstreamFailureError extends Error {}
-
-const json = (data: unknown, status = 200): Response =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'cache-control': 'no-store',
-      'content-type': 'application/json; charset=utf-8',
-      'x-content-type-options': 'nosniff',
-    },
-  });
 
 async function readBoundedText(
   body: ReadableStream<Uint8Array> | null,

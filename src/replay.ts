@@ -24,13 +24,12 @@ import {
   dash,
   kitchenHasWork,
   MAX_LEVEL,
-  STOCK_PRICE,
 } from './model.ts';
 import { STAFF, nextStaffState } from './staff.ts';
 import { tickWorld } from './engine.ts';
 import { nextShiftParams } from './nextShift.ts';
 import { drawApplicants, seededRandom } from './applicants.ts';
-import { preparation, purchase, preparationKey } from './ui.ts';
+import { preparation, purchase, applyPreparationView, preparationKey } from './ui.ts';
 import { preparationCandidates } from './benchmark.ts';
 import type { GameState, PrepCandidate, ViewState } from './types.ts';
 
@@ -100,33 +99,7 @@ function applyPreparation(
   g: GameState,
   applicants: string[],
 ): 'open' | 'prepared' {
-  if (candidate.id === 'open_shift') return 'open';
-  if ('selected' in candidate) {
-    plan.duty = (plan.duty ?? []).filter((id) => id !== plan.selected);
-    plan.selected = candidate.selected ?? null;
-    if (plan.stage) plan.stage = 'staffing';
-  }
-  if (candidate.id.startsWith('crew_')) plan.stage = 'stock';
-  if (candidate.id === 'confirm_stock' || ('quantity' in candidate && plan.stage))
-    plan.stage = 'investment';
-  if ('duty' in candidate) plan.duty = [...(candidate.duty ?? [])];
-  if ('quantity' in candidate) plan.quantity = candidate.quantity;
-  if ('equipmentPurchases' in candidate) plan.equipmentPurchases = candidate.equipmentPurchases;
-  if ('vitamins' in candidate) plan.vitamins = candidate.vitamins;
-  if (plan.stage && ('selected' in candidate || 'duty' in candidate)) {
-    const bill = purchase(g, plan);
-    if (bill.cash < 0)
-      plan.quantity = Math.max(
-        0,
-        bill.quota - (g.stock ?? 0),
-        (Number(plan.quantity) || 0) + Math.floor(bill.cash / STOCK_PRICE),
-      );
-  }
-  if ('selected' in candidate) {
-    plan.applicantIndex = Math.max(0, applicants.indexOf(plan.selected ?? ''));
-  }
-  plan.recentActions = [...(plan.recentActions ?? []).slice(-5), candidate.id];
-  return 'prepared';
+  return applyPreparationView(candidate, plan, g, applicants);
 }
 
 function openShiftParams(g: GameState, plan: ViewState, applicants: string[]) {
@@ -250,12 +223,7 @@ export function runReplayCampaign({
       completed = true;
       break;
     }
-    const campaignComplete = false;
-    const applicants = campaignComplete
-      ? []
-      : g.level >= 3
-        ? drawApplicants(Object.keys(nextStaffState(g)), random)
-        : [];
+    const applicants = g.level >= 3 ? drawApplicants(Object.keys(nextStaffState(g)), random) : [];
     const next = prepareNextShift(g, decisions, cursor, applicants);
     if (!next.game) {
       truncated = next.truncated ?? false;

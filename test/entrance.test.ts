@@ -1,11 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  DROP_DURATION,
-  ENTRANCE_DURATION,
-  entranceDuration,
-  entranceHeight,
-} from '../src/entrance.ts';
+import { DROP_DURATION, entranceDuration, entranceHeight } from '../src/entrance.ts';
 
 test('stage pieces fall in sequence, rebound above the floor, and remain landed', () => {
   for (const count of [4, 6, 9]) {
@@ -24,7 +19,7 @@ test('stage pieces fall in sequence, rebound above the floor, and remain landed'
     const y = entranceHeight(frame / 60, 1.4);
     assert.ok(Number.isFinite(y) && y >= 0 && y <= 8);
   }
-  for (const elapsed of [ENTRANCE_DURATION, 90, 3600, Infinity]) {
+  for (const elapsed of [10, 90, 3600, Infinity]) {
     assert.equal(entranceHeight(elapsed, 1.4), 0);
   }
 });

@@ -1,5 +1,4 @@
 export const DROP_DURATION = 0.65;
-export const ENTRANCE_DURATION = 1.4 + DROP_DURATION;
 export const entranceDuration = (stationCount: number, crewCount = 1): number =>
   Math.max(1.4 + Math.max(0, crewCount - 1) * 0.1, 0.7 + (stationCount - 1) * 0.1) + DROP_DURATION;
 

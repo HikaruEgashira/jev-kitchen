@@ -292,7 +292,7 @@ test('reset discards an in-flight AI answer, and pause freezes the shift', async
       Response.json({ ok: true, result: { answers: { next_action: { choice: 'fetch_tomato' } } } }),
     );
     await new Promise(setImmediate);
-    assert.equal(useKitchen.getState().game.ai!.intent, null);
+    assert.equal(useKitchen.getState().game.crew[useKitchen.getState().game.staffId]!.intent, null);
     assert.equal(useKitchen.getState().hud.decisions, 0);
     togglePause();
     tick(0.05);
@@ -337,7 +337,7 @@ test('API failure falls back without a request storm and mode changes invalidate
       Response.json({ ok: true, result: { answers: { next_action: { choice: 'fetch_tomato' } } } }),
     );
     await new Promise(setImmediate);
-    assert.equal(useKitchen.getState().game.ai!.intent, null);
+    assert.equal(useKitchen.getState().game.crew[useKitchen.getState().game.staffId]!.intent, null);
     assert.equal(useKitchen.getState().hud.decisions, 0);
   } finally {
     globalThis.fetch = originalFetch;
@@ -368,7 +368,7 @@ test('AI recovers from burnt cookware through tick in rule, Jev and offline mode
         g.stations[kind].state = 'burnt';
         g.stations[`${kind}2`].state = 'burnt';
         Object.assign(g.stations[station], { state: 'ready', burnAt: 1 });
-        g.ai!.carrying = 'chopped';
+        g.crew[g.staffId]!.carrying = 'chopped';
         let calls = 0;
         globalThis.fetch = async (url, request) => {
           if (isScore(url)) return Response.json({ ok: true });
@@ -383,11 +383,11 @@ test('AI recovers from burnt cookware through tick in rule, Jev and offline mode
         };
         tick(0.05);
         await new Promise(setImmediate);
-        assert.equal(g.ai!.intent!.id, 'discard', `${mode}: ${station}`);
+        assert.equal(g.crew[g.staffId]!.intent!.id, 'discard', `${mode}: ${station}`);
         assert.equal(calls, mode === 'rule' ? 0 : 1);
         assert.equal(useKitchen.getState().fallback, mode === 'offline');
         tick(0.05);
-        assert.equal(g.ai!.carrying, null);
+        assert.equal(g.crew[g.staffId]!.carrying, null);
         setMode('rule');
         for (let i = 0; i < 900 && g.served === 0; i++) tick(0.05);
         assert.notEqual(g.stations[station].state, 'burnt', `${mode}: ${station}`);
@@ -472,7 +472,10 @@ test('staff decision intervals apply without a hidden minimum or overlapping req
     );
     await new Promise(setImmediate);
     for (let index = 0; index < 35; index++) tick(0.01);
-    assert.equal(useKitchen.getState().game.ai!.intent!.id, 'fetch_tomato');
+    assert.equal(
+      useKitchen.getState().game.crew[useKitchen.getState().game.staffId]!.intent!.id,
+      'fetch_tomato',
+    );
     assert.equal(calls, 1);
   } finally {
     globalThis.fetch = originalFetch;
@@ -946,7 +949,7 @@ test('graphics loss invalidates the active decision and pauses the shift', async
     await new Promise(setImmediate);
     assert.equal(useKitchen.getState().phase, 'paused');
     assert.equal(useKitchen.getState().ready, false);
-    assert.equal(useKitchen.getState().game.ai!.intent, null);
+    assert.equal(useKitchen.getState().game.crew[useKitchen.getState().game.staffId]!.intent, null);
     assert.equal(useKitchen.getState().hud.decisions, 0);
     togglePause();
     startShift();
@@ -1187,24 +1190,24 @@ test('E works a station in reach and only hands items to partners on open floor'
   const g = useKitchen.getState().game;
   // Standing at the board, E chops instead of passing the tomato to a partner.
   Object.assign(g.human, { ...STATIONS.board, carrying: 'tomato' });
-  Object.assign(g.ai!, { x: g.human.x + 20, y: g.human.y, carrying: null });
+  Object.assign(g.crew[g.staffId]!, { x: g.human.x + 20, y: g.human.y, carrying: null });
   humanInteract();
   assert.equal(g.human.carrying, null);
-  assert.equal(g.ai!.carrying, null);
+  assert.equal(g.crew[g.staffId]!.carrying, null);
   assert.equal(g.stations.board.state, 'chopping');
 
   // Away from every station, the same E hands the item to the nearby partner.
   Object.assign(g.human, { x: 500, y: 300, carrying: 'tomato', intent: null });
-  Object.assign(g.ai!, { x: 520, y: 300, carrying: null });
+  Object.assign(g.crew[g.staffId]!, { x: 520, y: 300, carrying: null });
   humanInteract();
   assert.equal(g.human.carrying, null);
-  assert.equal(g.ai!.carrying, 'tomato');
+  assert.equal(g.crew[g.staffId]!.carrying, 'tomato');
 
   // Tapping a station still works it there.
   g.stations.board.state = 'idle';
-  g.ai!.carrying = null;
+  g.crew[g.staffId]!.carrying = null;
   Object.assign(g.human, { ...STATIONS.board, carrying: 'tomato' });
   goTo('board');
   assert.equal(g.stations.board.state, 'chopping');
-  assert.equal(g.ai!.carrying, null);
+  assert.equal(g.crew[g.staffId]!.carrying, null);
 });

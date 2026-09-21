@@ -1,4 +1,5 @@
 import { investmentCost } from './equipment.ts';
+import { isRecord } from './util.ts';
 import type { TrainingEntry, TrainingState, Vitamin } from './types.ts';
 
 // Vitamins are consumable per-actor upgrades, like a Pokémon stat item: buy one,
@@ -26,16 +27,6 @@ export const VITAMINS: Record<string, Vitamin> = Object.freeze({
 });
 
 export const VITAMIN_IDS = Object.freeze(Object.keys(VITAMINS));
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-  try {
-    const prototype = Object.getPrototypeOf(value);
-    return prototype === Object.prototype || prototype === null;
-  } catch {
-    return false;
-  }
-}
 
 function clampLevel(value: unknown): number {
   const numeric = typeof value === 'boolean' ? NaN : Number(value);
@@ -91,7 +82,6 @@ export function validateTraining(value: unknown, hired: unknown): TrainingState 
   return result;
 }
 
-// Move vitamins scale the actor's step up; cook vitamins scale duration down.
 export function trainingMultiplier(training: unknown, who: string | null, item: VitaminId): number {
   const level = trainingLevel(training, who ?? '', item);
   return item === 'move' ? 1 + TRAINING_STEP * level : 1 - TRAINING_STEP * level;
@@ -105,7 +95,6 @@ function freezeResult(
   return Object.freeze({ training, cost, error });
 }
 
-// Applies pending vitamins atomically; `targets` are the legal actor ids.
 export function quoteVitamins(training: unknown, purchases: unknown, targets: unknown) {
   const base = trainingState(training);
   const allowed = new Set(Array.isArray(targets) ? targets : []);

@@ -629,13 +629,13 @@ test('benchmark E uses the same handoff and rejects a partner who moved away', (
   const g = createGame({ level: 4, stock: 10 });
   useKitchen.setState({ game: g, tutorial: null });
   Object.assign(g.human, { x: 500, y: 300, carrying: 'chopped' });
-  Object.assign(g.ai!, { x: 520, y: 300 });
+  Object.assign(g.crew[g.staffId]!, { x: 520, y: 300 });
   const choice = buildCandidates(g, 'human').find((c) => c.partner === g.staffId)!;
-  g.ai!.x = 800;
+  g.crew[g.staffId]!.x = 800;
   assert.equal(benchmarkAction(choice), false);
-  g.ai!.x = 520;
+  g.crew[g.staffId]!.x = 520;
   assert.equal(benchmarkAction(choice), true);
-  assert.equal(g.ai!.carrying, 'chopped');
+  assert.equal(g.crew[g.staffId]!.carrying, 'chopped');
   assert.equal(g.human.carrying, null);
 });
 

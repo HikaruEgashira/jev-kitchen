@@ -41,13 +41,13 @@ import type { GameState, RecipeId, StationStateName } from '../src/types.ts';
 test('the four-step pipeline produces one served dish', () => {
   const g = createGame({ level: 3, stock: 99 });
 
-  assert.equal(interact(g, 'ai', 'crate').ok, true);
-  assert.equal(g.ai!.carrying, 'tomato');
+  assert.equal(interact(g, g.staffId, 'crate').ok, true);
+  assert.equal(g.crew[g.staffId]!.carrying, 'tomato');
 
-  assert.equal(interact(g, 'ai', 'board').ok, true);
-  assert.equal(g.ai!.carrying, null);
+  assert.equal(interact(g, g.staffId, 'board').ok, true);
+  assert.equal(g.crew[g.staffId]!.carrying, null);
   assert.equal(g.stations.board.state, 'chopping');
-  assert.equal(g.stations.board.by, 'ai');
+  assert.equal(g.stations.board.by, g.staffId);
 
   // The first kitchen teaches the basic pipeline before boosts unlock.
   g.time += CHOP_MS / 2;
@@ -59,14 +59,14 @@ test('the four-step pipeline produces one served dish', () => {
   advance(g);
   assert.equal(g.stations.board.state, 'chopped');
 
-  assert.equal(interact(g, 'ai', 'plates').ok, true);
-  assert.equal(g.ai!.carrying, 'plate');
+  assert.equal(interact(g, g.staffId, 'plates').ok, true);
+  assert.equal(g.crew[g.staffId]!.carrying, 'plate');
 
-  assert.equal(interact(g, 'ai', 'board').ok, true);
-  assert.equal(g.ai!.carrying, 'dish');
+  assert.equal(interact(g, g.staffId, 'board').ok, true);
+  assert.equal(g.crew[g.staffId]!.carrying, 'dish');
   assert.equal(g.stations.board.state, 'idle');
 
-  assert.equal(interact(g, 'ai', 'serve').ok, true);
+  assert.equal(interact(g, g.staffId, 'serve').ok, true);
   assert.equal(g.served, 1);
 });
 
@@ -78,7 +78,7 @@ test('candidates track carrying and board state, and always allow waiting', () =
   // A plate is only worth fetching once there is something to plate.
   assert.ok(!fresh.some((c) => c.id === 'fetch_plate'));
 
-  g.ai!.carrying = 'plate';
+  g.crew[g.staffId]!.carrying = 'plate';
   g.stations.board.state = 'chopped';
   const ready = buildCandidates(g);
   assert.ok(ready.some((c) => c.id === 'plate'));
@@ -87,7 +87,7 @@ test('candidates track carrying and board state, and always allow waiting', () =
 
 test('a decision that went stale while Jev was thinking is not feasible', () => {
   const g = createGame({ level: 3, stock: 99 });
-  g.ai!.carrying = 'plate';
+  g.crew[g.staffId]!.carrying = 'plate';
   g.stations.board.state = 'chopped';
   const cand = buildCandidates(g).find((c) => c.id === 'plate');
   assert.equal(isFeasible(g, cand), true);
@@ -107,13 +107,13 @@ test('standing at a station never blocks a partner from freeing it', () => {
   const picked2 = rulePick(g, buildCandidates(g))!;
   assert.equal(picked2.id, 'fetch_tomato'); // its highest-priority useful move
   g.human.station = 'serve';
-  g.ai!.carrying = 'soup';
+  g.crew[g.staffId]!.carrying = 'soup';
   g.orders = [{ id: 0, recipe: 'soup', deadline: 30000, duration: 30000 }];
   assert.equal(rulePick(g, buildCandidates(g))!.id, 'serve');
   g.human.station = 'board';
-  g.ai!.carrying = 'tomato';
+  g.crew[g.staffId]!.carrying = 'tomato';
   assert.equal(rulePick(g, buildCandidates(g))!.id, 'chop');
-  g.ai!.carrying = null;
+  g.crew[g.staffId]!.carrying = null;
   g.human.carrying = 'tomato';
   g.stations.board.state = 'chopped';
   assert.equal(rulePick(g, buildCandidates(g))!.id, 'collect');
@@ -329,7 +329,7 @@ test('human boost is a one-shot quality bonus and AI cannot farm it', () => {
   advance(g, CHOP_MS * 0.4);
   assert.ok(buildCandidates(g, 'human').some((c) => c.id === 'boost_board'));
   assert.equal(
-    buildCandidates(g, 'ai').some((c) => c.id === 'boost_board'),
+    buildCandidates(g, g.staffId).some((c) => c.id === 'boost_board'),
     false,
   );
   const busyBefore = g.stations.board.busyUntil;
@@ -352,8 +352,8 @@ test('human boost is a one-shot quality bonus and AI cannot farm it', () => {
 test('staff profile changes AI preparation without changing the candidate contract', () => {
   const g = createGame({ level: 4, stock: 20, staffId: 'chef', hired: ['helper', 'chef'] });
   assert.deepEqual(g.hired, ['helper', 'chef']);
-  g.ai!.carrying = 'tomato';
-  assert.equal(interact(g, 'ai', 'board').ok, true);
+  g.crew[g.staffId]!.carrying = 'tomato';
+  assert.equal(interact(g, g.staffId, 'board').ok, true);
   assert.equal(g.stations.board.duration, Math.round(CHOP_MS * 0.55));
   const candidate = buildCandidates(g);
   assert.ok(!candidate.some((c) => c.id === 'fetch_plate'));
@@ -369,8 +369,8 @@ test('staff profile changes AI preparation without changing the candidate contra
     ['pot', 9000],
     ['grill', 5250],
   ] as [string, number][]) {
-    g.ai!.carrying = 'chopped';
-    assert.equal(interact(g, 'ai', id).ok, true);
+    g.crew[g.staffId]!.carrying = 'chopped';
+    assert.equal(interact(g, g.staffId, id).ok, true);
     assert.equal(g.stations[id].duration, duration);
   }
 });
@@ -395,22 +395,22 @@ test('finite stock is consumed by pickup and restored only by returning the toma
 
 test('staff capabilities gate candidate actions and direct stale execution', () => {
   const helper = createGame({ level: 3, stock: 2 });
-  helper.ai!.carrying = 'chopped';
+  helper.crew[helper.staffId]!.carrying = 'chopped';
   assert.equal(
     buildCandidates(helper).some((candidate) => candidate.id === 'collect'),
     false,
   );
-  assert.equal(interact(helper, 'ai', 'board').ok, false);
+  assert.equal(interact(helper, helper.staffId, 'board').ok, false);
 
   const chef = createGame({ level: 4, staffId: 'chef', hired: ['helper', 'chef'], stock: 2 });
-  chef.ai!.carrying = 'plate';
+  chef.crew[chef.staffId]!.carrying = 'plate';
   chef.stations.board.state = 'chopped';
   assert.equal(
     buildCandidates(chef).some((candidate) => candidate.id === 'plate'),
     false,
   );
   assert.ok(buildCandidates(chef).some((candidate) => candidate.id === 'return_plate'));
-  assert.equal(interact(chef, 'ai', 'board').ok, false);
+  assert.equal(interact(chef, chef.staffId, 'board').ok, false);
 
   const runner = createGame({
     level: 4,
@@ -764,7 +764,7 @@ test('heated stations burn after their grace period and can be cleaned', () => {
 
 test('burnt cookware never strands a plate carrier', () => {
   const g = createGame({ level: 2, stock: 2 });
-  g.ai!.carrying = 'plate';
+  g.crew[g.staffId]!.carrying = 'plate';
   g.stations.pot.state = 'burnt';
   const candidates = buildCandidates(g);
   assert.ok(candidates.some((c) => c.id === 'return_plate'));
@@ -780,7 +780,7 @@ test('burnt cookware never strands a plate carrier', () => {
 test('blocked work still exposes a safe wait and hand recovery action', () => {
   const cases = [
     (g: GameState) => {
-      g.ai!.carrying = 'plate';
+      g.crew[g.staffId]!.carrying = 'plate';
       g.stations.board.state = 'chopping';
     },
   ];
@@ -826,7 +826,7 @@ test('blocked cooks can discard, clean burnt cookware and start cooking again', 
       for (const id of activeStationIds(g).filter((id) => stationKind(id) === kind))
         g.stations[id].state = 'burnt';
       Object.assign(g.stations[station], { state: 'ready', burnAt: 1 });
-      Object.assign(g.ai!, { carrying: 'chopped', quality: true });
+      Object.assign(g.crew[g.staffId]!, { carrying: 'chopped', quality: true });
       advance(g, 1);
       assert.equal(g.stations[station].state, 'burnt');
 
@@ -836,8 +836,8 @@ test('blocked cooks can discard, clean burnt cookware and start cooking again', 
       const stock = g.stock;
       g.combo = 3;
       assert.equal(discard(g, staffId), true);
-      assert.equal(g.ai!.carrying, null);
-      assert.equal(g.ai!.quality, null);
+      assert.equal(g.crew[g.staffId]!.carrying, null);
+      assert.equal(g.crew[g.staffId]!.quality, null);
       assert.equal(g.stock, stock);
       assert.equal(g.combo, 0);
       assert.equal(isFeasible(g, recovery), false);
@@ -845,7 +845,7 @@ test('blocked cooks can discard, clean burnt cookware and start cooking again', 
       assert.equal(clean.baseId ?? clean.id, `clean_${kind}`);
       assert.equal(interact(g, staffId, clean.station!).ok, true);
       assert.equal(g.stations[station].state, 'idle');
-      g.ai!.carrying = 'chopped';
+      g.crew[g.staffId]!.carrying = 'chopped';
       assert.equal(interact(g, staffId, station).ok, true);
       assert.equal(g.stations[station].state, 'cooking');
     }
@@ -860,7 +860,7 @@ test('hand recovery respects usable stations, crew reservations and stale decisi
     equipment: { pot: { count: 2, level: 1 } },
   });
   g.orders = g.orders.map((o) => ({ ...o, recipe: 'soup' }));
-  g.ai!.carrying = 'chopped';
+  g.crew[g.staffId]!.carrying = 'chopped';
   g.stations.pot.state = 'burnt';
   const cook = rulePick(g, buildCandidates(g))!;
   assert.equal(cook.station, 'pot2');
@@ -871,8 +871,8 @@ test('hand recovery respects usable stations, crew reservations and stale decisi
   assert.equal(recovery.id, 'discard');
   g.crew.sous.intent = null;
   assert.equal(isFeasible(g, recovery), false);
-  assert.equal(g.ai!.carrying, 'chopped');
-  g.ai!.carrying = 'tomato';
+  assert.equal(g.crew[g.staffId]!.carrying, 'chopped');
+  g.crew[g.staffId]!.carrying = 'tomato';
   g.crew.sous.intent = { id: 'chop', station: 'board', label: '切る', startedAt: 0 };
   assert.equal(rulePick(g, buildCandidates(g))!.id, 'return_tomato');
   assert.ok(!buildCandidates(g).some((c) => c.id === 'discard'));
@@ -915,7 +915,7 @@ test('hands can recover, and chopped tomatoes can be plated directly', () => {
   assert.equal(g.human.carrying, 'dish');
   assert.equal(discard(g, 'human'), true);
   assert.equal(g.human.carrying, null);
-  g.ai!.carrying = 'tomato';
+  g.crew[g.staffId]!.carrying = 'tomato';
   g.stations.board.state = 'chopped';
   assert.ok(buildCandidates(g).some((c) => c.id === 'return_tomato'));
 });
@@ -953,7 +953,7 @@ test('the rule companion can finish soup and stale station targets are rejected'
   for (let step = 0; step < 40 && g.served < 1; step++) {
     const candidate = rulePick(g, buildCandidates(g))!;
     assert.equal(isFeasible(g, candidate), true);
-    if (candidate.station) assert.equal(interact(g, 'ai', candidate.station).ok, true);
+    if (candidate.station) assert.equal(interact(g, g.staffId, candidate.station).ok, true);
     advance(g, 500);
   }
   assert.equal(g.served, 1);

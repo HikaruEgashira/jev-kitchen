@@ -213,13 +213,12 @@ function makeHeatStation(): StationState {
 }
 
 export function actor(g: GameState, who?: string | null): Actor | null {
-  const id = who === 'ai' ? (g?.staffId ?? g?.duty?.[0]) : resolveWho(g, who);
+  const id = resolveWho(g, who);
   return id === 'human' ? (g?.human ?? null) : (g?.crew?.[id] ?? null);
 }
 
 export function staffProfile(g: GameState, who?: string | null): StaffProfile | null {
-  const id = who === 'ai' ? (g?.staffId ?? g?.duty?.[0]) : who;
-  return id && id !== 'human' ? (STAFF[id] ?? null) : null;
+  return who && who !== 'human' ? (STAFF[who] ?? null) : null;
 }
 
 function canOperate(g: GameState, who: string, capability: Capability): boolean {
@@ -248,7 +247,7 @@ function cookDuration(g: GameState, who: string | null, stationId: string): numb
   return Math.round(
     base *
       equipmentFactor *
-      trainingMultiplier(g.training, trainedWho(g, who), 'cook') *
+      trainingMultiplier(g.training, who ?? '', 'cook') *
       (profile?.cook ?? 1),
   );
 }
@@ -260,14 +259,9 @@ function chopDuration(g: GameState, who: string | null, stationId = 'board'): nu
   return Math.round(
     CHOP_MS *
       equipmentFactor *
-      trainingMultiplier(g.training, trainedWho(g, who), 'cook') *
+      trainingMultiplier(g.training, who ?? '', 'cook') *
       (profile?.chop ?? 1),
   );
-}
-
-// `ai` is a selector, not an actor id; training is stored per real actor id.
-function trainedWho(g: GameState, who: string | null): string {
-  return who === 'ai' ? (g?.staffId ?? g?.duty?.[0] ?? '') : (who ?? '');
 }
 
 export function activeStationIds(g: GameLike = {}): string[] {
@@ -467,10 +461,8 @@ export function createGame({
       ]),
     ),
     layout: {},
-    ai: null,
   };
   g.layout = resolveLayout(g, layout) ?? resolveLayout(g) ?? {};
-  g.ai = g.crew[g.staffId] ?? null;
   g.orders = practice
     ? [order(g, Infinity, 'dish')]
     : [order(g, initialOrderDeadline(g, 0)), order(g, initialOrderDeadline(g, 1))];
@@ -723,8 +715,7 @@ export function interact(g: GameState, who: string | null, stationId: string): A
   syncConfig(g);
   normalizeDuty(g);
   who = resolveWho(g, who);
-  const activeWho = who === 'ai' ? (g.staffId ?? g.duty[0]) : who;
-  if (activeWho !== 'human' && !g.duty.includes(activeWho))
+  if (who !== 'human' && !g.duty.includes(who))
     return { ok: false, reason: 'その相棒は今シフトに入っていません' };
   const e = actor(g, who),
     st = g.stations[stationId];

@@ -33,6 +33,7 @@ import { VITAMINS, quoteVitamins } from './training.ts';
 import {
   preparation,
   purchase,
+  applyPreparationView,
   preparationAdvice,
   preparationKey,
   equipmentEffect,
@@ -345,16 +346,10 @@ function prepare(candidate: PrepCandidate, plan: ViewState, g: GameState): boole
         (Number(plan.quantity) || 0) + Math.floor(bill.cash / STOCK_PRICE),
       );
   }
-  if ('selected' in candidate) {
-    plan.page = 1;
-    plan.applicantIndex = Math.max(
-      0,
-      useKitchen.getState().applicants.indexOf(plan.selected ?? ''),
-    );
-  }
+  if ('selected' in candidate) plan.page = 1;
   if ('quantity' in candidate || 'duty' in candidate) plan.page = 2;
   if ('equipmentPurchases' in candidate || 'vitamins' in candidate) plan.page = 3;
-  plan.recentActions = [...(plan.recentActions ?? []).slice(-5), candidate.id];
+  applyPreparationView(candidate, plan, g, useKitchen.getState().applicants);
   useKitchen.setState({ benchPreparation: { ...plan } });
   return true;
 }

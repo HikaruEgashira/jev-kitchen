@@ -12,17 +12,12 @@ import {
   type BoardEntry,
   type RunRecord,
 } from './run-store.ts';
+import { json } from './util.ts';
 
 interface Storage {
   get(key: string): Promise<unknown>;
   put(key: string, value: unknown): Promise<void>;
 }
-
-const json = (data: unknown, status = 200): Response =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
-  });
 
 export class GameStore {
   state: { storage: Storage };
