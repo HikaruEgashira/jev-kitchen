@@ -235,8 +235,8 @@ export function editPreparation(
 
 export function loopHint(preparing: boolean): string {
   return preparing
-    ? '同じ購入予定に戻っています。購入と取消が繰り返されています。'
-    : '同じ操作が続き、仕入れ消費・配膳が進んでいません。';
+    ? '同じ購入予定を往復してるよ。'
+    : '同じ操作の繰り返しで、営業が進んでいないよ。';
 }
 
 export function staffingOutlook(g: GameState, plan: ViewState): string {
@@ -267,16 +267,16 @@ export function preparationAdvice(
   const advice: Record<string, { instructions: string; hint: string }> = {
     hiring: {
       instructions: `${available.length} hired staff are available next shift; ${cooks.length} can heat food. Hiring has a one-time cost; assigned staff also receive wages each shift. Hiring and duty assignment are separate. Unspent coins carry over.`,
-      hint: `次に出勤できる在籍者は${available.length}人、うち加熱担当は${cooks.length}人です。採用費は初回、給与は出勤ごとにかかります。採用と勤務への配置は別です。残金は持ち越せます。`,
+      hint: `次営業に出られるのは${available.length}人（うち加熱担当${cooks.length}人）。採用費は初回だけ、給与は出勤ごと。残金は持ち越せるよ。`,
     },
     staffing: {
       instructions: `The next shift has ${bill.slots} staff slots. Available heat cooks: ${cooks.join(', ') || 'none'}. Each option is a complete roster. ${levelConfig(g.level + 1).fatigueEnabled ? 'Consecutive work leads to mandatory rest; a shift off resets the consecutive count.' : ''} Staff capabilities determine which tasks they can perform.`,
-      hint: `次の勤務枠は${bill.slots}人。出勤できる加熱担当：${cooks.map((id) => STAFF[id].name).join('・') || 'なし'}。${levelConfig(g.level + 1).fatigueEnabled ? '続けて働くと休養が必要です。休むと連勤数が戻ります。' : ''}担当できる作業は役割ごとに異なります。${outlook ? `この勤務のあと：${outlook}。` : ''}`,
+      hint: `勤務枠は${bill.slots}人。出勤できる加熱担当：${cooks.map((id) => STAFF[id].name).join('・') || 'なし'}。${levelConfig(g.level + 1).fatigueEnabled ? '続けて働くと休養が必要。休めば連勤数が戻るよ。' : ''}作業は役割ごとに違う。${outlook ? `この勤務のあと：${outlook}。` : ''}`,
     },
     stock: {
       instructions:
         'recommended_purchase is an estimate, not a requirement. One tomato makes one dish, unsold stock carries over, and purchases share the same cash balance with wages and upgrades. The purchase quantity is editable.',
-      hint: `推奨仕入れは${recommendedStock(g)}個（前回${g.served}皿販売・残在庫${g.stock ?? 0}個）。トマト1個で1皿、仕入れは1個${STOCK_PRICE}コイン。残りは次へ持ち越せます。仕入れ量は変更できます。\nおしながき：${Object.values(
+      hint: `推奨仕入れは${recommendedStock(g)}個（前回${g.served}皿・残在庫${g.stock ?? 0}個）。トマト1個で1皿、1個${STOCK_PRICE}コイン。量は自由に変えられるよ。\nおしながき：${Object.values(
         RECIPES,
       )
         .map((r) => `${r.name} ${r.price}コイン`)
@@ -285,14 +285,14 @@ export function preparationAdvice(
     investment: {
       instructions:
         'A station serves one actor at a time. Equipment additions allow parallel work. Purchases become final at open_shift; cash_remaining already deducts pending purchases, stock and wages.',
-      hint: `購入予定後は出勤${bill.duty.length}人・まな板${bill.equipment.board.count}台。同じ作業台を同時に使えるのは1人です。自分の育成：移動${training.move}/${MAX_TRAINING}・調理${training.cook}/${MAX_TRAINING}。育成は1個${VITAMINS.move.cost}コインで1人の移動＋4%／調理時間−4%、効果は持続します。設備を増やすと並行作業ができます。まな板・鍋・グリルの強化で調理が速くなります。残金は購入予定・仕入れ・給与を差し引いた額で、持ち越せます。購入は開店時に確定します。`,
+      hint: `購入予定後の出勤は${bill.duty.length}人・まな板${bill.equipment.board.count}台。作業台は1人ずつ。自分の育成：移動${training.move}/${MAX_TRAINING}・調理${training.cook}/${MAX_TRAINING}。育成は1個${VITAMINS.move.cost}コインで移動＋4%／調理−4%（永続）。設備追加で並行作業、強化で調理が速くなるよ。支払いは開店時に一括確定。`,
     },
   };
   return (
     advice[plan.stage ?? ''] ?? {
       instructions:
         'Hiring, staffing, stock and upgrades share the available cash. Each choice edits a pending plan; open_shift commits it.',
-      hint: '採用・勤務・仕入れ・投資は同じ所持金から支払われ、開店時にまとめて確定します。',
+      hint: '採用・勤務・仕入れ・投資は同じ所持金から。開店時にまとめて確定するよ。',
     }
   );
 }
@@ -615,7 +615,7 @@ export function screen(
     } else if (!practice && (!narrow || !portrait)) {
       const advice =
         s.benchFeedback?.loop || repeatsActions(g.human.lastActions ?? [], g)
-          ? '同じ操作が続いています。ヒントに履歴があります。'
+          ? '同じ操作が続いてるよ。ヒントに履歴が出てる。'
           : `${cookingAdvice(g).hint.split('。')[0]}。`;
       const w = Math.min(width - 24, 520);
       button(
@@ -1014,9 +1014,9 @@ export function screen(
           .map(([id, v]) => `${RECIPES[id].name} ${Math.round(v * 100)}%`)
           .join('・')}`;
         text += `\n在庫${bill.stock}個（仕入れ${bill.quantity}個）・支払後${bill.cash}コイン`;
-        text += `\n設備枠${capacity.used}/${capacity.limit}。増設の枠が足りない時は厨房を拡張できます。`;
+        text += `\n設備枠${capacity.used}/${capacity.limit}。枠が足りない時は厨房を拡張できるよ。`;
       } else {
-        text += `${cookingAdvice(g).hint}\n作業台をタップすると移動して作業します。ダッシュは移動を速めます。手持ちは近くの手ぶらの相棒へEで渡せます。\nノルマは合格に必要な皿数です。売上は次の営業資金になり、残在庫は持ち越せます。`;
+        text += `${cookingAdvice(g).hint}\n作業台をタップして移動・作業。ダッシュで速く移動。Eで近くの相棒に受け渡し。\nノルマは合格に必要な皿数。売上と残在庫は次に持ち越せるよ。`;
         text += `\n在庫${g.stock ?? '無制限'}・配膳${g.served}/${g.quota}皿`;
         text +=
           '\n' +
@@ -1413,7 +1413,7 @@ export function screen(
               (!available && !onDuty) ||
               (!onDuty && duty.length >= bill.slots),
             avatar: cellW >= 88 ? staff.color : undefined,
-            label: `${staff.name}（${employment}、給与${wage}/営業、連勤上限${staff.maxConsecutive}回、休養${staff.restShifts}営業）。現在${onDuty ? '出勤中' : '待機中'}。${
+            label: `${staff.name}（${employment}、給与${wage}/営業）。現在${onDuty ? '出勤中' : '待機中'}。${
               available ? (onDuty ? '勤務から外す' : '勤務に入れる') : '休養中で配置不可'
             }`,
             size: narrow ? 13 : 11,

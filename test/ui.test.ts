@@ -1055,5 +1055,5 @@ test('human hints share stock facts, cooking advice and bounded preparation hist
     1280,
     720,
   );
-  assert.match(playing.items.find((i) => i.id === 'advice').text!, /注文のない料理/);
+  assert.match(playing.items.find((i) => i.id === 'advice').text!, /注文はまだ無いよ/);
 });

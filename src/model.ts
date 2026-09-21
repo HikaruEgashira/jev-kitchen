@@ -1204,55 +1204,55 @@ export function cookingAdvice(
     return ordered(held as RecipeId)
       ? {
           instructions: 'The held dish matches a current order. Serving completes one order.',
-          hint: '手持ちの料理に対応する注文があります。配膳で1皿分の注文が完了します。',
+          hint: '手持ちの料理が注文と一致。配膳で1皿分が完了するよ。',
         }
       : {
           instructions:
             'The held dish has no current order and cannot be served. Q discards the held item and frees the hands.',
-          hint: '注文のない料理を持っています。現在は配膳できません。Qは手持ちを捨て、手を空ける操作です。',
+          hint: 'その料理の注文はまだ無いよ。Qで手持ちを捨てよう。',
         };
   if (held === 'tomato')
     return {
       instructions:
         'Raw tomatoes can be chopped at an idle board or returned to stock. Occupied boards cannot start another task.',
-      hint: '切ったトマトはどの料理にも使えます。使用中のまな板では別の作業を始められません。トマトを食材置場へ返すと在庫が1個戻り、手ぶらになります。',
+      hint: '切ったトマトは万能食材。まな板は1人ずつ、食材置場へ返せば在庫が戻るよ。',
     };
   if (held === 'chopped')
     return {
       instructions:
         'Chopped tomato is the shared ingredient for salad, soup and roast. Each finished dish matches only its own recipe order.',
-      hint: '切ったトマトはサラダ・スープ・焼きトマト共通の材料です。完成品は同じ料理の注文にだけ配膳できます。',
+      hint: '切ったトマトが全料理の材料。完成品は同じ料理の注文にだけ配膳できるよ。',
     };
   if (ready.length)
     return {
       instructions: `Ordered food is ready at ${ready.join(', ')}. Plating requires a plate; heated food eventually burns. Held item: ${held ?? 'none'}.`,
-      hint: `${ready.map((id) => STATIONS[id].name).join('・')}に注文の料理があります。盛り付けには皿が必要です。加熱済みの料理は時間が経つと焦げます。手持ち：${ITEM_NAMES[held ?? ''] ?? 'なし'}。`,
+      hint: `${ready.map((id) => STATIONS[id].name).join('・')}に注文が完成してるよ。皿を持って盛り付けよう。放置すると焦げる。手持ち：${ITEM_NAMES[held ?? ''] ?? 'なし'}。`,
     };
   if (plating.length)
     return {
       instructions: `Ordered food is cooking at ${plating.join(', ')}. Heating continues without an actor at the station. Held item: ${held ?? 'none'}.`,
-      hint: `${plating.map((id) => STATIONS[id].name).join('・')}で注文の料理を加熱中です。加熱はその場にいなくても進みます。手持ち：${ITEM_NAMES[held ?? ''] ?? 'なし'}。`,
+      hint: `${plating.map((id) => STATIONS[id].name).join('・')}で加熱中。待たなくても進むよ。手持ち：${ITEM_NAMES[held ?? ''] ?? 'なし'}。`,
     };
   if (held === 'plate')
     return {
       instructions:
         'No ordered food is ready or cooking. A held plate occupies the hands; it can be returned to the plate station.',
-      hint: '注文の料理は完成・加熱中ともにありません。皿を持つと他の材料は持てません。皿は皿置場へ返せます。',
+      hint: '注文は完成・加熱中ともに無し。皿を持つと他の物は持てない。皿は置き場へ返せるよ。',
     };
   if (cands.some((c) => c.id === 'collect'))
     return {
       instructions: 'Chopped ingredients are available. They can become salad, soup or roast.',
-      hint: 'まな板に切った食材があります。サラダ・スープ・焼きトマトの材料になります。',
+      hint: 'まな板に切った食材が待ってるよ。皿・鍋・グリルへ運ぼう。',
     };
   if (cands.some((c) => c.id === 'clean_pot' || c.id === 'clean_grill'))
     return {
       instructions:
         'Burnt cookware cannot cook another dish until cleaned. Cleaning requires empty hands.',
-      hint: '焦げた鍋・グリルは片づけが済むまで使えません。片づけには手ぶらの状態が必要です。',
+      hint: '焦げた鍋・グリルは片づけるまで使えないよ。手ぶらで片づけよう。',
     };
   return {
     instructions: 'No food is ready to plate. All recipes start from chopped tomato.',
-    hint: '盛り付けられる料理はまだありません。どの料理も切ったトマトが材料です。',
+    hint: 'まだ盛り付けられる料理は無いよ。まずトマトを切ろう。',
   };
 }
 
