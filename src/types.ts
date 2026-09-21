@@ -13,6 +13,8 @@ export type Capability = 'prep' | 'cook' | 'serve';
 export type StaffRole = 'allrounder' | 'runner' | 'chef' | 'expediter';
 export type MovementMode = 'screen' | 'grid';
 export type CameraMode = 'auto' | 'follow' | 'overview';
+/** Quality preset that picks the renderer's pixel-ratio range. */
+export type RenderScale = 'standard' | 'high';
 export type Mode = 'jev' | 'rule' | 'llm';
 export type Phase = 'ready' | 'playing' | 'paused' | 'finished';
 /** Human campaigns and bench runs are ranked on separate boards. */
@@ -655,6 +657,7 @@ export interface StoreState {
   menuPage: string | null;
   cameraMode: CameraMode;
   movementMode: MovementMode;
+  renderScale: RenderScale;
   sound: boolean;
   backgroundMode: boolean;
   reducedMotion: boolean;

@@ -188,6 +188,7 @@ const freshState = (checkpoint: Checkpoint | null): StoreState => ({
   menuPage: null,
   cameraMode: 'auto',
   movementMode: 'grid',
+  renderScale: 'high',
   sound: true,
   backgroundMode: true,
   reducedMotion: false,
@@ -509,6 +510,10 @@ export function restoreStage(level: number): boolean {
 export function setMovementMode(movementMode: string) {
   if (movementMode === 'screen' || movementMode === 'grid')
     update({ movementMode: movementMode as MovementMode });
+}
+
+export function toggleRenderScale() {
+  update({ renderScale: state().renderScale === 'high' ? 'standard' : 'high' });
 }
 
 export function graphicsLost() {

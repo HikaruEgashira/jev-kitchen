@@ -923,12 +923,29 @@ export function screen(
           },
         ),
       );
+      // Short landscape has no room for a second full-width row, so the two
+      // toggles share one.
+      const toggleW = sideBySide ? (inside - 8) / 2 : inside;
+      const toggleY = y + (sideBySide ? 146 : 232);
+      button(
+        'quality',
+        s.renderScale === 'high' ? '画質：高' : '画質：標準',
+        x + 16,
+        toggleY,
+        toggleW,
+        'render-scale',
+        {
+          pressed: s.renderScale === 'high',
+          size: 13,
+          label: `描画解像度：${s.renderScale === 'high' ? '高' : '標準'}`,
+        },
+      );
       button(
         'background',
         s.backgroundMode ? '裏画面でも動作：オン' : '裏画面でも動作：オフ',
-        x + 16,
-        y + (sideBySide ? 146 : 232),
-        inside,
+        sideBySide ? x + 24 + toggleW : x + 16,
+        sideBySide ? toggleY : y + 286,
+        toggleW,
         'background',
         {
           pressed: s.backgroundMode,

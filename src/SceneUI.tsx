@@ -29,6 +29,7 @@ import {
   restoreStage,
   toggleSound,
   toggleBackgroundMode,
+  toggleRenderScale,
   humanInteract,
   humanDash,
   clearHands,
@@ -374,6 +375,9 @@ function Screen() {
         break;
       case 'background':
         toggleBackgroundMode();
+        break;
+      case 'render-scale':
+        toggleRenderScale();
         break;
       case 'camera':
         setCameraMode(String(value));

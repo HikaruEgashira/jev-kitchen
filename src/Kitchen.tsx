@@ -824,6 +824,7 @@ class GraphicsBoundary extends Component<
 }
 
 export default function Kitchen() {
+  const renderScale = useKitchen((s) => s.renderScale);
   const [error, setError] = useState(false);
   const [graphicsKey, setGraphicsKey] = useState(0);
   const initialization = useRef<Promise<THREE.WebGPURenderer> | null>(null);
@@ -884,7 +885,7 @@ export default function Kitchen() {
               ),
           })}
           camera={{ position: [10, 15, 18], zoom: 45, near: 0.1, far: 100 }}
-          dpr={[1, 1.5]}
+          dpr={renderScale === 'high' ? [1.5, 2] : [1, 1.5]}
           shadows={{ type: THREE.PCFShadowMap }}
           gl={(props) => {
             // A remounted Canvas (including HMR) must not reuse a detached GPU target.
