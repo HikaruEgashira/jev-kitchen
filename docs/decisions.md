@@ -63,7 +63,7 @@ WebGPU必須の構成は維持し、uikitのWebGL用パネルマテリアルは�
 
 共有された結果ごとのOGPカードは作らないまま、サイト自体のリンクプレビュー用に`public/og.png`（1200×630）を1枚だけ持つ。クローラは`og:*`と`twitter:card`を`index.html`から読み、画像は絶対URLで`/og.png`を指す。
 
-画像は`scripts/render-og.sh`が`docs/sidekick-intro-30s.mp4`のLv10のコマから焼き、タイトルと`ふたりで、ひと皿。`を重ねる。ffmpegは開発機の道具なので`pnpm build`には載せず、キーアートか文言を変えたときだけ手で実行して差分をコミットする。
+画像は`assets/og-background.png`（ゲームをLv12で実際に描画した1コマ）に、`scripts/render-og.sh`が下部の帯と`SIDEKICK kitchen`を重ねて作る。録画の切り出しではなく生の描画を撮るのは、動画圧縮のぼけを持ち込まないため。ffmpegは開発機の道具なので`pnpm build`には載せず、キーアートかタイトルを変えたときだけ手で実行して差分をコミットする。
 
 ## ステージ一覧は開店準備から再開する
 
