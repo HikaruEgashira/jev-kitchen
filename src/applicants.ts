@@ -28,7 +28,6 @@ export function drawApplicants(hired: string[], random: () => number = Math.rand
   }
   if (!hired.includes('veteran') && random() < 0.01) pool.unshift('veteran');
   const applicants = pool.slice(0, 3);
-  // Offer the affordable first cook, then the reserve, without a lucky draw.
   const cook = ['chef', 'sous'].find((id) => pool.includes(id));
   if (cook && !applicants.includes(cook)) applicants[applicants.length - 1] = cook;
   return applicants;

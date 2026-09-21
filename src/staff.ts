@@ -2,7 +2,6 @@ import { levelConfig } from './progression.ts';
 import { investmentCost } from './equipment.ts';
 import type { GameState, StaffProfile, StaffState } from './types.ts';
 
-// Staff profiles keep movement, capabilities, payroll, and fatigue in one table.
 export const STAFF: Record<string, StaffProfile> = Object.freeze({
   helper: {
     name: '見習いのハル',
@@ -194,8 +193,6 @@ interface PerformanceRow {
   higher: boolean;
 }
 
-// Relative strengths for the hiring screen. Higher ratio is always better, so
-// slower decisions and chop/cook time multipliers invert before normalizing.
 const PERFORMANCE: readonly PerformanceRow[] = Object.freeze([
   { key: 'speed', label: '速さ', read: (p) => p.speed, higher: true },
   { key: 'decision', label: '判断', read: (p) => p.decisionMs, higher: false },
