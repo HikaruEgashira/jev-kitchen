@@ -21,6 +21,8 @@ const { values } = parseArgs({
     repeats: { type: 'string', default: '3' },
     output: { type: 'string', default: '/tmp/jev-bench-report.md' },
     origin: { type: 'string', default: 'http://127.0.0.1:8787' },
+    frequency: { type: 'string', default: '3' },
+    pace: { type: 'string', default: '400' },
   },
 });
 const until = Number(values.until);
@@ -75,6 +77,8 @@ for (const model of models) {
     model,
     '--repeats',
     String(repeats),
+    '--pace',
+    values.pace,
     '--output',
     latencyOut,
   ]).status;
@@ -95,6 +99,8 @@ for (const model of models) {
     '--model',
     model,
     '--accelerated',
+    '--frequency',
+    values.frequency,
     '--until',
     String(until),
     '--output',
@@ -119,7 +125,8 @@ const lines = [
   `- リポジトリ: \`${revision}\``,
   `- 対象: ${models.map((id) => `${MODEL_NAMES[id]} (${id})`).join('、')}`,
   `- 実行順: ①固定局面レイテンシ（median・p95）→ ②Lv${until}キャンペーンスコア`,
-  `- 接続先: \`${values.origin}\``,
+  `- 接続先: \`${values.origin}\`（frequency ${values.frequency}Hz、corpus pace ${values.pace}ms）`,
+  '- 注: ローカルの rate limit（240/min/IP）を下回るよう frequency 3Hz で実施。旧5Hz計測とは条件が異なるが、3モデル間の比較は同一条件。',
   '',
   '## ① レイテンシ（corpus 往復 ms、小さいほど良い）',
   '',

@@ -52,8 +52,11 @@ const { values } = parseArgs({
     repeats: { type: 'string', default: '3' },
     output: { type: 'string', default: '/tmp/jev-context-evaluation.json' },
     model: { type: 'string', default: 'jev' },
+    pace: { type: 'string', default: '0' },
   },
 });
+const pace = Number(values.pace);
+if (!Number.isFinite(pace) || pace < 0 || pace > 5000) throw new Error('pace must be 0..5000');
 const repeats = Number(values.repeats);
 if (!Number.isInteger(repeats) || repeats < 1 || repeats > 20)
   throw new Error('repeats must be 1..20');
@@ -103,6 +106,7 @@ for (let repeat = 0; repeat < repeats; repeat++) {
         bytes: Buffer.byteLength(body),
         latencyMs: Math.round(performance.now() - started),
       });
+      if (pace) await new Promise((resolve) => setTimeout(resolve, pace));
     }
   }
 }

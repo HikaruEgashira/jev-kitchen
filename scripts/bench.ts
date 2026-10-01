@@ -10,8 +10,12 @@ const { values } = parseArgs({
     output: { type: 'string', default: '/tmp/jev-bench.json' },
     accelerated: { type: 'boolean', default: false },
     model: { type: 'string', default: 'jev' },
+    frequency: { type: 'string', default: '5' },
   },
 });
+const frequency = Number(values.frequency);
+if (!Number.isFinite(frequency) || frequency < 0.1 || frequency > 10)
+  throw new Error('frequency must be 0.1..10');
 const until = Number(values.until);
 if (!Number.isInteger(until) || until < 1 || until > 100) throw new Error('until must be 1..100');
 const modelNames: Record<string, string> = {
@@ -66,7 +70,11 @@ const unsubscribe = useBenchmark.subscribe(({ splits }) => {
 });
 process.on('SIGINT', () => stopBenchmark('Interrupted'));
 try {
-  await runBenchmark({ model: { id: modelId, name: modelNames[modelId] }, maxRequests: 10000 });
+  await runBenchmark({
+    model: { id: modelId, name: modelNames[modelId] },
+    frequency,
+    maxRequests: 10000,
+  });
   const result = useBenchmark.getState().results.at(-1);
   if (!result) throw new Error('benchmark produced no result');
   const artifact = {
