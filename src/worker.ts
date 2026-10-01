@@ -66,8 +66,8 @@ const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_CAMPAIGN_BYTES = 512 * 1024;
 const MAX_UPSTREAM_BYTES = 128 * 1024;
 const UPSTREAM_TIMEOUT_MS = 8_000;
-/** 27B decision models spike beyond the interactive 8s on cold Workers AI shards. */
-const CLOUDFLARE_DECISION_TIMEOUT_MS = 30_000;
+/** Decision models can stall on cold Workers AI shards well past warm latency. */
+const CLOUDFLARE_DECISION_TIMEOUT_MS = 60_000;
 const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 const MAX_RUN_DECISIONS = 20_000;
 const ACTION_ID = /^[a-z][a-z0-9_]{0,63}$/;

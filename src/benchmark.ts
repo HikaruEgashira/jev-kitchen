@@ -131,10 +131,10 @@ export const useBenchmark = create<BenchState>(() => ({
 let controller: AbortController | null = null;
 const sleep = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 50));
 
-// The worker allows 30s for Cloudflare decision models; the client must outwait
-// that instead of aborting a legitimate 27B cold-shard response at 10s.
+// The worker allows 60s for Cloudflare decision models; the client must outwait
+// that instead of aborting a legitimate cold-shard response at 10s.
 const decisionTimeoutMs = (modelId: unknown): number =>
-  modelId === 'clef' || modelId === 'clef-flash' ? 35_000 : 10_000;
+  modelId === 'clef' || modelId === 'clef-flash' ? 65_000 : 10_000;
 
 // Movement aliases compete with the cooking action they duplicate. Keep every
 // control reachable, but ask for free navigation separately from useful work.
