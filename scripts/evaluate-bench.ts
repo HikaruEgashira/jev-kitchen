@@ -87,7 +87,9 @@ for (let repeat = 0; repeat < repeats; repeat++) {
       });
       const started = performance.now();
       const response = await apiFetch('/api/bench/decide', body, 'bench', {
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(
+          modelId === 'clef' || modelId === 'clef-flash' ? 35_000 : 10_000,
+        ),
       });
       if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
       const data = await response.json();

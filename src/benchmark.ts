@@ -131,6 +131,11 @@ export const useBenchmark = create<BenchState>(() => ({
 let controller: AbortController | null = null;
 const sleep = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 50));
 
+// The worker allows 30s for Cloudflare decision models; the client must outwait
+// that instead of aborting a legitimate 27B cold-shard response at 10s.
+const decisionTimeoutMs = (modelId: unknown): number =>
+  modelId === 'clef' || modelId === 'clef-flash' ? 35_000 : 10_000;
+
 // Movement aliases compete with the cooking action they duplicate. Keep every
 // control reachable, but ask for free navigation separately from useful work.
 export function playingCandidates(g: GameState, navigating = false): Candidate[] {
@@ -893,7 +898,7 @@ export async function runBenchmark({
             data = await directDecision(
               endpoint,
               body,
-              AbortSignal.any([session.signal, AbortSignal.timeout(10000)]),
+              AbortSignal.any([session.signal, AbortSignal.timeout(decisionTimeoutMs(model.id))]),
             );
           } else {
             const response = await apiFetch(
@@ -901,7 +906,10 @@ export async function runBenchmark({
               body,
               autoplay ? 'play' : 'bench',
               {
-                signal: AbortSignal.any([session.signal, AbortSignal.timeout(10000)]),
+                signal: AbortSignal.any([
+                  session.signal,
+                  AbortSignal.timeout(decisionTimeoutMs(model.id)),
+                ]),
               },
             );
             if (!response.ok) throw new Error(`Decision endpoint: HTTP ${response.status}`);
