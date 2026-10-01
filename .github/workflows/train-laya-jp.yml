@@ -1,71 +1,112 @@
 name: train-laya-jp
-
-# RLCD fine-tune of laya-multilingual on jev-bench rollout data.
-# Runs on a self-hosted runner with GPU/MPS (labels: laya-train) because the
-# torch+model download (~3GB) and training belong outside CI runners.
 on:
   workflow_dispatch:
     inputs:
       record:
-        description: "Path to a checked-in --record JSONL (decision + shift lines)"
+        description: "Committed --record JSONL (decision + shift lines)"
         required: false
         default: "train/data/teacher.jsonl"
       epochs:
         description: "RLCD epochs"
-        required: false
-        default: "3"
+        type: number
+        default: 3
       game_weight:
         description: "Weight of the bench-outcome REINFORCE term"
-        required: false
-        default: "1.0"
+        type: number
+        default: 1.0
+      max_price:
+        description: "Max GPU $/hour for the one-job runner"
+        type: number
+        default: 0.5
 
 permissions:
   contents: read
 
+concurrency:
+  group: runpod-gpu
+  cancel-in-progress: false
+
 jobs:
-  train:
-    runs-on: [self-hosted, laya-train]
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/create-github-app-token@v1
+        id: app
+        with:
+          app-id: ${{ vars.RUNNER_APP_ID }}
+          private-key: ${{ secrets.RUNNER_APP_PRIVATE_KEY }}
+          permission-administration: write
+      - name: Create a one-job GPU runner on RunPod
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          RUN_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python3 infra/runpod/runner.py start --run "$RUN_KEY" --max-price "${{ inputs.max_price }}"
 
-      - name: Python and training environment
+  gpu:
+    needs: provision
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - gha-HikaruEgashira-jev-kitchen-${{ github.run_id }}-${{ github.run_attempt }}
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Python + torch + laya
         run: |
           python3 -m venv .venv-train
           source .venv-train/bin/activate
+          pip install --quiet --upgrade pip
           pip install --quiet torch transformers datasets safetensors huggingface_hub laya
-          echo "VIRTUAL_ENV=$PWD/.venv-train" >> "$GITHUB_ENV"
 
-      - name: RLCD training (laya-jp)
+      - name: Verify CUDA
         run: |
           source .venv-train/bin/activate
-          test -f "${{ inputs.record }}" || { echo "record file missing: ${{ inputs.record }}"; exit 1; }
+          nvidia-smi
+          python -c "import torch; assert torch.cuda.is_available(); print(torch.cuda.get_device_name())"
+
+      - name: RLCD training (laya-jp)
+        env:
+          PYTHONHASHSEED: '20261002'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          source .venv-train/bin/activate
+          test -f "${{ inputs.record }}" || { echo "record missing: ${{ inputs.record }}"; exit 1; }
           python train/laya_jp.py \
             --record "${{ inputs.record }}" \
             --epochs "${{ inputs.epochs }}" \
             --game-weight "${{ inputs.game_weight }}" \
             --output-dir train/laya-jp-out
 
-      - name: Upload checkpoint
-        uses: actions/upload-artifact@v4
-        with:
-          name: laya-jp-checkpoint
-          path: train/laya-jp-out/
-          retention-days: 7
-
-      - name: Verify checkpoint serves
+      - name: Evaluate the checkpoint on the corpus
         run: |
           source .venv-train/bin/activate
-          python - <<'EOF'
-          import json
-          from pathlib import Path
-          from safetensors.torch import load_file
-          from transformers import AutoTokenizer
-          from laya.common import build_model
-          d = Path("train/laya-jp-out")
-          cfg = json.load(open(d / "rl_agent_config.json"))
-          m = build_model(cfg, encoder_dir=d / "encoder")
-          m.load_state_dict(load_file(str(d / "model.safetensors")), strict=True)
-          print("verify OK: checkpoint loads, model_name =", cfg.get("model_name"))
-          EOF
+          python train/eval_jp.py --model-dir train/laya-jp-out 2>&1 | tee train/laya-jp-eval.txt
+
+      - name: Preserve the trained model
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: laya-jp-model-${{ github.run_id }}-${{ github.run_attempt }}
+          path: train/laya-jp-out/
+          include-hidden-files: true
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Preserve evaluation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: laya-jp-eval-${{ github.run_id }}-${{ github.run_attempt }}
+          path: train/laya-jp-eval.txt
+          retention-days: 30
+          if-no-files-found: warn

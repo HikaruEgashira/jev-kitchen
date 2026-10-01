@@ -1,0 +1,37 @@
+name: runpod-cleanup
+on:
+  workflow_run:
+    workflows: [train-laya-jp]
+    types: [completed]
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/create-github-app-token@v1
+        id: app
+        with:
+          app-id: ${{ vars.RUNNER_APP_ID }}
+          private-key: ${{ secrets.RUNNER_APP_PRIVATE_KEY }}
+          permission-administration: write
+      - name: Reclaim completed or expired pods
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          EVENT: ${{ github.event_name }}
+          RUN_KEY: ${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+        run: |
+          if [ "$EVENT" = workflow_run ]; then
+            python3 infra/runpod/runner.py stop --run "$RUN_KEY"
+          else
+            python3 infra/runpod/runner.py reap
+          fi
