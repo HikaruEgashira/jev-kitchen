@@ -7,7 +7,7 @@ import { parseArgs } from 'node:util';
  * decision corpus, then the in-game score campaign. Both go through the same
  * Worker (BENCH_ORIGIN). Writes a markdown report in that order.
  */
-const scriptDir = new URL('.', import.meta.url);
+const scriptDir = new URL('../', import.meta.url);
 const MODEL_NAMES: Record<string, string> = {
   jev: 'Jev (TypeSafe)',
   clef: 'Clef (@cf/cloudflare/clef)',
@@ -42,7 +42,7 @@ const outputUrl = new URL(values.output, import.meta.url);
 mkdirSync(new URL('.', outputUrl).pathname, { recursive: true });
 
 function run(script: string, args: string[]): { status: number | null; stdout: string } {
-  const result = spawnSync('node', [script, ...args], {
+  const result = spawnSync('node', [new URL(script, scriptDir).pathname, ...args], {
     cwd: scriptDir.pathname,
     env: { ...process.env, BENCH_ORIGIN: values.origin },
     encoding: 'utf8',
