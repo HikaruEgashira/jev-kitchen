@@ -12,6 +12,7 @@ jev-kitchen（`~/ghq/github.com/HikaruEgashira/jev-kitchen`）で、状態→次
 ## 前提
 
 - リポジトリ: `~/ghq/github.com/HikaruEgashira/jev-kitchen`（main で作業、`pnpm test` 等の QA 後に push）
+- **モデル訓練はローカル Mac で禁止**（貧弱）。RunPod GPU pod で行う（`train/runpod_train.sh` 参照）。評価（推論のみ）はローカル可。
 - ローカル Worker を起動して接続する: `pnpm dev:api`（port 8787、`.dev.vars` の `TYPESAFE_API_KEY` で jev=typesafe 経由、AI binding で clef 系）
 - 全コマンドに `BENCH_ORIGIN=http://127.0.0.1:8787` を渡す（未指定でもデフォルトは同値）
 
