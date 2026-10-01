@@ -61,8 +61,8 @@ const repeats = Number(values.repeats);
 if (!Number.isInteger(repeats) || repeats < 1 || repeats > 20)
   throw new Error('repeats must be 1..20');
 const modelId = values.model;
-if (!['jev', 'clef', 'clef-flash'].includes(modelId))
-  throw new Error('model must be jev, clef or clef-flash');
+if (!['jev', 'clef', 'clef-flash', 'laya'].includes(modelId))
+  throw new Error('model must be jev, clef, clef-flash or laya');
 const corpus = readCorpus(new URL('../test/fixtures/bench-decisions.json', import.meta.url));
 for (const fixture of corpus.cases) {
   if (
