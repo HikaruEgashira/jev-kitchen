@@ -26,7 +26,14 @@ jev-kitchen（`~/ghq/github.com/HikaruEgashira/jev-kitchen`）で、状態→次
 - `/api/bench/models` のレジストリと `BUILTIN_BENCH_MODELS` に自動で載る。
 - サーバ側の Jev 互換プロバイダは `BENCH_ENDPOINTS`（`.dev.vars`）に登録する。Jev 形式 `{state, questions}` を Bearer 認証で返す https エンドポイントなら何でも良い。例（Laya、ローカル評価用）:
   ```json
-  {"laya": {"name": "Laya", "url": "https://jev.plenoai.com/v1/systemone", "token": "<key>", "model": "english"}}
+  {
+    "laya": {
+      "name": "Laya",
+      "url": "https://jev.plenoai.com/v1/systemone",
+      "token": "<key>",
+      "model": "english"
+    }
+  }
   ```
   - プロバイダ側の契約: `instructions` 必須・`criteria` は choice で 2 以上・余分な key は forbid・`state` は string/dict 可・`model` は english/multilingual/typed-decisions。
   - ユーザーキーは provider の keys ページで発行し、ローカルファイル（例 `~/.config/jev/loadtest.key`）から読む。
