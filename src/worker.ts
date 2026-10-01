@@ -738,7 +738,7 @@ function validateState(state: unknown): string | null {
 
 function projectDecision(raw: unknown): { answers: { next_action: Record<string, unknown> } } {
   const parsed = raw as {
-    answers?: { next_action?: { choice?: unknown; confidence?: unknown } };
+    answers?: { next_action?: { choice?: unknown; confidence?: unknown; probabilities?: unknown } };
   } | null;
   const answer = parsed?.answers?.next_action;
   if (!answer || typeof answer.choice !== 'string' || !ACTION_ID.test(answer.choice)) {
@@ -748,6 +748,16 @@ function projectDecision(raw: unknown): { answers: { next_action: Record<string,
   const nextAction: Record<string, unknown> = { type: 'choice', choice: answer.choice };
   if (typeof answer.confidence === 'number' && Number.isFinite(answer.confidence)) {
     nextAction.confidence = answer.confidence;
+  }
+  // Keep the full option distribution when the upstream supplies it: bench
+  // rollouts record it as the teacher's gold for RLCD-style distillation.
+  if (
+    answer.probabilities &&
+    typeof answer.probabilities === 'object' &&
+    !Array.isArray(answer.probabilities) &&
+    Object.values(answer.probabilities).every((p) => typeof p === 'number' && Number.isFinite(p))
+  ) {
+    nextAction.probabilities = answer.probabilities as Record<string, number>;
   }
   return { answers: { next_action: nextAction } };
 }

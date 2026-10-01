@@ -639,7 +639,15 @@ async function directDecision(
   signal: AbortSignal,
 ): Promise<{
   ok: true;
-  result: { answers?: { next_action?: { choice?: string; confidence?: number } } };
+  result: {
+    answers?: {
+      next_action?: {
+        choice?: string;
+        confidence?: number;
+        probabilities?: Record<string, number>;
+      };
+    };
+  };
   via: string;
 }> {
   let response: Response;
@@ -662,16 +670,41 @@ async function directDecision(
   return { ok: true, result: await response.json(), via: 'browser-direct' };
 }
 
+export interface DecisionRecord {
+  k: number;
+  level: number;
+  phase: 'preparation' | 'playing';
+  stage: ViewState['stage'];
+  choice: string;
+  confidence: number | null;
+  gold: Record<string, number> | null;
+  state: DecisionInput;
+  questions: ReturnType<typeof buildQuestions>;
+}
+
+export interface ShiftRecord {
+  level: number;
+  cleared: boolean;
+  score: number;
+  served: number;
+  quota: number;
+}
+
 export async function runBenchmark({
   model,
   frequency = 5,
   maxRequests = 5000,
   autoplay = false,
+  onDecision,
+  onShift,
 }: {
   model: { id: unknown; name: unknown; endpoint?: unknown } | null;
   frequency?: number;
   maxRequests?: number;
   autoplay?: boolean;
+  /** Training-log hooks (RLCD rollouts): one line per decision / per shift. */
+  onDecision?: (record: DecisionRecord) => void;
+  onShift?: (record: ShiftRecord) => void;
 }) {
   if (useBenchmark.getState().running || !useKitchen.getState().ready) return;
   if (autoplay && !useKitchen.getState().autoMode) return;
@@ -809,6 +842,13 @@ export async function runBenchmark({
               applicants: [...state.applicants],
             });
             useBenchmark.setState({ splits: result.levels.filter((level) => level.cleared) });
+            onShift?.({
+              level: g.level,
+              cleared: state.cleared,
+              score: g.score,
+              served: g.served,
+              quota: g.quota,
+            });
           }
           if (!state.cleared || g.level >= MAX_LEVEL) {
             result.status = state.cleared ? 'completed' : 'failed';
@@ -891,7 +931,15 @@ export async function runBenchmark({
         useBenchmark.setState({ requests: result.requests, action: '判断中…' });
         let data: {
           ok?: boolean;
-          result?: { answers?: { next_action?: { choice?: string; confidence?: number } } };
+          result?: {
+            answers?: {
+              next_action?: {
+                choice?: string;
+                confidence?: number;
+                probabilities?: Record<string, number>;
+              };
+            };
+          };
           via?: string;
         };
         try {
@@ -965,8 +1013,20 @@ export async function runBenchmark({
           latencyMs: Math.round(latencies.at(-1) ?? 0),
           via: data.via,
           confidence: data.result?.answers?.next_action?.confidence ?? null,
+          probabilities: data.result?.answers?.next_action?.probabilities ?? null,
           candidateCount: candidates.length,
           requestBytes: new TextEncoder().encode(body).length,
+        });
+        onDecision?.({
+          k: result.requests,
+          level: g.level,
+          phase: preparing ? 'preparation' : 'playing',
+          stage: preparing ? plan.stage : null,
+          choice: selected.id,
+          confidence: data.result?.answers?.next_action?.confidence ?? null,
+          gold: data.result?.answers?.next_action?.probabilities ?? null,
+          state: request.state as DecisionInput,
+          questions: request.questions,
         });
         if (preparing && applied && selected.id !== 'open_shift') {
           const signature = preparationKey(plan);

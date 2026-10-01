@@ -137,6 +137,8 @@ export interface BenchDecision {
   latencyMs?: number;
   via?: string;
   confidence?: number | null;
+  /** Teacher/full option distribution when the upstream returns one. */
+  probabilities?: Record<string, number> | null;
   candidateCount?: number;
   requestBytes?: number;
 }

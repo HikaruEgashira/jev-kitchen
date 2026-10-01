@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { createWriteStream, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { useKitchen, tick } from '../src/game.ts';
 import { runBenchmark, stopBenchmark, useBenchmark, kitchenHasWork } from '../src/benchmark.ts';
@@ -11,6 +11,7 @@ const { values } = parseArgs({
     accelerated: { type: 'boolean', default: false },
     model: { type: 'string', default: 'jev' },
     frequency: { type: 'string', default: '5' },
+    record: { type: 'string', default: '' },
   },
 });
 const frequency = Number(values.frequency);
@@ -71,11 +72,21 @@ const unsubscribe = useBenchmark.subscribe(({ splits }) => {
   if (last.level >= until) stopBenchmark(`Lv${until} verification complete`);
 });
 process.on('SIGINT', () => stopBenchmark('Interrupted'));
+const recordStream =
+  typeof values.record === 'string' && values.record
+    ? createWriteStream(values.record, { flags: 'a' })
+    : null;
 try {
   await runBenchmark({
     model: { id: modelId, name: modelNames[modelId] },
     frequency,
     maxRequests: 10000,
+    ...(recordStream
+      ? {
+          onDecision: (r) => recordStream.write(`${JSON.stringify({ kind: 'decision', ...r })}\n`),
+          onShift: (r) => recordStream.write(`${JSON.stringify({ kind: 'shift', ...r })}\n`),
+        }
+      : {}),
   });
   const result = useBenchmark.getState().results.at(-1);
   if (!result) throw new Error('benchmark produced no result');
