@@ -51,11 +51,15 @@ const { values } = parseArgs({
   options: {
     repeats: { type: 'string', default: '3' },
     output: { type: 'string', default: '/tmp/jev-context-evaluation.json' },
+    model: { type: 'string', default: 'jev' },
   },
 });
 const repeats = Number(values.repeats);
 if (!Number.isInteger(repeats) || repeats < 1 || repeats > 20)
   throw new Error('repeats must be 1..20');
+const modelId = values.model;
+if (!['jev', 'clef', 'clef-flash'].includes(modelId))
+  throw new Error('model must be jev, clef or clef-flash');
 const corpus = readCorpus(new URL('../test/fixtures/bench-decisions.json', import.meta.url));
 for (const fixture of corpus.cases) {
   if (
@@ -74,7 +78,7 @@ for (let repeat = 0; repeat < repeats; repeat++) {
     // Alternate order so connection warmup does not always favor one variant.
     for (const variant of repeat % 2 ? ['compact', 'full'] : ['full', 'compact']) {
       const body = JSON.stringify({
-        modelId: 'jev',
+        modelId,
         state: variant === 'compact' ? compactDecisionState(fixture.state) : fixture.state,
         questions: fixture.questions,
       });
@@ -118,7 +122,7 @@ for (const split of ['calibration', 'holdout']) {
 }
 const result = {
   sourceRevision: corpus.sourceRevision,
-  model: 'jev',
+  model: modelId,
   repeats,
   summaries,
   observations,

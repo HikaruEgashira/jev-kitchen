@@ -88,6 +88,8 @@ test('benchmark registry exposes labels only and forwards only to a server-regis
   assert.deepEqual(await registry.json(), {
     models: [
       { id: 'jev', name: 'Jev' },
+      { id: 'clef', name: 'Clef' },
+      { id: 'clef-flash', name: 'Clef Flash' },
       { id: 'custom', name: 'Custom model' },
     ],
   });
@@ -122,6 +124,51 @@ test('benchmark registry exposes labels only and forwards only to a server-regis
     Response.json({ answers: { next_action: { choice: 'outside' } } }),
   );
   assert.equal((await worker.fetch(post('/api/bench/decide', body), configured)).status, 502);
+});
+
+test('built-in Cloudflare decision models route to the AI binding with the short payload name', async (t) => {
+  const seen: Array<{ model: string; input: Record<string, unknown> }> = [];
+  const configured: Env = {
+    ...env(),
+    AI: {
+      async run(model: string, input: Record<string, unknown>) {
+        seen.push({ model, input });
+        return { answers: { next_action: { choice: 'wait', confidence: 0.8 } } };
+      },
+    },
+  };
+  for (const [id, full] of [
+    ['clef', '@cf/cloudflare/clef'],
+    ['clef-flash', '@cf/cloudflare/clef-flash'],
+  ]) {
+    const response = await worker.fetch(
+      post('/api/bench/decide', { modelId: id, state: {}, questions: validQuestions }),
+      configured,
+    );
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).result.answers.next_action.choice, 'wait');
+    assert.equal(seen.at(-1)?.model, full);
+    assert.equal(seen.at(-1)?.input.model, id);
+    assert.deepEqual(seen.at(-1)?.input.state, {});
+  }
+  assert.equal(
+    (
+      await worker.fetch(
+        post('/api/bench/decide', { modelId: 'clef9', state: {}, questions: validQuestions }),
+        configured,
+      )
+    ).status,
+    400,
+  );
+  // A server endpoint cannot shadow a built-in decision model.
+  const shadowed = {
+    ...configured,
+    BENCH_ENDPOINTS: JSON.stringify({ clef: { url: 'https://model.example/decision' } }),
+  };
+  assert.equal(
+    (await worker.fetch(new Request('https://kitchen.test/api/bench/models'), shadowed)).status,
+    503,
+  );
 });
 
 test('benchmark default Jev and configuration guards preserve the request boundary', async () => {

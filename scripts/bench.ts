@@ -9,10 +9,18 @@ const { values } = parseArgs({
     until: { type: 'string', default: '30' },
     output: { type: 'string', default: '/tmp/jev-bench.json' },
     accelerated: { type: 'boolean', default: false },
+    model: { type: 'string', default: 'jev' },
   },
 });
 const until = Number(values.until);
 if (!Number.isInteger(until) || until < 1 || until > 100) throw new Error('until must be 1..100');
+const modelNames: Record<string, string> = {
+  jev: 'Jev',
+  clef: 'Clef',
+  'clef-flash': 'Clef Flash',
+};
+const modelId = values.model;
+if (!Object.hasOwn(modelNames, modelId)) throw new Error('model must be jev, clef or clef-flash');
 const revision = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const dirty = Boolean(execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim());
 const origin = new URL(process.env.BENCH_ORIGIN ?? 'http://127.0.0.1:8787');
@@ -58,7 +66,7 @@ const unsubscribe = useBenchmark.subscribe(({ splits }) => {
 });
 process.on('SIGINT', () => stopBenchmark('Interrupted'));
 try {
-  await runBenchmark({ model: { id: 'jev', name: 'Jev' }, maxRequests: 10000 });
+  await runBenchmark({ model: { id: modelId, name: modelNames[modelId] }, maxRequests: 10000 });
   const result = useBenchmark.getState().results.at(-1);
   if (!result) throw new Error('benchmark produced no result');
   const artifact = {

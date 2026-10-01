@@ -50,6 +50,15 @@ export interface Env {
 
 const JEV_MODEL = 'typesafe/jev';
 const LLM_MODEL = '@cf/meta/llama-3.1-8b-instruct';
+/** Cloudflare decision models, same state/questions interface as Jev. */
+const CLOUDFLARE_DECISION_MODELS: Record<string, { id: string; name: string; short: string }> = {
+  clef: { id: '@cf/cloudflare/clef', name: 'Clef', short: 'clef' },
+  'clef-flash': {
+    id: '@cf/cloudflare/clef-flash',
+    name: 'Clef Flash',
+    short: 'clef-flash',
+  },
+};
 const TYPESAFE_URL = 'https://api.typesafe.ai/v1/systemone';
 const DEFAULT_TYPESAFE_MODEL = 'jev-latest';
 const MAX_REQUEST_BYTES = 64 * 1024;
@@ -57,9 +66,12 @@ const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_CAMPAIGN_BYTES = 512 * 1024;
 const MAX_UPSTREAM_BYTES = 128 * 1024;
 const UPSTREAM_TIMEOUT_MS = 8_000;
+/** 27B decision models spike beyond the interactive 8s on cold Workers AI shards. */
+const CLOUDFLARE_DECISION_TIMEOUT_MS = 30_000;
 const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 const MAX_RUN_DECISIONS = 20_000;
 const ACTION_ID = /^[a-z][a-z0-9_]{0,63}$/;
+const BUILTIN_BENCH_MODELS = new Set(['jev', ...Object.keys(CLOUDFLARE_DECISION_MODELS)]);
 
 function runStore(env: Env): RunStore | null {
   if (env.RUN_STORE) return env.RUN_STORE;
@@ -178,6 +190,21 @@ function publicFailure(error: unknown): string {
  * with `2021: Insufficient AI Gateway credits` on an uncredited account, so the
  * direct API is the working default for this demo.
  */
+async function runCloudflareDecision(
+  env: Env,
+  modelId: string,
+  input: { state: unknown; questions: unknown },
+): Promise<{ result: unknown; model: string | null; via: 'workers-ai' }> {
+  const model = CLOUDFLARE_DECISION_MODELS[modelId];
+  // Clef's binding schema requires the short model name inside the payload.
+  const raw = await withTimeout(
+    Promise.resolve().then(() => env.AI.run(model.id, { model: model.short, ...input })),
+    CLOUDFLARE_DECISION_TIMEOUT_MS,
+  );
+  assertUpstreamResult(raw);
+  return { result: raw, model: model.id, via: 'workers-ai' };
+}
+
 async function runJev(
   env: Env,
   input: { state: unknown; questions: unknown },
@@ -225,7 +252,7 @@ function benchEndpoints(env: Env): Record<string, BenchEndpoint> {
   for (const [id, entry] of Object.entries(entries)) {
     if (
       !ACTION_ID.test(id) ||
-      id === 'jev' ||
+      BUILTIN_BENCH_MODELS.has(id) ||
       !entry ||
       typeof entry.url !== 'string' ||
       (entry.name !== undefined && (typeof entry.name !== 'string' || entry.name.length > 80)) ||
@@ -345,6 +372,10 @@ async function benchmark(request: Request, env: Env, list: boolean): Promise<Res
     return json({
       models: [
         { id: 'jev', name: 'Jev' },
+        ...Object.entries(CLOUDFLARE_DECISION_MODELS).map(([id, model]) => ({
+          id,
+          name: model.name,
+        })),
         ...Object.entries(endpoints).map(([id, endpoint]) => ({ id, name: endpoint.name || id })),
       ],
     });
@@ -361,7 +392,7 @@ async function benchmark(request: Request, env: Env, list: boolean): Promise<Res
   if (invalid) return json({ ok: false, error: invalid }, 400);
   if (
     typeof body.modelId !== 'string' ||
-    (body.modelId !== 'jev' && !Object.hasOwn(endpoints, body.modelId))
+    (!BUILTIN_BENCH_MODELS.has(body.modelId) && !Object.hasOwn(endpoints, body.modelId))
   )
     return json({ ok: false, error: 'unknown model' }, 400);
   const nextAction = body.questions.next_action;
@@ -370,10 +401,11 @@ async function benchmark(request: Request, env: Env, list: boolean): Promise<Res
   const t0 = Date.now();
   try {
     const input = { state: body.state, questions: body.questions };
-    const { result, via } =
-      body.modelId === 'jev'
+    const { result, via } = BUILTIN_BENCH_MODELS.has(body.modelId)
+      ? body.modelId === 'jev'
         ? await runJev(env, input)
-        : { result: await callEndpoint(endpoints[body.modelId], input), via: 'decision-endpoint' };
+        : await runCloudflareDecision(env, body.modelId, input)
+      : { result: await callEndpoint(endpoints[body.modelId], input), via: 'decision-endpoint' };
     const projected = projectDecision(result);
     if (!Object.hasOwn(nextAction.criteria ?? {}, projected.answers.next_action.choice as string))
       throw new UpstreamFailureError();

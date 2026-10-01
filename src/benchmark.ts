@@ -569,11 +569,16 @@ export function benchRequest(
   };
 }
 
-export function latencyStats(values: number[]): { meanMs: number | null; p95Ms: number | null } {
+export function latencyStats(values: number[]): {
+  meanMs: number | null;
+  p95Ms: number | null;
+  medianMs: number | null;
+} {
   const sorted = [...values].sort((a, b) => a - b);
   return {
     meanMs: sorted.length ? Math.round(sorted.reduce((a, b) => a + b, 0) / sorted.length) : null,
     p95Ms: sorted.length ? Math.round(sorted[Math.ceil(sorted.length * 0.95) - 1]) : null,
+    medianMs: sorted.length ? Math.round(sorted[Math.floor(sorted.length / 2)]) : null,
   };
 }
 

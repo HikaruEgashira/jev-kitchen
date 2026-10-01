@@ -204,6 +204,7 @@ export interface BenchResult {
   activeMs: number;
   meanMs?: number | null;
   p95Ms?: number | null;
+  medianMs?: number | null;
   finalShift: BenchFinalShift;
 }
 

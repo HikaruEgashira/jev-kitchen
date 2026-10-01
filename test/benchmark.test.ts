@@ -327,8 +327,8 @@ test('complete shifts are recorded and repeated attempts reset the starting cond
     ),
   );
   assert.equal(writes.length, 0);
-  assert.deepEqual(latencyStats([100, 200, 300, 400]), { meanMs: 250, p95Ms: 400 });
-  assert.deepEqual(latencyStats([]), { meanMs: null, p95Ms: null });
+  assert.deepEqual(latencyStats([100, 200, 300, 400]), { meanMs: 250, p95Ms: 400, medianMs: 300 });
+  assert.deepEqual(latencyStats([]), { meanMs: null, p95Ms: null, medianMs: null });
 });
 
 test('dash, directional movement, interruption and boosts use the human mechanics', () => {
