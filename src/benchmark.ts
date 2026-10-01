@@ -748,6 +748,7 @@ export async function runBenchmark({
       decisions: [],
       reachedLevel: 1,
       clearedLevels: 0,
+      score: 0,
       wallMs: 0,
       activeMs: 0,
       finalShift: {
@@ -993,6 +994,7 @@ export async function runBenchmark({
     Object.assign(result, latencyStats(latencies), {
       reachedLevel: g.level,
       clearedLevels: result.levels.filter((level) => level.cleared).length,
+      score: result.levels.reduce((sum, level) => sum + level.score, 0),
       wallMs: Math.round(performance.now() - started),
       activeMs: Math.round(useBenchmark.getState().elapsedMs),
       finalShift: {

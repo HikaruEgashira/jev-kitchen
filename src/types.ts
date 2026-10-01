@@ -200,6 +200,8 @@ export interface BenchResult {
   decisions: BenchDecision[];
   reachedLevel: number;
   clearedLevels: number;
+  /** 全プレイ済みシフト（クリア・失敗とも）のスコア合計。レベルごとに比較可能。 */
+  score: number;
   wallMs: number;
   activeMs: number;
   meanMs?: number | null;

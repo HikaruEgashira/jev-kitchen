@@ -439,6 +439,7 @@ test('frequency spaces calls and the model hires, buys stock and assigns the nex
     [{ level: 3, cash: preparationCash, score: 0 }],
   );
   assert.equal(result.requests, 5);
+  assert.equal(result.score, 0); // levels = [{level 3, score 0}] only
   assert.equal(result.conditions.frequency, 10);
   assert.ok(result.decisions.every((d) => d.confidence === 0.9 && d.candidateCount! > 1));
   for (let i = 1; i < calls.length; i++) assert.ok(calls[i] - calls[i - 1] >= 100);

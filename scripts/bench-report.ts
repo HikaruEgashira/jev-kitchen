@@ -110,7 +110,7 @@ for (const model of models) {
   scoreRows.push({
     model,
     status: scoreStatus === 0 ? campaign.status : 'error',
-    score: campaign?.finalShift?.score ?? null,
+    score: campaign?.score ?? campaign?.finalShift?.score ?? null,
     cleared: campaign?.clearedLevels ?? 0,
     reached: campaign?.reachedLevel ?? 0,
     requests: campaign?.requests ?? 0,
@@ -127,6 +127,7 @@ const lines = [
   `- 実行順: ①固定局面レイテンシ（median・p95）→ ②Lv${until}キャンペーンスコア`,
   `- 接続先: \`${values.origin}\`（frequency ${values.frequency}Hz、corpus pace ${values.pace}ms）`,
   '- 注: ローカルの rate limit（240/min/IP）を下回るよう frequency 3Hz で実施。旧5Hz計測とは条件が異なるが、3モデル間の比較は同一条件。',
+  '- score は全プレイ済みシフト（クリア・失敗とも）のスコア合計。同一レベル同士の per-shift 比較とは別物。',
   '',
   '## ① レイテンシ（corpus 往復 ms、小さいほど良い）',
   '',
