@@ -378,7 +378,8 @@ def train(args, model_dir, items_path, device):
                 scheduler.step()
                 optimizer.zero_grad(set_to_none=True)
 
-            total_loss += loss.item() * args.grad_accum
+            loss_value = loss.item() * args.grad_accum
+            total_loss += loss_value if math.isfinite(loss_value) else 0.0
             if n_batches % 50 == 0:
                 print(
                     f"epoch {epoch + 1}/{args.epochs}, step {n_batches}, "
