@@ -1027,7 +1027,7 @@ export async function runBenchmark({
           choice: selected.id,
           confidence: data.result?.answers?.next_action?.confidence ?? null,
           gold: data.result?.answers?.next_action?.probabilities ?? null,
-          model: modelId,
+          model: String(model.id),
           state: request.state as DecisionInput,
           questions: request.questions,
         });
