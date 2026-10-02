@@ -3,7 +3,7 @@
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y --no-install-recommends ca-certificates curl git libicu74 gcc libc6-dev python3-pip
+apt-get install -y --no-install-recommends ca-certificates curl git libicu74 gcc libc6-dev python3-pip python3-venv python3-dev
 mkdir -p /opt/actions-runner
 cd /opt/actions-runner
 curl --fail --location --retry 3 --output runner.tar.gz \
