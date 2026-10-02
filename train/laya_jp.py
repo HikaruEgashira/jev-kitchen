@@ -67,14 +67,19 @@ def prepare_model(model_dir):
     return str(model_dir)
 
 
-def build_training_item(tokenizer, cfg, state, question, gold_question, action_idx=None, reward=None):
+def build_training_item(tokenizer, cfg, state, question, gold_question, action_idx=None, reward=None, has_gold=True):
     if question.get("type") != "choice":
         return None
     criteria = question.get("criteria") or {}
     keys = list(criteria.keys())
-    target = [gold_question.get(k, 0.0) for k in keys] if gold_question else None
-    if target is None:
+    # Self-rollout records carry no teacher gold: CE/proper-scoring are masked
+    # (uniform soft target), only the game-reward term updates them.
+    if not has_gold:
         target = [1.0 / len(keys)] * len(keys)
+    else:
+        target = [gold_question.get(k, 0.0) for k in keys] if gold_question else None
+        if target is None:
+            target = [1.0 / len(keys)] * len(keys)
     total = sum(target)
     if total > 0:
         target = [float(x) / total for x in target]
@@ -97,7 +102,7 @@ def build_training_item(tokenizer, cfg, state, question, gold_question, action_i
         "qtype": QTYPES["choice"],
         "target": target,
         "label": label,
-        "has_gold": gold_question is not None,
+        "has_gold": has_gold,
         "action_idx": action_idx,
         "reward": reward,
     }
@@ -126,6 +131,9 @@ def prepare_items(tokenizer, cfg, record_path, items_path, force=False):
     skipped = 0
     for d in decisions:
         question = d["questions"]["next_action"]
+        # Teacher gold only from jev records; self-rollouts keep has_gold=False so
+        # their CE/proper-scoring are masked and only the game term updates them.
+        has_gold = d.get("model") == "jev"
         action_idx = None
         if d["phase"] == "playing" and d["choice"]:
             keys = list(question.get("criteria", {}).keys())
@@ -137,9 +145,10 @@ def prepare_items(tokenizer, cfg, record_path, items_path, force=False):
             cfg,
             d["state"],
             question,
-            d["gold"],
+            d["gold"] if has_gold else None,
             action_idx=action_idx,
             reward=reward,
+            has_gold=has_gold,
         )
         if item is None:
             skipped += 1

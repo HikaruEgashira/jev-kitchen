@@ -678,6 +678,8 @@ export interface DecisionRecord {
   choice: string;
   confidence: number | null;
   gold: Record<string, number> | null;
+  /** Rollout model id; only jev records carry teacher gold for the CE term. */
+  model: string;
   state: DecisionInput;
   questions: ReturnType<typeof buildQuestions>;
 }
@@ -1025,6 +1027,7 @@ export async function runBenchmark({
           choice: selected.id,
           confidence: data.result?.answers?.next_action?.confidence ?? null,
           gold: data.result?.answers?.next_action?.probabilities ?? null,
+          model: modelId,
           state: request.state as DecisionInput,
           questions: request.questions,
         });
