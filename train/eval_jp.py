@@ -23,10 +23,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-dir", required=True)
     parser.add_argument("--fixture", default="test/fixtures/bench-decisions.json")
-    parser.add_argument("--device", choices=["auto", "mps", "cpu"], default="auto")
+    parser.add_argument("--device", choices=["auto", "cuda", "mps", "cpu"], default="auto")
     args = parser.parse_args()
 
-    device = torch.device("mps" if (args.device == "auto" and torch.backends.mps.is_available()) else "cpu")
+    device = torch.device(
+        "cuda"
+        if (args.device == "auto" and torch.cuda.is_available())
+        else (
+            "mps"
+            if (args.device == "auto" and torch.backends.mps.is_available())
+            else args.device
+        )
+    )
     d = Path(args.model_dir)
     cfg = json.load(open(d / "rl_agent_config.json"))
     tokenizer = AutoTokenizer.from_pretrained(d / "tokenizer")

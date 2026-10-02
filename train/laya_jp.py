@@ -34,9 +34,13 @@ TEMP_MIN, TEMP_MAX = 0.1, 10.0
 
 def choose_device(requested):
     if requested == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
         if torch.backends.mps.is_available():
             return torch.device("mps")
         return torch.device("cpu")
+    if requested == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("cuda requested but torch.cuda.is_available() is False")
     if requested == "mps" and not torch.backends.mps.is_available():
         print("Warning: MPS is unavailable; using CPU instead.")
         return torch.device("cpu")
@@ -392,7 +396,7 @@ def main():
     parser.add_argument("--samples", type=int, default=4)
     parser.add_argument("--game-weight", type=float, default=1.0)
     parser.add_argument("--calib-max", type=int, default=200)
-    parser.add_argument("--device", choices=["auto", "mps", "cpu"], default="auto")
+    parser.add_argument("--device", choices=["auto", "cuda", "mps", "cpu"], default="auto")
     parser.add_argument("--force-preprocess", action="store_true")
     parser.add_argument("--no-checkpointing", action="store_true")
     args = parser.parse_args()
