@@ -292,6 +292,14 @@ def train(args, model_dir, items_path, device):
 
             logits, activation = model(ids, attention, positions, mask, qtype)
             logits = logits.float()
+            # A pathological item (out-of-distribution option text or long
+            # sequence truncation) can NaNs the encoder output. Skip those
+            # micro-batches instead of poisoning the whole run.
+            if not torch.isfinite(logits).all() or not torch.isfinite(target).all():
+                if n_batches < 40:
+                    print(f"dbg skip nan/inf batch {n_batches} kmax={int(mask.sum(-1).max().item())}", flush=True)
+                continue
+            logits = logits.clamp(-50, 50)
             k = mask.sum(-1, keepdim=True).float()
             logp_all = torch.log_softmax(logits.masked_fill(~mask, -1e4), -1)
             if n_batches < 2:
