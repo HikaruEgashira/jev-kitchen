@@ -277,6 +277,7 @@ def train(args, model_dir, items_path, device):
         sigma = 0.4 + (0.1 - 0.4) * epoch / max(1, args.epochs - 1)
 
         for start in range(0, len(train_items), args.micro_batch):
+            n_batches += 1
             chunk = train_items[start:start + args.micro_batch]
             ids, attention, positions, mask, target, qtype, action_idx, reward, has_gold = collate(
                 chunk, tokenizer.pad_token_id
@@ -293,7 +294,7 @@ def train(args, model_dir, items_path, device):
             logits, activation = model(ids, attention, positions, mask, qtype)
             logits = logits.float()
             # A pathological item (out-of-distribution option text or long
-            # sequence truncation) can NaNs the encoder output. Skip those
+            # sequence truncation) can NaN the encoder output. Skip those
             # micro-batches instead of poisoning the whole run.
             if not torch.isfinite(logits).all() or not torch.isfinite(target).all():
                 if n_batches < 40:
@@ -362,8 +363,15 @@ def train(args, model_dir, items_path, device):
                 )
             loss = loss / args.grad_accum
             loss.backward()
+            # Zero NaN/inf gradients so a single bad micro-batch cannot poison weights.
+            poisoned = 0
+            for param in model.parameters():
+                if param.grad is not None and not torch.isfinite(param.grad).all():
+                    param.grad = torch.zeros_like(param.grad)
+                    poisoned += 1
+            if poisoned and n_batches < 40:
+                print(f"dbg zeroed NaN grads on {poisoned} params at batch {n_batches}", flush=True)
 
-            n_batches += 1
             if n_batches % args.grad_accum == 0 or start + args.micro_batch >= len(train_items):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
