@@ -261,7 +261,8 @@ function benchEndpoints(env: Env): Record<string, BenchEndpoint> {
     )
       throw new Error('Invalid benchmark configuration');
     const url = new URL(entry.url);
-    if (url.protocol !== 'https:' || url.username || url.password || url.hash)
+    const loopback = url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost');
+    if ((url.protocol !== 'https:' && !loopback) || url.username || url.password || url.hash)
       throw new Error('Invalid benchmark endpoint');
   }
   return entries;
