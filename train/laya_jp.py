@@ -48,6 +48,17 @@ def prepare_model(model_dir):
     if not (model_dir / "model.safetensors").exists():
         print(f"Downloading {MODEL_ID} to {model_dir} ...")
         snapshot_download(MODEL_ID, local_dir=str(model_dir))
+    # A partial HF fetch can leave an empty tokenizer_config.json; repair once.
+    cfg_path = model_dir / "tokenizer" / "tokenizer_config.json"
+    for attempt in range(2):
+        try:
+            json.load(open(cfg_path))
+            break
+        except (OSError, json.JSONDecodeError):
+            print(f"tokenizer_config.json unreadable (attempt {attempt + 1}); re-downloading")
+            import shutil
+            shutil.rmtree(model_dir, ignore_errors=True)
+            snapshot_download(MODEL_ID, local_dir=str(model_dir))
     _fix_tokenizer_config(str(model_dir))
     return str(model_dir)
 
