@@ -45,6 +45,24 @@ while :; do
     --output /tmp/stage-rollout.json > /tmp/stage-rollout.log 2>&1 || true
   CLEARED=$(python3 -c "import json;print(json.load(open('/tmp/stage-rollout.json'))['clearedLevels'])" 2>/dev/null || echo 0)
   SCORE=$(python3 -c "import json;print(json.load(open('/tmp/stage-rollout.json'))['score'])" 2>/dev/null || echo 0)
+  # インフラ要因の 0 クリア（サーブ未起動など）は 1 回再試行する
+  if [ "$CLEARED" -eq 0 ] 2>/dev/null; then
+    echo "cleared=0; restarting serve and retrying the rollout once"
+    pkill -f "serve_jp.py" 2>/dev/null || true
+    sleep 120
+    (.venv-train/bin/python train/serve_jp.py --model-dir "$OUT" --port 9300 --noise "$NOISE" > /tmp/serve-jp.log 2>&1 &)
+    for r in $(seq 1 30); do curl -s --max-time 2 http://127.0.0.1:9300/v1/none >/dev/null 2>&1 && break; sleep 2; done
+    BENCH_ORIGIN=http://127.0.0.1:8787 node scripts/bench.ts --model laya_jp \
+      --accelerated --frequency 3 --until 20 --record "$ROLLOUTS" \
+      --output /tmp/stage-rollout.json > /tmp/stage-rollout.log 2>&1 || true
+    CLEARED=$(python3 -c "import json;print(json.load(open('/tmp/stage-rollout.json'))['clearedLevels'])" 2>/dev/null || echo 0)
+    SCORE=$(python3 -c "import json;print(json.load(open('/tmp/stage-rollout.json'))['score'])" 2>/dev/null || echo 0)
+    if [ "$CLEARED" -eq 0 ] 2>/dev/null; then
+      echo "rollout still 0; skipping this training round"
+      sleep 300
+      continue
+    fi
+  fi
   echo -e "$stage\t$CLEARED\t$SCORE\t$(date -u +%FT%TZ)\tnoise=$NOISE epochs=$EPOCHS" >> train/data/progress.tsv
   echo "stage $stage: cleared=$CLEARED score=$SCORE (noise=${NOISE} epochs=${EPOCHS})"
   if [ "$CLEARED" -ge "$TARGET" ]; then
@@ -96,9 +114,20 @@ while :; do
   gh run download "$RID" -R "$REPO" -n "laya-jp-model-$RID-1" -D /tmp/laya-jp-art/model >/dev/null 2>&1 || true
   if [ -d /tmp/laya-jp-art/model/checkpoint_latest ]; then
     mv /tmp/laya-jp-art/model/checkpoint_latest "$OUT"
+    echo "$RID" > train/data/last-good-artifact.txt
     echo "checkpoint updated (stage $stage)"
   else
-    echo "WARN: checkpoint artifact missing; keeping previous weights"
+    echo "WARN: checkpoint artifact missing; trying the last good artifact"
+    LAST_GOOD=$(cat train/data/last-good-artifact.txt 2>/dev/null || true)
+    if [ -n "$LAST_GOOD" ] && [ ! -d "$OUT/model.safetensors" ]; then
+      mkdir -p /tmp/laya-jp-art
+      gh run download "$LAST_GOOD" -R "$REPO" -n "laya-jp-model-$LAST_GOOD-1" -D /tmp/laya-jp-art/model >/dev/null 2>&1 || true
+      if [ -d /tmp/laya-jp-art/model/checkpoint_latest ]; then
+        mv /tmp/laya-jp-art/model/checkpoint_latest "$OUT"
+        echo "restored checkpoint from artifact $LAST_GOOD"
+      fi
+      rm -rf /tmp/laya-jp-art
+    fi
   fi
   rm -rf /tmp/laya-jp-art
 done
