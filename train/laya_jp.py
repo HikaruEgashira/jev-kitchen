@@ -365,7 +365,11 @@ def train(args, model_dir, items_path, device):
             total_loss += loss.item() * args.grad_accum
             if n_batches % 50 == 0:
                 print(
-                    f"epoch {epoch + 1}/{args.epochs}, step {n_batches}, loss={loss.item() * args.grad_accum:.4f}"
+                    f"epoch {epoch + 1}/{args.epochs}, step {n_batches}, "
+                    f"loss={loss.item() * args.grad_accum:.4f} kmax={int(k.max().item())} "
+                    f"nan=[{loss_rl.item() != loss_rl.item()}, {loss_ce.item() != loss_ce.item()}, "
+                    f"{loss_game.item() != loss_game.item()}]",
+                    flush=True,
                 )
 
         avg_loss = total_loss / max(1, n_batches)
