@@ -12,3 +12,6 @@ train/laya_multilingual_base/
 train/laya-jp-out/
 train/items.pt
 .venv-train/
+
+__pycache__/
+*.pyc
