@@ -78,14 +78,18 @@ jobs:
         env:
           PYTHONHASHSEED: '20261002'
           PYTHONUNBUFFERED: '1'
+          HF_HUB_ENABLE_HF_TRANSFER: '0'
         run: |
           source .venv-train/bin/activate
           test -f "${{ inputs.record }}" || { echo "record missing: ${{ inputs.record }}"; exit 1; }
-          python train/laya_jp.py \
+          # Loud failure instead of silent pod billing: 45m is far beyond the
+          # expected 3-epoch run; a hung job then cancels with partial logs.
+          timeout --kill-after=30s 45m python train/laya_jp.py \
             --record "${{ inputs.record }}" \
             --epochs "${{ inputs.epochs }}" \
             --game-weight "${{ inputs.game_weight }}" \
             --output-dir train/laya-jp-out
+          echo "training returned $?"
 
       - name: Evaluate the checkpoint on the corpus
         run: |
