@@ -7,3 +7,8 @@ dist/
 .env
 .env.*
 docs/sidekick-playing.mov
+
+train/laya_multilingual_base/
+train/laya-jp-out/
+train/items.pt
+.venv-train/
