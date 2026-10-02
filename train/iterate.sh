@@ -58,11 +58,13 @@ while :; do
   [ -n "$RID" ] || { echo "dispatch failed"; exit 1; }
   while :; do
     sleep 60
-    ST=$(gh run view "$RID" -R "$REPO" --json status,conclusion --jq '.status+"/"+(.conclusion//"")' 2>/dev/null || true)
-    case "$ST" in completed/*) break;; in_progress*|queued*) :;; *) echo "run state: $ST";; esac
+    ST=$(gh run view "$RID" -R "$REPO" --json status --jq '.status // ""' 2>/dev/null || true)
+    CN=$(gh run view "$RID" -R "$REPO" --json conclusion --jq '.conclusion // ""' 2>/dev/null || true)
+    if [ "$ST" = completed ]; then break; fi
+    if [ "$ST" != in_progress ] && [ "$ST" != queued ]; then echo "(run $ST; waiting)"; fi
   done
-  echo "$ST"
-  case "$ST" in completed/success);; *) echo "training failed; retry next cycle"; sleep 60;; esac
+  echo "training run: $ST/$CN"
+  case "$ST/$CN" in completed/success);; *) echo "training failed ($ST/$CN); retry next cycle"; sleep 60;; esac
 
   # チェックポイント取得（直前を掃除して領域確保）
   rm -rf "$OUT" /tmp/laya-jp-art
