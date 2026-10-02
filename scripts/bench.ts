@@ -24,10 +24,11 @@ const modelNames: Record<string, string> = {
   clef: 'Clef',
   'clef-flash': 'Clef Flash',
   laya: 'Laya',
+  laya_jp: 'Laya JP',
 };
 const modelId = values.model;
 if (!Object.hasOwn(modelNames, modelId))
-  throw new Error('model must be jev, clef, clef-flash or laya');
+  throw new Error('model must be jev, clef, clef-flash, laya or laya_jp');
 const revision = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const dirty = Boolean(execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim());
 const origin = new URL(process.env.BENCH_ORIGIN ?? 'http://127.0.0.1:8787');

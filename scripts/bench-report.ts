@@ -13,6 +13,7 @@ const MODEL_NAMES: Record<string, string> = {
   clef: 'Clef (@cf/cloudflare/clef)',
   'clef-flash': 'Clef Flash (@cf/cloudflare/clef-flash)',
   laya: 'Laya (jev.plenoai.com)',
+  laya_jp: 'Laya JP (trained)',
 };
 
 const { values } = parseArgs({

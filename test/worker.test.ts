@@ -192,9 +192,9 @@ test('benchmark default Jev and configuration guards preserve the request bounda
   // Dev-only loopback http endpoints are allowed; a non-loopback http URL is not.
   const loopback = await worker.fetch(
     post('/api/bench/decide', { modelId: 'jp', state: {}, questions: validQuestions }),
-    { ...env(), BENCH_ENDPOINTS: JSON.stringify({ jp: { url: 'http://127.0.0.1:9300/v1/systemone' } }) },
+    { ...env(), BENCH_ENDPOINTS: JSON.stringify({ jp: { url: 'http://127.0.0.1:1/v1/systemone' } }) },
   );
-  assert.equal(loopback.status, 502); // config accepted, upstream unreachable here
+  assert.equal(loopback.status, 502); // config accepted, unreachable loopback upstream
   const remoteHttp = await worker.fetch(new Request('https://kitchen.test/api/bench/models'), {
     ...env(),
     BENCH_ENDPOINTS: JSON.stringify({ bad: { url: 'http://model.example/x' } }),
