@@ -55,6 +55,10 @@ async def serve(request: Request):
         with torch.no_grad():
             logits, _ = MODEL["model"](ids, attn, pos, mask, qtype)
         logits = logits.float()[0, : len(markers)] / MODEL["temperature"]
+        if MODEL["noise"] > 0:
+            # Rollout-time exploration (RLCD): sample around the policy so the
+            # bench records varied actions whose outcomes train the game term.
+            logits = logits + torch.randn_like(logits) * MODEL["noise"]
         probs = torch.softmax(logits, -1)
         probs = (probs / probs.sum()).tolist()
         idx = probs.index(max(probs))
@@ -73,6 +77,7 @@ def main():
     parser.add_argument("--port", type=int, default=9300)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--device", choices=["auto", "cuda", "mps", "cpu"], default="auto")
+    parser.add_argument("--noise", type=float, default=0.0, help="rollout exploration sigma")
     args = parser.parse_args()
 
     device = (
@@ -95,6 +100,7 @@ def main():
         "cfg": cfg,
         "device": torch.device(device),
         "temperature": temperature,
+        "noise": args.noise,
     }
     print(f"laya-jp serving on http://{args.host}:{args.port} (device={device})", flush=True)
     import uvicorn

@@ -18,6 +18,10 @@ EPOCHS="${2:-3}"
 mkdir -p "$(dirname "$DATA")"
 
 stage=0
+NOISE=0
+BEST=0
+FLAT=0
+EPOCHS="${2:-3}"
 # ローカル Worker 確認（ロールアウトは /api/bench/decide 経由）
 if ! curl -s --max-time 2 http://127.0.0.1:8787/api/health >/dev/null 2>&1; then
   pnpm dev:api > /tmp/dev-api.log 2>&1 &
@@ -26,13 +30,14 @@ fi
 
 while :; do
   stage=$((stage + 1))
-  echo "=== stage $stage: rollout + score（現行モデル） $(date +%H:%M:%S) ==="
+  echo "=== stage $stage: rollout + score（現行モデル, noise=$NOISE, epochs=$EPOCHS） $(date +%H:%M:%S) ==="
 
-  # ローカル推論サーブ（既存のポート9300があればそれを利用）
-  if ! curl -s --max-time 2 http://127.0.0.1:9300/ping >/dev/null 2>&1; then
-    .venv-train/bin/python train/serve_jp.py --model-dir "$OUT" --port 9300 > /tmp/serve-jp.log 2>&1 &
-    sleep 10
-  fi
+  # ローカル推論サーブ（noise 設定を反映するため毎ステージ再起動）
+  pkill -f "serve_jp.py" 2>/dev/null || true
+  sleep 1
+  .venv-train/bin/python train/serve_jp.py --model-dir "$OUT" --port 9300 --noise "$NOISE" > /tmp/serve-jp.log 2>&1 &
+  for i in $(seq 1 30); do curl -s --max-time 2 http://127.0.0.1:9300/v1/none >/dev/null 2>&1 && curl -s --max-time 2 http://127.0.0.1:9300/v1/none >/dev/null 2>&1 && break; sleep 2; done
+  sleep 3
 
   # ロールアウト（score 測定とデータ収集を兼ねる）
   BENCH_ORIGIN=http://127.0.0.1:8787 node scripts/bench.ts --model laya_jp \
@@ -40,22 +45,41 @@ while :; do
     --output /tmp/stage-rollout.json > /tmp/stage-rollout.log 2>&1 || true
   CLEARED=$(python3 -c "import json;print(json.load(open('/tmp/stage-rollout.json'))['clearedLevels'])" 2>/dev/null || echo 0)
   SCORE=$(python3 -c "import json;print(json.load(open('/tmp/stage-rollout.json'))['score'])" 2>/dev/null || echo 0)
-  echo -e "$stage\t$CLEARED\t$SCORE\t$(date -u +%FT%TZ)" >> train/data/progress.tsv
-  echo "stage $stage: cleared=$CLEARED score=$SCORE"
+  echo -e "$stage\t$CLEARED\t$SCORE\t$(date -u +%FT%TZ)\tnoise=$NOISE epochs=$EPOCHS" >> train/data/progress.tsv
+  echo "stage $stage: cleared=$CLEARED score=$SCORE (noise=$NOISE epochs=$EPOCHS)"
   if [ "$CLEARED" -ge "$TARGET" ]; then
     echo "TARGET REACHED: cleared=$CLEARED >= $TARGET"; exit 0
   fi
 
+  # 停滞検知: 3ステージ改善なし → 探査ノイズ投入・epochs 増強・教師データ再取得
+  if [ "$CLEARED" -gt "$BEST" ]; then
+    BEST="$CLEARED"; FLAT=0
+    [ "$NOISE" != 0 ] && { NOISE=0; echo "reset exploration (improved to $BEST)"; }
+  else
+    FLAT=$((FLAT + 1))
+    if [ "$FLAT" -ge 3 ]; then
+      EPOCHS=$((EPOCHS + 2))
+      if [ "$NOISE" = 0 ]; then NOISE=0.3; else NOISE=$(echo "$NOISE * 1.4" | bc -l 2>/dev/null || echo 0.4); fi
+      echo "ESCALATE: flat=$FLAT -> noise=$NOISE epochs=$EPOCHS"
+      # 深レベルの教師ゴールドを補充（jev を再ロールアウト）
+      BENCH_ORIGIN=http://127.0.0.1:8787 node scripts/bench.ts --model jev \
+        --accelerated --frequency 3 --until 20 --record "$DATA" \
+        --output /tmp/jev-refresh.json > /tmp/jev-refresh.log 2>&1 || true
+      FLAT=0
+    fi
+  fi
+
   # データ結合・コミット・訓練ディスパッチ
   cat "$DATA" "$ROLLOUTS" > "$ALL"
-  git add "$ROLLOUTS" "$ALL" train/data/progress.tsv
-  git commit -q -m "train: stage $stage rollouts (cleared=$CLEARED)" --allow-empty
+  git add "$ROLLOUTS" "$ALL" "$DATA" train/data/progress.tsv
+  git commit -q -m "train: stage $stage rollouts (cleared=$CLEARED, noise=$NOISE)" --allow-empty
   git push -q origin main 2>&1 | grep -c Bypassed >/dev/null || true
 
   echo "=== stage $stage: RunPod training $(date +%H:%M:%S) ==="
   RID=$(gh workflow run train-laya-jp.yml -R "$REPO" -f record="$ALL" -f epochs="$EPOCHS" -f game_weight=1.0 -f max_price=0.5 2>/dev/null \
-    && sleep 12 && gh run list -R "$REPO" --workflow train-laya-jp.yml -L 1 --json databaseId --jq '.[0].databaseId')
+    | rg -o '[0-9]{6,}' | tail -1)
   [ -n "$RID" ] || { echo "dispatch failed"; exit 1; }
+  echo "training run: $RID"
   while :; do
     sleep 60
     ST=$(gh run view "$RID" -R "$REPO" --json status --jq '.status // ""' 2>/dev/null || true)
