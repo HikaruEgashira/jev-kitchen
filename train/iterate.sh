@@ -30,7 +30,7 @@ fi
 
 while :; do
   stage=$((stage + 1))
-  echo "=== stage $stage: rollout + score（現行モデル, noise=$NOISE, epochs=$EPOCHS） $(date +%H:%M:%S) ==="
+  echo "=== stage $stage: rollout + score（現行モデル, noise=${NOISE}, epochs=${EPOCHS}） $(date +%H:%M:%S) ==="
 
   # ローカル推論サーブ（noise 設定を反映するため毎ステージ再起動）
   pkill -f "serve_jp.py" 2>/dev/null || true
@@ -46,7 +46,7 @@ while :; do
   CLEARED=$(python3 -c "import json;print(json.load(open('/tmp/stage-rollout.json'))['clearedLevels'])" 2>/dev/null || echo 0)
   SCORE=$(python3 -c "import json;print(json.load(open('/tmp/stage-rollout.json'))['score'])" 2>/dev/null || echo 0)
   echo -e "$stage\t$CLEARED\t$SCORE\t$(date -u +%FT%TZ)\tnoise=$NOISE epochs=$EPOCHS" >> train/data/progress.tsv
-  echo "stage $stage: cleared=$CLEARED score=$SCORE (noise=$NOISE epochs=$EPOCHS)"
+  echo "stage $stage: cleared=$CLEARED score=$SCORE (noise=${NOISE} epochs=${EPOCHS})"
   if [ "$CLEARED" -ge "$TARGET" ]; then
     echo "TARGET REACHED: cleared=$CLEARED >= $TARGET"; exit 0
   fi
@@ -60,7 +60,7 @@ while :; do
     if [ "$FLAT" -ge 3 ]; then
       EPOCHS=$((EPOCHS + 2))
       if [ "$NOISE" = 0 ]; then NOISE=0.3; else NOISE=$(echo "$NOISE * 1.4" | bc -l 2>/dev/null || echo 0.4); fi
-      echo "ESCALATE: flat=$FLAT -> noise=$NOISE epochs=$EPOCHS"
+      echo "ESCALATE: flat=$FLAT -> noise=${NOISE} epochs=${EPOCHS}"
       # 深レベルの教師ゴールドを補充（jev を再ロールアウト）
       BENCH_ORIGIN=http://127.0.0.1:8787 node scripts/bench.ts --model jev \
         --accelerated --frequency 3 --until 20 --record "$DATA" \
