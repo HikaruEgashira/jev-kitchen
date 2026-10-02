@@ -82,9 +82,9 @@ jobs:
         run: |
           source .venv-train/bin/activate
           test -f "${{ inputs.record }}" || { echo "record missing: ${{ inputs.record }}"; exit 1; }
-          # Loud failure instead of silent pod billing: 45m is far beyond the
-          # expected 3-epoch run; a hung job then cancels with partial logs.
-          timeout --kill-after=30s 45m python train/laya_jp.py \
+          # Loud failure instead of fishy billing: 95m cap; the pod runner dies
+          # at 110m so a run past that cannot complete anyway.
+          timeout --kill-after=30s 95m python train/laya_jp.py \
             --record "${{ inputs.record }}" \
             --epochs "${{ inputs.epochs }}" \
             --game-weight "${{ inputs.game_weight }}" \

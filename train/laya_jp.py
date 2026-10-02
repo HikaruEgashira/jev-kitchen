@@ -280,6 +280,9 @@ def train(args, model_dir, items_path, device):
 
     for epoch in range(args.epochs):
         random.Random(42 + epoch).shuffle(train_items)
+        if len(train_items) > args.max_items:
+            train_items = random.Random(7 + epoch).sample(train_items, args.max_items)
+            print(f"epoch {epoch + 1}: subsampled to {len(train_items)} items")
         optimizer.zero_grad(set_to_none=True)
         total_loss = 0.0
         n_batches = 0
@@ -436,9 +439,10 @@ def main():
     parser.add_argument("--output-dir", default="./train/laya-jp-out")
     parser.add_argument("--items", default="./train/items.pt")
     parser.add_argument("--record", required=True)
-    parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--micro-batch", type=int, default=2)
-    parser.add_argument("--grad-accum", type=int, default=16)
+    parser.add_argument("--epochs", type=int, default=4)
+    parser.add_argument("--micro-batch", type=int, default=4)
+    parser.add_argument("--grad-accum", type=int, default=8)
+    parser.add_argument("--max-items", type=int, default=3000, help="per-epoch item cap (bounds wall time as data grows)")
     parser.add_argument("--samples", type=int, default=4)
     parser.add_argument("--game-weight", type=float, default=1.0)
     parser.add_argument("--calib-max", type=int, default=200)

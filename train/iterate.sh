@@ -77,6 +77,7 @@ while :; do
     FLAT=$((FLAT + 1))
     if [ "$FLAT" -ge 3 ]; then
       EPOCHS=$((EPOCHS + 2))
+      [ "$EPOCHS" -gt 4 ] && EPOCHS=4
       if [ "$NOISE" = 0 ]; then NOISE=0.3; else NOISE=$(echo "$NOISE * 1.4" | bc -l 2>/dev/null || echo 0.4); fi
       echo "ESCALATE: flat=$FLAT -> noise=${NOISE} epochs=${EPOCHS}"
       # 深レベルの教師ゴールドを補充（jev を再ロールアウト）
