@@ -187,8 +187,11 @@ def fit_temperature(samples):
     if len(samples) < 10:
         return 1.0
     logits, targets = zip(*samples)
-    logits = torch.stack(list(logits))
-    targets = torch.stack(list(targets))
+    # Option counts vary per decision; pad to the group max before stacking.
+    longest = max(l.shape[0] for l in logits)
+    pad_right = lambda t, value: torch.nn.functional.pad(t, (0, longest - t.shape[0]), value=value)
+    logits = torch.stack([pad_right(l, -1e4) for l in logits])
+    targets = torch.stack([pad_right(t, 0.0) for t in targets])
     log_temperature = torch.zeros(1, requires_grad=True)
     optimizer = torch.optim.LBFGS([log_temperature], lr=0.1, max_iter=100)
     best_loss = float("inf")
@@ -291,6 +294,15 @@ def train(args, model_dir, items_path, device):
             logits = logits.float()
             k = mask.sum(-1, keepdim=True).float()
             logp_all = torch.log_softmax(logits.masked_fill(~mask, -1e4), -1)
+            if n_batches < 2:
+                with torch.no_grad():
+                    print(
+                        "dbg",
+                        "logits", torch.isfinite(logits).count_nonzero(), logits.shape.numel(),
+                        "target", torch.isfinite(target).count_nonzero(), target.shape.numel(),
+                        "act", activation.detach().sum().item() if activation is not None else None,
+                        flush=True,
+                    )
 
             # 1) RLCD gold term (per-item softmax over sampled noisy projections)
             has_gold_b = has_gold.unsqueeze(0)
@@ -334,9 +346,13 @@ def train(args, model_dir, items_path, device):
             else:
                 loss_game = torch.zeros((), device=device)
 
-            loss = (
-                loss_rl + loss_ce + args.game_weight * loss_game + 0.0 * activation.sum()
-            ) / args.grad_accum
+            loss = loss_rl + loss_ce + args.game_weight * loss_game
+            if n_batches < 2:
+                print(
+                    "dbg loss", loss_rl.item(), loss_ce.item(), loss_game.item(),
+                    "sigma", sigma, flush=True,
+                )
+            loss = loss / args.grad_accum
             loss.backward()
 
             n_batches += 1
