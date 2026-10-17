@@ -3,19 +3,19 @@ on:
   workflow_dispatch:
     inputs:
       record:
-        description: "Committed --record JSONL (decision + shift lines)"
+        description: 'Committed --record JSONL (decision + shift lines)'
         required: false
-        default: "train/data/teacher.jsonl"
+        default: 'train/data/teacher.jsonl'
       epochs:
-        description: "RLCD epochs"
+        description: 'RLCD epochs'
         type: number
         default: 3
       game_weight:
-        description: "Weight of the bench-outcome REINFORCE term"
+        description: 'Weight of the bench-outcome REINFORCE term'
         type: number
         default: 1.0
       max_price:
-        description: "Max GPU $/hour for the one-job runner"
+        description: 'Max GPU $/hour for the one-job runner'
         type: number
         default: 0.5
 
