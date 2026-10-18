@@ -31,7 +31,7 @@ jobs:
     runs-on: [self-hosted, linux, arm64, hikae-flash]
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
       - uses: actions/create-github-app-token@v1
@@ -57,7 +57,7 @@ jobs:
       - gha-HikaruEgashira-jev-kitchen-${{ github.run_id }}-${{ github.run_attempt }}
     timeout-minutes: 100
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
