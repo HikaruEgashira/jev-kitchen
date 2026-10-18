@@ -13,11 +13,11 @@ jobs:
     runs-on: [self-hosted, linux, arm64, hikae-flash]
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
           persist-credentials: false
-      - uses: actions/create-github-app-token@v1
+      - uses: actions/create-github-app-token@v2
         id: app
         with:
           app-id: ${{ vars.RUNNER_APP_ID }}
