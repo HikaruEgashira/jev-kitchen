@@ -8,7 +8,7 @@ import test from 'node:test';
 // major keeps emitting the deprecation warning in CI.
 const NODE24_MINIMUM_MAJOR: Record<string, number> = {
   'actions/checkout': 5,
-  'actions/create-github-app-token': 2,
+  'actions/create-github-app-token': 3,
   'actions/setup-node': 5,
   'actions/upload-artifact': 5,
   'pnpm/action-setup': 5,

@@ -17,7 +17,7 @@ jobs:
         with:
           ref: main
           persist-credentials: false
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@v3
         id: app
         with:
           app-id: ${{ vars.RUNNER_APP_ID }}
