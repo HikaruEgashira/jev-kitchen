@@ -37,7 +37,7 @@ jobs:
       - uses: actions/create-github-app-token@v3
         id: app
         with:
-          app-id: ${{ vars.RUNNER_APP_ID }}
+          client-id: ${{ vars.RUNNER_APP_ID }}
           private-key: ${{ secrets.RUNNER_APP_PRIVATE_KEY }}
           permission-administration: write
       - name: Create a one-job GPU runner on RunPod
