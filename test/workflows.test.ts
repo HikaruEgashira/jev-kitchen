@@ -30,3 +30,13 @@ test('workflow actions target the Node.js 24 runtime', () => {
     }
   }
 });
+
+test('workflow app tokens use client-id instead of the deprecated app-id', () => {
+  const directory = '.github/workflows';
+  for (const file of readdirSync(directory).filter((name) => name.endsWith('.yml'))) {
+    const source = readFileSync(`${directory}/${file}`, 'utf8');
+    if (!source.includes('actions/create-github-app-token')) continue;
+    assert.doesNotMatch(source, /^\s*app-id:/m, `${file}: app-id is deprecated; use client-id`);
+    assert.match(source, /^\s*client-id:/m, `${file}: create-github-app-token is missing client-id`);
+  }
+});
